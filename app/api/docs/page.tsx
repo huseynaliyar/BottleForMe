@@ -17,7 +17,7 @@ export default function ApiDocsPage() {
               BottleForMe OpenAPI Specification
               <span className="text-xs bg-blue-600 px-2 py-0.5 rounded-full font-mono text-white">v1.0.0</span>
             </h1>
-            <p className="text-xs text-slate-400">Malta BCRS P2P Bottle Collection & Direct Payout API</p>
+            <p className="text-xs text-slate-400">Malta Plastic, Can & Glass Collection & Direct Payout API</p>
           </div>
         </div>
         <a

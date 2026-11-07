@@ -6,36 +6,6 @@ import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
 // In-memory fallback store when Supabase keys are not set
 let inMemoryStore: PickupOffer[] = [...INITIAL_OFFERS];
 
-/**
- * @swagger
- * /api/pickups:
- *   get:
- *     summary: List active bottle pickup offers across Malta
- *     description: Retrieve all offers available on the Malta collector radar, with optional locality and status filtering. Powered by Supabase when configured.
- *     tags:
- *       - Pickups & Radar
- *     parameters:
- *       - in: query
- *         name: locality
- *         schema:
- *           type: string
- *         description: Filter by Malta town (e.g. Sliema, Birkirkara, Gzira)
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           default: open
- *         description: Offer status filter
- *     responses:
- *       200:
- *         description: Successfully returned list of pickup offers
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/PickupOffer'
- */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const locality = searchParams.get('locality');
@@ -89,52 +59,36 @@ export async function GET(request: Request) {
   });
 }
 
-/**
- * @swagger
- * /api/pickups:
- *   post:
- *     summary: Resident creates a new bottle pickup offer
- *     description: Resident lists their empty bags on the Malta radar with their preferred deposit split ratio (0% free to 70%).
- *     tags:
- *       - Pickups & Radar
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             $ref: '#/components/schemas/CreateOfferRequest'
- *     responses:
- *       201:
- *         description: Offer successfully posted to Malta radar
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/PickupOffer'
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const bagCount = Number(body.bag_count) || 1;
     const splitPercentage = body.split_percentage !== undefined ? Number(body.split_percentage) : 50;
 
-    const { estimatedBottles, totalBcrsValue, sellerPayout, collectorProfit } =
-      calculateBcrsSplit(bagCount, splitPercentage);
+    const calculated = calculateBcrsSplit(bagCount, splitPercentage);
+    const estimatedBottles = body.estimated_bottles || calculated.estimatedBottles;
+    const totalDepositValue = body.total_bcrs_value || calculated.totalBcrsValue;
+    const sellerPayout = body.seller_payout !== undefined ? body.seller_payout : calculated.sellerPayout;
+    const collectorProfit = body.collector_profit !== undefined ? body.collector_profit : calculated.collectorProfit;
 
     const newOffer: PickupOffer = {
       id: `malta-offer-${Date.now()}`,
       seller_name: body.seller_name || 'Resident',
       seller_phone: body.seller_phone || '',
       seller_revolut_tag: body.seller_revolut_tag || '',
-      locality: body.locality || 'Birkirkara',
+      locality: body.locality || 'Sliema',
       address_notes: body.address_notes || '',
       bag_count: bagCount,
+      containers: body.containers,
       estimated_bottles: estimatedBottles,
-      total_bcrs_value: totalBcrsValue,
+      total_bcrs_value: totalDepositValue,
       split_percentage: splitPercentage,
       seller_payout: sellerPayout,
       collector_profit: collectorProfit,
       payout_method: body.payout_method || 'revolut',
       status: 'open',
+      lat: body.lat,
+      lng: body.lng,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -165,7 +119,7 @@ export async function POST(request: Request) {
           .single();
 
         if (!error && data) {
-          return NextResponse.json(data, { status: 201 });
+          return NextResponse.json({ ...data, containers: newOffer.containers, lat: newOffer.lat, lng: newOffer.lng }, { status: 201 });
         }
       } catch (err) {
         console.warn('Supabase insert failed, using memory store fallback', err);

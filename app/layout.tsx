@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import 'leaflet/dist/leaflet.css';
 
 export const metadata: Metadata = {
-  title: 'BottleForMe - Malta BCRS Bottle Collection',
-  description: 'P2P bottle deposit pickup and fair 50/50 exchange in Malta. Skip the queue at BCRS RVMs.',
+  title: 'BottleForMe - Plastic Bottle, Can & Glass Collection',
+  description: 'Peer-to-peer doorstep collection and fair deposit sharing for plastic bottles, cans, and glass bottles in Malta.',
   manifest: '/manifest.json',
   icons: {
     icon: '/logo.jpg',

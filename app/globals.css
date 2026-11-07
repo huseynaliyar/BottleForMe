@@ -60,3 +60,18 @@ input[type=range]::-webkit-slider-thumb:hover {
   background: #1e293b;
   border-radius: 999px;
 }
+
+/* Dark Leaflet Popup Styling */
+.dark-leaflet-popup .leaflet-popup-content-wrapper {
+  background: #0d1527 !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(0, 102, 255, 0.35) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 102, 255, 0.25) !important;
+  padding: 4px !important;
+}
+
+.dark-leaflet-popup .leaflet-popup-tip {
+  background: #0d1527 !important;
+  border: 1px solid rgba(0, 102, 255, 0.35) !important;
+}

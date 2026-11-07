@@ -2,10 +2,10 @@ export const getApiDocs = () => {
   return {
     openapi: '3.0.0',
     info: {
-      title: 'BottleForMe API - Malta BCRS P2P Marketplace',
+      title: 'BottleForMe API - Malta Bottle & Can Collection',
       version: '1.0.0',
       description:
-        'OpenAPI documentation for BottleForMe: connects Malta residents with empty BCRS deposit bottles/cans to local collectors with fair 50/50 split or free pickup and direct P2P Revolut/Cash payouts.',
+        'OpenAPI documentation for BottleForMe: connects Malta residents with empty plastic bottles, cans, and glass bottles to local collectors with fair deposit sharing or free pickup and direct P2P Revolut/Cash payouts.',
       contact: {
         name: 'BottleForMe Malta',
         url: 'https://bottleforme.mt',
