@@ -113,13 +113,6 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center gap-1.5">
-              <a
-                href="/api/docs"
-                title="View Swagger API Documentation"
-                className="w-9 h-9 rounded-full bg-blue-950/40 border border-blue-500/20 flex items-center justify-center text-blue-200 hover:text-white hover:bg-blue-900/40 transition"
-              >
-                <Code2 className="w-4 h-4" />
-              </a>
               <button
                 aria-label="Notifications"
                 className="w-9 h-9 rounded-full bg-blue-950/40 border border-blue-500/20 flex items-center justify-center text-blue-200 hover:text-white hover:bg-blue-900/40 transition"
@@ -545,13 +538,13 @@ export default function HomePage() {
             <MessageSquare className={`w-4 h-4 ${activeTab === 'chat' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">Handover</span>
           </button>
-          <a
-            href="/api/docs"
+          <button
+            onClick={() => setToastMessage('Profile settings & Revolut tag')}
             className="flex flex-col items-center gap-1 hover:text-white transition"
           >
-            <Code2 className="w-4 h-4 text-blue-400" />
-            <span className="text-[10px]">Swagger</span>
-          </a>
+            <User className="w-4 h-4" />
+            <span className="text-[10px]">Profile</span>
+          </button>
         </footer>
 
       </div>
