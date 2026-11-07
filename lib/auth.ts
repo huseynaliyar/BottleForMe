@@ -71,10 +71,16 @@ export async function registerWithSupabase(data: {
   const revolut = data.revolut_tag.startsWith('@') ? data.revolut_tag : `@${data.revolut_tag}`;
 
   if (isSupabaseConfigured() && supabase && data.password) {
+    const redirectUrl =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}`
+        : 'https://bottleforme.vercel.app';
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
+        emailRedirectTo: redirectUrl,
         data: {
           full_name: data.full_name,
           role: data.role,

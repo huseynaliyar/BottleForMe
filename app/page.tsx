@@ -122,6 +122,12 @@ export default function HomePage() {
     }
 
     // Supabase Auth State Listener
+    if (typeof window !== 'undefined') {
+      if (window.location.hash.includes('access_token') || window.location.search.includes('verified=true')) {
+        setToastMessage('🎉 Email confirmed! You are now logged in.');
+      }
+    }
+
     if (isSupabaseConfigured() && supabase) {
       const {
         data: { subscription },
