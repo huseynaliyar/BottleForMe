@@ -1,0 +1,32 @@
+{
+  "name": "bottleforme",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BottleForMe - P2P Bottle Deposit & Collection App in Malta",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.460.0",
+    "next": "14.2.18",
+    "next-swagger-doc": "^0.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "swagger-ui-react": "^5.18.2",
+    "tailwind-merge": "^2.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.6",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/swagger-ui-react": "^4.18.3",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "typescript": "^5.6.3"
+  }
+}
