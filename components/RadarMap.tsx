@@ -27,10 +27,11 @@ export default function RadarMap({ offers, selectedOffer, onSelectOffer }: Radar
         attributionControl: false,
       });
 
-      // Dark style tile layer from CartoDB for sleek Midnight Navy integration
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // Standard OpenStreetMap tiles (100% Free, NO API Key needed, no watermarks)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        subdomains: 'abcd',
+        subdomains: ['a', 'b', 'c'],
+        className: 'dark-map-tiles',
       }).addTo(map);
 
       // Add zoom control in top-right
@@ -54,7 +55,7 @@ export default function RadarMap({ offers, selectedOffer, onSelectOffer }: Radar
       // Custom HTML Marker matching Midnight Navy & Electric Blue design
       const isFree = offer.split_percentage === 0;
       const markerColor = isFree ? '#00e599' : '#0066ff';
-      const markerBg = isFree ? 'rgba(0, 229, 153, 0.2)' : 'rgba(0, 102, 255, 0.25)';
+      const markerBg = isFree ? 'rgba(0, 229, 153, 0.25)' : 'rgba(0, 102, 255, 0.3)';
       const markerBorder = isSelected ? '#ffffff' : markerColor;
 
       const customIcon = L.divIcon({
@@ -68,9 +69,9 @@ export default function RadarMap({ offers, selectedOffer, onSelectOffer }: Radar
             width: 38px;
             height: 38px;
             border-radius: 50%;
-            background: ${markerBg};
+            background: #080d1a;
             border: 2px solid ${markerBorder};
-            box-shadow: 0 0 16px ${markerColor}66;
+            box-shadow: 0 0 16px ${markerColor}88, inset 0 0 8px ${markerBg};
             cursor: pointer;
             transition: transform 0.2s;
           ">

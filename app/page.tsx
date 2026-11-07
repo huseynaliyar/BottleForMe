@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Award,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   MALTA_LOCALITIES,
@@ -32,7 +33,8 @@ import {
   UserRole,
 } from '@/lib/types';
 import { INITIAL_OFFERS } from '@/lib/mock-data';
-import { getStoredUser, saveStoredUser, DEMO_GIVER, DEMO_TAKER } from '@/lib/auth';
+import { getStoredUser, saveStoredUser, DEMO_GIVER, DEMO_TAKER, signOutFromSupabase } from '@/lib/auth';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
 import NotificationModal from '@/components/NotificationModal';
 
@@ -85,7 +87,7 @@ export default function HomePage() {
   // Radar View: List vs Map
   const [radarView, setRadarView] = useState<'list' | 'map'>('list');
 
-  // Giver Form State: Plastic, Can, Glass Counters
+  // Giver Form State: Plastic, Can, Glass Counters (Supports exact typing and 1-by-1 increments)
   const [plasticCount, setPlasticCount] = useState<number>(35);
   const [canCount, setCanCount] = useState<number>(25);
   const [glassCount, setGlassCount] = useState<number>(15);
@@ -103,7 +105,7 @@ export default function HomePage() {
   const [isPinningLocation, setIsPinningLocation] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Initialize User from Storage on Mount
+  // Initialize User from Storage and listen to Supabase Auth state
   useEffect(() => {
     const user = getStoredUser();
     if (user) {
@@ -118,9 +120,50 @@ export default function HomePage() {
         setLocality(user.locality);
       }
     }
+
+    // Supabase Auth State Listener
+    if (isSupabaseConfigured() && supabase) {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (supabase && session?.user) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            const meta = session.user.user_metadata || {};
+            const restoredUser: UserProfile = {
+              id: session.user.id,
+              email: session.user.email || '',
+              full_name: profile?.full_name || meta.full_name || 'User',
+              phone: profile?.phone || meta.phone || '+356 9912 3456',
+              revolut_tag: profile?.revolut_tag || meta.revolut_tag || '@user',
+              role: (profile?.role as UserRole) || (meta.role as UserRole) || 'giver',
+              avatar_url: profile?.avatar_url || meta.avatar_url || '/logo.jpg',
+              locality: profile?.locality || meta.locality || 'Sliema',
+              rating: profile?.rating ? Number(profile.rating) : 5.0,
+              total_bottles_recycled: profile?.total_bottles_recycled || 0,
+              total_earnings: profile?.total_earnings || 0,
+            };
+
+            setCurrentUser(restoredUser);
+            saveStoredUser(restoredUser);
+          } catch (e) {
+            console.warn('Could not restore profile row:', e);
+          }
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
   }, []);
 
-  // Sync bags with container estimates
+  // Sync calculations with container counts
   const totalContainers = plasticCount + canCount + glassCount;
   const { totalDepositValue, sellerPayout, collectorProfit } = calculateDepositSplit(
     plasticCount,
@@ -168,7 +211,6 @@ export default function HomePage() {
       },
       (err) => {
         console.warn('Geolocation error:', err);
-        // Default to Sliema if denied/mock
         setLocality('Sliema');
         setToastMessage('📍 Location pinned to Sliema (default).');
         setIsPinningLocation(false);
@@ -283,6 +325,13 @@ export default function HomePage() {
     saveStoredUser(updated);
     setActiveTab(newRole === 'giver' ? 'resident' : 'driver');
     setToastMessage(`Switched mode to ${newRole === 'giver' ? '🎁 Giver' : '🚛 Taker'}`);
+  };
+
+  const handleSignOut = async () => {
+    await signOutFromSupabase();
+    setCurrentUser(null);
+    setIsAuthOpen(true);
+    setToastMessage('Signed out from Supabase.');
   };
 
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
@@ -423,11 +472,16 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) */}
+                {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) with 1-by-1 increments & direct input */}
                 <div className="mt-3.5 pt-3 border-t border-white/[0.08] space-y-2.5">
-                  <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider block">
-                    Containers to Hand Over:
-                  </span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider">
+                      Containers to Hand Over:
+                    </span>
+                    <span className="text-[10px] text-blue-300 font-semibold">
+                      Type exact count or tap − / +
+                    </span>
+                  </div>
 
                   <div className="grid grid-cols-3 gap-2">
                     {/* Plastic Bottles */}
@@ -435,22 +489,32 @@ export default function HomePage() {
                       <div>
                         <span className="text-base">🧴</span>
                         <div className="text-[10px] font-bold text-white mt-0.5">Plastic</div>
-                        <div className="text-xs font-extrabold text-blue-300">{plasticCount}</div>
+                        <div className="flex items-center justify-center my-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={plasticCount}
+                            onChange={(e) =>
+                              setPlasticCount(Math.max(0, parseInt(e.target.value) || 0))
+                            }
+                            className="w-12 bg-transparent text-center text-sm font-extrabold text-blue-300 focus:outline-none border-b border-blue-500/40 p-0"
+                          />
+                        </div>
                       </div>
-                      <div className="flex justify-center gap-1.5 mt-2">
+                      <div className="flex justify-center gap-1.5 mt-1">
                         <button
                           type="button"
-                          onClick={() => setPlasticCount((c) => Math.max(0, c - 5))}
+                          onClick={() => setPlasticCount((c) => Math.max(0, c - 1))}
                           className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-white font-bold text-xs"
                         >
-                          −
+                          −1
                         </button>
                         <button
                           type="button"
-                          onClick={() => setPlasticCount((c) => c + 5)}
+                          onClick={() => setPlasticCount((c) => c + 1)}
                           className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs"
                         >
-                          +
+                          +1
                         </button>
                       </div>
                     </div>
@@ -460,22 +524,32 @@ export default function HomePage() {
                       <div>
                         <span className="text-base">🥫</span>
                         <div className="text-[10px] font-bold text-white mt-0.5">Cans</div>
-                        <div className="text-xs font-extrabold text-blue-300">{canCount}</div>
+                        <div className="flex items-center justify-center my-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={canCount}
+                            onChange={(e) =>
+                              setCanCount(Math.max(0, parseInt(e.target.value) || 0))
+                            }
+                            className="w-12 bg-transparent text-center text-sm font-extrabold text-blue-300 focus:outline-none border-b border-blue-500/40 p-0"
+                          />
+                        </div>
                       </div>
-                      <div className="flex justify-center gap-1.5 mt-2">
+                      <div className="flex justify-center gap-1.5 mt-1">
                         <button
                           type="button"
-                          onClick={() => setCanCount((c) => Math.max(0, c - 5))}
+                          onClick={() => setCanCount((c) => Math.max(0, c - 1))}
                           className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-white font-bold text-xs"
                         >
-                          −
+                          −1
                         </button>
                         <button
                           type="button"
-                          onClick={() => setCanCount((c) => c + 5)}
+                          onClick={() => setCanCount((c) => c + 1)}
                           className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs"
                         >
-                          +
+                          +1
                         </button>
                       </div>
                     </div>
@@ -485,46 +559,56 @@ export default function HomePage() {
                       <div>
                         <span className="text-base">🍾</span>
                         <div className="text-[10px] font-bold text-white mt-0.5">Glass</div>
-                        <div className="text-xs font-extrabold text-blue-300">{glassCount}</div>
+                        <div className="flex items-center justify-center my-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={glassCount}
+                            onChange={(e) =>
+                              setGlassCount(Math.max(0, parseInt(e.target.value) || 0))
+                            }
+                            className="w-12 bg-transparent text-center text-sm font-extrabold text-blue-300 focus:outline-none border-b border-blue-500/40 p-0"
+                          />
+                        </div>
                       </div>
-                      <div className="flex justify-center gap-1.5 mt-2">
+                      <div className="flex justify-center gap-1.5 mt-1">
                         <button
                           type="button"
-                          onClick={() => setGlassCount((c) => Math.max(0, c - 5))}
+                          onClick={() => setGlassCount((c) => Math.max(0, c - 1))}
                           className="w-6 h-6 rounded-lg bg-white/5 hover:bg-white/10 text-white font-bold text-xs"
                         >
-                          −
+                          −1
                         </button>
                         <button
                           type="button"
-                          onClick={() => setGlassCount((c) => c + 5)}
+                          onClick={() => setGlassCount((c) => c + 1)}
                           className="w-6 h-6 rounded-lg bg-blue-600 text-white font-bold text-xs"
                         >
-                          +
+                          +1
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Bag count counter */}
+                  {/* Bags count counter (1-by-1) */}
                   <div className="flex items-center justify-between pt-1">
                     <span className="text-xs text-blue-200/70 font-medium">
-                      Total: <strong className="text-white">{totalContainers} items</strong> in {bags} bags
+                      Total: <strong className="text-white">{totalContainers} items</strong> (~{bags} bags)
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         onClick={() => setBags((b) => Math.max(1, b - 1))}
-                        className="px-2.5 py-1 rounded-lg bg-white/5 text-white text-xs font-bold"
+                        className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-white text-xs font-bold"
                       >
-                        − Bag
+                        −1 Bag
                       </button>
                       <button
                         type="button"
-                        onClick={() => setBags((b) => Math.min(10, b + 1))}
-                        className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold"
+                        onClick={() => setBags((b) => Math.min(20, b + 1))}
+                        className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold"
                       >
-                        + Bag
+                        +1 Bag
                       </button>
                     </div>
                   </div>
@@ -563,7 +647,7 @@ export default function HomePage() {
                     type="range"
                     min="0"
                     max="70"
-                    step="10"
+                    step="5"
                     value={splitPercent}
                     onChange={(e) => setSplitPercent(Number(e.target.value))}
                     className="w-full"
@@ -731,7 +815,7 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Radar Interactive Map */}
+                {/* Radar Interactive Map (No API Key Required) */}
                 {radarView === 'map' ? (
                   <RadarMap
                     offers={offers}
@@ -1023,16 +1107,11 @@ export default function HomePage() {
                 </button>
 
                 <button
-                  onClick={() => {
-                    saveStoredUser(null);
-                    setCurrentUser(null);
-                    setIsAuthOpen(true);
-                    setToastMessage('Logged out.');
-                  }}
+                  onClick={handleSignOut}
                   className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-red-400 text-xs font-semibold transition flex items-center justify-center gap-1"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span>Log Out</span>
+                  <span>Log Out (Supabase)</span>
                 </button>
               </div>
             </section>
@@ -1083,14 +1162,14 @@ export default function HomePage() {
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
-          onAuthSuccess={(user) => {
+          onAuthSuccess={(user, message) => {
             setCurrentUser(user);
             if (user.role === 'taker') {
               setActiveTab('driver');
             } else {
               setActiveTab('resident');
             }
-            setToastMessage(`Welcome, ${user.full_name}! Signed in as ${user.role}.`);
+            setToastMessage(message || `Welcome, ${user.full_name}! Signed in as ${user.role}.`);
           }}
         />
 

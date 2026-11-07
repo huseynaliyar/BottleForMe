@@ -75,3 +75,11 @@ input[type=range]::-webkit-slider-thumb:hover {
   background: #0d1527 !important;
   border: 1px solid rgba(0, 102, 255, 0.35) !important;
 }
+
+/* OpenStreetMap Dark Navy Style (Zero API Key Required) */
+.dark-map-tiles .leaflet-tile {
+  filter: brightness(0.6) invert(1) contrast(3) hue-rotate(205deg) saturate(0.3) brightness(0.75) !important;
+}
+.leaflet-container {
+  background: #080d1a !important;
+}
