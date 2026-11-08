@@ -14,7 +14,8 @@
       "bundleIdentifier": "com.bottleforme.app"
     },
     "android": {
-      "package": "com.bottleforme.app"
+      "package": "com.bottleforme.app",
+      "versionCode": 2
     },
     "extra": {
       "eas": {
