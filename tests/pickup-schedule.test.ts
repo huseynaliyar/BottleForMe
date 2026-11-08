@@ -123,8 +123,11 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(await act(seller, 'availability', null, { version: 1, availability: windows }), false);
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
 
-    const claimed = await db.query<{ endpoint: string; lease_id: string }>('SELECT * FROM public.claim_web_push()');
+    const claimed = await db.query<{ endpoint: string; lease_id: string; title: string; message: string }>('SELECT * FROM public.claim_web_push()');
     assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
+    assert.ok(claimed.rows.some((job) => job.title === 'Pickup time requested'));
+    assert.ok(claimed.rows.every((job) => job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'));
+    assert.ok(claimed.rows.every((job) => job.title !== 'Another pickup time proposed'), 'other recipients titles are private');
     assert.equal((await db.query('SELECT * FROM public.claim_web_push()')).rows.length, 0, 'leased jobs are not claimed twice');
     await registerPush(collector);
     assert.equal((await db.query('SELECT * FROM public.web_push_jobs')).rows.length, 0, 'a new browser owner does not inherit pending jobs');

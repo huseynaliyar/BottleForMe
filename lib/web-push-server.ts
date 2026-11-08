@@ -10,6 +10,8 @@ type Job = {
   auth: string;
   attempts: number;
   lease_id: string;
+  title: string;
+  message: string;
 };
 
 export function webPushKeys() {
@@ -40,8 +42,9 @@ async function deliver(job: Job, vapidDetails: NonNullable<ReturnType<typeof web
   try {
     const endpoint = pushEndpoint(job.endpoint);
     if (!endpoint) throw new Error('Invalid push endpoint');
+    const payload = JSON.stringify({ title: job.title, body: job.message, id: job.batch_id });
     await sendNotification({ endpoint, keys: { p256dh: job.p256dh, auth: job.auth } },
-      '{}', { vapidDetails, TTL: 86_400, timeout: 5_000 });
+      payload, { vapidDetails, TTL: 86_400, timeout: 5_000 });
   } catch (error) {
     const code = error instanceof WebPushError ? error.statusCode : undefined;
     if (code === 404 || code === 410) {

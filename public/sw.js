@@ -1,10 +1,16 @@
 const CACHE_NAME = 'bottleforme-shell-v2';
 
 self.addEventListener('push', (event) => {
-  event.waitUntil(self.registration.showNotification('BottleForMe', {
-    body: 'You have new activity. Open BottleForMe to see it.',
+  let payload;
+  try { payload = event.data?.json(); } catch { /* Older alerts may lack a JSON payload. */ }
+  const title = typeof payload?.title === 'string' && payload.title.trim() ? payload.title : 'BottleForMe';
+  const body = typeof payload?.body === 'string' && payload.body.trim()
+    ? payload.body : 'You have new activity. Open BottleForMe to see it.';
+  const id = typeof payload?.id === 'string' && /^[0-9a-f-]{36}$/i.test(payload.id) ? payload.id : '';
+  event.waitUntil(self.registration.showNotification(title, {
+    body,
     icon: '/logo.jpg',
-    tag: 'bottleforme-inbox',
+    tag: id ? 'bottleforme-inbox-' + id : 'bottleforme-inbox',
   }));
 });
 

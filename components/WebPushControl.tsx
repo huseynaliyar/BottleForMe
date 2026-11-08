@@ -48,7 +48,7 @@ export default function WebPushControl({ userId }: { userId: string }) {
       <button type="button" disabled={busy} className="font-semibold text-blue-300 disabled:opacity-60" onClick={() => void toggle()}>
         {info.enabled ? 'Disable lock-screen alerts' : 'Enable lock-screen alerts'}
       </button>
-      <p className="mt-1" aria-live="polite">{info.enabled ? 'Lock-screen alerts are on for this browser.' : 'Get an alert when there’s new activity in your inbox.'}</p>
+      <p className="mt-1" aria-live="polite">{info.enabled ? 'Lock-screen alerts are on for this browser.' : 'Show inbox notification titles and messages on this device.'}</p>
     </> : <p>Lock-screen alerts are unavailable here. On iPhone or iPad, add BottleForMe to your Home Screen and open it from there.</p>}
     {error && <p role="alert" className="mt-1 text-red-300">{error}</p>}
   </div>;
