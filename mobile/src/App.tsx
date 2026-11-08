@@ -9,6 +9,7 @@ import {
 import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react-native';
 import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useInbox } from '../../lib/use-inbox';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
 import { AccountDialog, Avatar, ProfileScreen } from './AccountScreen';
 import { changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
@@ -56,7 +57,7 @@ function Marketplace() {
   const [draftReset, setDraftReset] = useState(0);
   const [selectedId, setSelectedId] = useState<string>();
   const [recentPickup, setRecentPickup] = useState<{ userId: string; offer: PickupOffer }>();
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [sessionNotifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toast, setToast] = useState('');
   const [actionError, setActionError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,8 @@ function Marketplace() {
   const savingProfile = useRef(false);
   const sessionUser = session?.user;
   const userId = sessionUser?.id;
+  const inbox = useInbox(supabase, userId, dialog === 'activity');
+  const notifications = [...inbox.notifications, ...sessionNotifications];
   const currentProfile = profile?.id === userId ? profile : null;
   const handovers = usePickupFeed({
     userId: tab === 'handover' || tab === 'profile' ? userId : undefined, mine: true, revision,
@@ -263,9 +266,12 @@ function Marketplace() {
     </View>
     {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={() => setDialog(undefined)} />}
     {dialog === 'activity' && <Dialog title="Recent activity" onClose={() => setDialog(undefined)}>
-      <Text style={styles.small}>Activity from this session appears here.</Text>
+      <ErrorText message={inbox.error ?? ''} />
       {notifications.some((item) => !item.read) && <Button label="Mark all as read" kind="secondary"
-        onPress={() => setNotifications((items) => items.map((item) => ({ ...item, read: true })))} />}
+        onPress={() => {
+          setNotifications((items) => items.map((item) => ({ ...item, read: true })));
+          void inbox.markRead();
+        }} />}
       {notifications.length ? notifications.map((item) => <View key={item.id}
         style={[styles.inset, !item.read && { backgroundColor: '#102242' }]}>
         <Text weight="bold" style={styles.small}>{item.title}</Text>

@@ -4,10 +4,11 @@ import { useEffect, useRef } from 'react';
 import { Bell, X } from 'lucide-react';
 import { NotificationItem } from '@/lib/types';
 
-export default function NotificationModal({ isOpen, onClose, notifications, onMarkAllAsRead }: {
+export default function NotificationModal({ isOpen, onClose, notifications, error, onMarkAllAsRead }: {
   isOpen: boolean;
   onClose: () => void;
   notifications: NotificationItem[];
+  error?: string;
   onMarkAllAsRead: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -28,7 +29,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, onMa
         <h2 id="activity-title" className="flex items-center gap-2 font-bold"><Bell className="size-4" /> Recent activity</h2>
         <button type="button" aria-label="Close notifications" onClick={onClose} className="rounded-xl p-2 hover:bg-white/10"><X className="size-4" /></button>
       </header>
-      <p className="mb-3 text-xs text-blue-200">Activity from this session appears here.</p>
+      {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
       {notifications.some((item) => !item.read) && (
         <button type="button" onClick={onMarkAllAsRead} className="mb-2 text-xs font-semibold text-blue-300">Mark all as read</button>
       )}

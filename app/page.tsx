@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
+import { useInbox } from '@/lib/use-inbox';
 
 const RadarMap = dynamic(() => import('@/components/RadarMap'), {
   ssr: false,
@@ -30,7 +31,7 @@ export default function HomePage() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [recovery, setRecovery] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [sessionNotifications, setNotifications] = useState<NotificationItem[]>([]);
   const [radarView, setRadarView] = useState<'list' | 'map'>('list');
   const [radarLocality, setRadarLocality] = useState('');
   const [plasticCount, setPlasticCount] = useState('0');
@@ -62,6 +63,8 @@ export default function HomePage() {
   const publishRequest = useRef<{ id: string; body: string } | null>(null);
   const accountId = currentUser?.id;
   const sessionId = useRef<string | null>(null);
+  const inbox = useInbox(supabase, sessionUser?.id, isNotifOpen);
+  const notifications = [...inbox.notifications, ...sessionNotifications];
 
   useEffect(() => {
     try { localStorage.removeItem('bottleforme_current_user'); } catch { /* Storage may be disabled. */ }
@@ -1058,9 +1061,10 @@ export default function HomePage() {
           isOpen={isNotifOpen}
           onClose={() => setIsNotifOpen(false)}
           notifications={notifications}
+          error={inbox.error}
           onMarkAllAsRead={() => {
             setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-            setToastMessage('All notifications marked as read.');
+            void inbox.markRead();
           }}
         />
       </div>

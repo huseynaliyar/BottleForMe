@@ -70,7 +70,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
       return fieldError('revolut', 'Enter a valid Revolut tag or leave it blank.');
     }
     const code = String(fields.get('code') ?? '').trim();
-    if (mode === 'verify' && !/^\d{6}$/.test(code)) return fieldError('code', 'Enter the six-digit code from your email.');
+    if (!recovery && mode === 'verify' && !/^\d{6}$/.test(code)) return fieldError('code', 'Enter the six-digit code from your email.');
     submitting.current = true;
     setLoading(true);
     setNotice(null);
@@ -158,7 +158,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>Log in</button>
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'register'} onClick={() => changeMode('register')}>Register</button>
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'forgot'} onClick={() => changeMode('forgot')}>Forgot password</button>
-          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'verify'} onClick={() => changeMode('verify')}>Confirm email</button>
+
         </div>
       )}
       <form noValidate onSubmit={handleSubmit} onChange={(event) => {

@@ -22,7 +22,7 @@ Pickup forms accept a manually entered street address and optional door or inter
 
 Open `/admin` and sign in with an existing BottleForMe account. Set the server-only `BOTTLEFORME_ADMIN_USER_IDS` to a comma-separated list of the selected accounts' Supabase Auth user IDs. An empty list grants access to nobody. Changing a marketplace Giver or Taker role does not grant admin access.
 
-The dashboard lists pickup status and account profiles. It does not display street addresses, contact details, or payment handles.
+The dashboard lists pickups and profiles, including account email addresses. In Profiles, send an in-app notification to one account or all confirmed accounts. Recipients see messages in the notification bell on web and mobile.
 
 ## Marketplace API
 

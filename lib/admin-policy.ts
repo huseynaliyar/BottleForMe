@@ -19,6 +19,7 @@ export type AdminPickup = {
 export type AdminProfile = {
   id: string;
   full_name: string;
+  email: string | null;
   role: 'giver' | 'taker' | 'both' | null;
   locality: string | null;
   created_at: string | null;

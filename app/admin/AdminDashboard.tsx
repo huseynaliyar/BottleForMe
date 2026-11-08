@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, ClipboardList, PackageCheck, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import { adminPickupStatuses, type AdminPage, type AdminPickupStatus } from '@/lib/admin-policy';
 import { supabase } from '@/lib/supabase';
+import NotificationComposer from './NotificationComposer';
 
 const statusLabels: Record<AdminPickupStatus, string> = {
   open: 'Open', reserved: 'Reserved', en_route: 'On the way', arrived: 'Arrived', completed: 'Completed', cancelled: 'Cancelled',
@@ -68,6 +69,7 @@ export default function AdminDashboard() {
   const [account, setAccount] = useState<{ id: string; email?: string } | null>();
   const [view, setView] = useState<'pickups' | 'profiles'>('pickups');
   const [status, setStatus] = useState('');
+  const [recipient, setRecipient] = useState<{ id: string; label: string } | null>(null);
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
   const [authError, setAuthError] = useState('');
@@ -84,6 +86,7 @@ export default function AdminDashboard() {
       if (previousUserId.current !== user?.id) {
         previousUserId.current = user?.id;
         setResult(undefined);
+        setRecipient(null);
         setPage(1);
       }
       setAccount(user ? { id: user.id, email: user.email } : null);
@@ -165,6 +168,12 @@ export default function AdminDashboard() {
       <h2 className="text-lg font-extrabold">Admin access required</h2>
       <p role="status" className="mt-2 text-sm text-blue-100/75">{active.error}</p>
     </section>}
+    {userId && data?.view === 'profiles' && <NotificationComposer
+      key={userId + ':' + (recipient?.id ?? 'all')}
+      userId={userId}
+      recipient={recipient}
+      onClear={() => setRecipient(null)}
+    />}
     {account && !active?.forbidden && <section className="glass-navy overflow-hidden rounded-[28px]" aria-label="Marketplace records">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-blue-500/20 p-4 sm:p-5">
         <div className="flex gap-2" aria-label="Record type">
@@ -205,17 +214,25 @@ export default function AdminDashboard() {
               <td className="whitespace-nowrap p-3.5">{displayDate(row.updated_at ?? row.created_at)}</td>
               <td className="p-3.5 font-mono text-xs text-blue-200/70" title={row.id}>{row.id.slice(0, 8)}</td>
             </tr>)}</tbody>
-          </table> : <table className="w-full min-w-[34rem] text-left text-sm">
+          </table> : <table className="w-full min-w-[52rem] text-left text-sm">
             <caption className="sr-only">Account profiles</caption>
             <thead className="bg-[#0d1728] text-xs uppercase tracking-wide text-blue-200">
-              <tr>{['Name', 'Active role', 'Locality', 'Joined', 'Account ID'].map((label) => <th key={label} scope="col" className="p-3.5">{label}</th>)}</tr>
+              <tr>{['Name', 'Email', 'Active role', 'Locality', 'Joined', 'Account ID', 'Action'].map((label) => <th key={label} scope="col" className="p-3.5">{label}</th>)}</tr>
             </thead>
             <tbody>{data.rows.map((row) => <tr key={row.id} className="border-t border-white/5">
               <th scope="row" className="max-w-56 break-words p-3.5 font-bold">{row.full_name}</th>
+              <td className="max-w-60 break-words p-3.5">{row.email || '—'}</td>
               <td className="p-3.5 capitalize">{row.role === 'both' ? 'Giver' : row.role ?? '—'}</td>
               <td className="p-3.5">{row.locality || '—'}</td>
               <td className="whitespace-nowrap p-3.5">{displayDate(row.created_at)}</td>
               <td className="p-3.5 font-mono text-xs text-blue-200/70" title={row.id}>{row.id.slice(0, 8)}</td>
+              <td className="p-3.5">
+                <button type="button" className={button} aria-pressed={recipient?.id === row.id}
+                  onClick={() => {
+                    setRecipient({ id: row.id, label: row.email || row.full_name });
+                    requestAnimationFrame(() => document.getElementById('admin-notification-title')?.scrollIntoView({ block: 'center' }));
+                  }}>Notify</button>
+              </td>
             </tr>)}</tbody>
           </table>}
         </div>}

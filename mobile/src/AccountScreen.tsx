@@ -115,7 +115,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   return <Dialog title={mode === 'register' ? 'Join BottleForMe' : mode === 'reset' ? 'Reset password' : mode === 'verify' ? 'Confirm your email' : 'Log in to BottleForMe'}
     onClose={() => { if (!pending.current) onClose(); }}>
     {mode !== 'verify' && <Segmented options={modes} value={mode} onChange={switchMode} />}
-    {mode === 'signin' && <Button label="Confirm email with a code" kind="quiet" onPress={() => switchMode('verify')} disabled={busy} />}
+
     {mode === 'verify' && <Button label="Back to log in" kind="quiet" onPress={() => switchMode('signin')} disabled={busy} />}
     {mode === 'register' && <Field label="Full name" value={name} onChangeText={setName} maxLength={100}
       autoComplete="name" editable={!busy} error={attempted ? nameError : ''} />}
