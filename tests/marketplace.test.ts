@@ -112,7 +112,7 @@ test('migration secures legacy data and enforces participant transitions in Post
       INSERT INTO public.pickups (seller_name, locality, address_notes, bag_count, estimated_bottles,
         total_bcrs_value, seller_payout, collector_profit) VALUES ('Legacy', 'Sliema', 'Private legacy address', 1, 1, 0.1, 0, 0.1);
     `);
-    await db.exec(await readFile(new URL('../supabase/migrations/202611080001_secure_marketplace.sql', import.meta.url), 'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/20261108083018_secure_marketplace.sql', import.meta.url), 'utf8'));
     const legacy = await db.query<{ id: string; address_notes: string }>('SELECT id, address_notes FROM public.pickups');
     assert.equal(legacy.rows[0].address_notes, 'Private legacy address');
 
