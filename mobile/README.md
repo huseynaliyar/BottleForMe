@@ -16,7 +16,7 @@ Install Expo Go on an iPhone or Android device and use the same Wi-Fi network as
 
 If `.env.local` is missing, copy `.env.example` to `.env.local` and fill in the BottleForMe Supabase **publishable** key from the project’s Connect panel. The app can open the public Radar before a key is configured.
 
-The default API connects to the live marketplace. Use designated test accounts and a staging API with a matching Supabase project to exercise posting and reservations without creating live listings. Pull down on the Radar or My pickups lists to refresh them.
+The default API and email links use the live site at https://www.bottleforme.com. Use designated test accounts and a staging API with a matching Supabase project to exercise posting and reservations without creating live listings. Pull down on the Radar or My pickups lists to refresh them.
 
 ## Check the project
 

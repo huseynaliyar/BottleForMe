@@ -7,7 +7,7 @@ import type { validatePickup } from '../../lib/pickup-validation';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-export const apiOrigin = (process.env.EXPO_PUBLIC_API_ORIGIN || 'https://bottleforme.vercel.app').replace(/\/+$/, '');
+export const apiOrigin = (process.env.EXPO_PUBLIC_API_ORIGIN || 'https://www.bottleforme.com').replace(/\/+$/, '');
 
 export const supabase = supabaseUrl && publishableKey?.startsWith('sb_publishable_')
   ? createClient(supabaseUrl, publishableKey, {
