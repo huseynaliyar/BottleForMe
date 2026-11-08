@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Linking, RefreshControl, ScrollView, View } from 'react-native';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
+import { Alert, Linking, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
@@ -12,6 +13,8 @@ const statusNames: Record<PickupStatus, string> = {
   open: 'Open', reserved: 'Reserved', en_route: 'On the way', arrived: 'Arrived', completed: 'Completed', cancelled: 'Cancelled',
 };
 const maltaRegion = { latitude: 35.97, longitude: 14.42, latitudeDelta: 0.23, longitudeDelta: 0.33 };
+const canShowRadarMap = Platform.OS !== 'android' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient
+  || Constants.expoConfig?.extra?.androidRadarMap === true;
 const radarOptions = [{ label: 'Feed', value: 'list' }, { label: '🗺️ Map', value: 'map' }] as const;
 const radarLocalities = [{ label: 'All localities', value: '' }, ...localityOptions];
 const mapStyle = [
@@ -68,7 +71,7 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
           <Text weight="bold" style={styles.eyebrow}>Malta Collector Radar</Text>
           <Text accessibilityRole="header" weight="bold" style={[styles.title, { fontSize: 16 }]}>{offers.length} Live Pickup Requests</Text>
         </View>
-        <Segmented options={radarOptions} value={view} onChange={setView} compact />
+        {canShowRadarMap && <Segmented options={radarOptions} value={view} onChange={setView} compact />}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Select label="Filter Radar by locality" value={locality} options={radarLocalities} onChange={setLocality} style={{ flex: 1 }} />
@@ -77,7 +80,7 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
       {loading && <Loading label="Loading Radar…" />}
       <ErrorText message={error} />
       {!loading && !error && offers.length === 0 && <Text style={styles.muted}>No available pickups in this area.</Text>}
-      {view === 'map' && <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+      {canShowRadarMap && view === 'map' && <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
         <MapView style={{ height: 270 }} initialRegion={maltaRegion} userInterfaceStyle="dark" customMapStyle={mapStyle}
           accessibilityLabel="Map of pickup localities">
           {markers.map((place) => <Marker key={place.id} title={place.name}

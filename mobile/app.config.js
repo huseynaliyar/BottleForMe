@@ -11,6 +11,7 @@ module.exports = ({ config }) => {
   return {
     ...config,
     plugins,
+    extra: { ...config.extra, androidRadarMap: !!androidGoogleMapsApiKey },
     android: { ...config.android, ...(googleServicesFile ? { googleServicesFile } : {}) },
   };
 };

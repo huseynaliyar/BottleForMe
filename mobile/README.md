@@ -27,7 +27,7 @@ npm run typecheck
 npx expo export --platform all
 ```
 
-Before a standalone Android build, set `BOTTLEFORME_ANDROID_MAPS_API_KEY` to a Maps SDK for Android key restricted to the Android package and the signing certificate’s SHA-1. Expo Go supplies its own map configuration. iOS uses Apple Maps. The bundle identifier and Android package are currently `com.bottleforme.app`; verify availability before registering the store apps.
+To enable the Radar map in a standalone Android build, set `BOTTLEFORME_ANDROID_MAPS_API_KEY` to a Maps SDK for Android key restricted to the Android package and the signing certificate’s SHA-1. Without the key, the standalone Android app shows the Radar feed. Expo Go supplies its own map configuration. iOS uses Apple Maps. The bundle identifier and Android package are currently `com.bottleforme.app`; verify availability before registering the store apps.
 
 ## Native push alerts
 
