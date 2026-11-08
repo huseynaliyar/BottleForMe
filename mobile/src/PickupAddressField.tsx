@@ -29,6 +29,7 @@ export function PickupAddressField({ value, selection, enabled, signedIn, busy, 
   return <View style={{ gap: 6 }}>
     <Field label="Pickup address" value={value} onChangeText={(text) => { setLookup(undefined); onChange(text); }}
       maxLength={240} editable={!busy} placeholder="Start with the street and number" />
+    {enabled && <Text style={styles.muted}>Street address searches are sent to Google Maps. Enter door or intercom details in the separate instructions field.</Text>}
     {selection && <Text style={[styles.small, { color: colors.green }]}>Address selected</Text>}
     {enabled && !signedIn && <Text style={styles.muted}>Sign in to confirm your address with Google Maps.</Text>}
     {result && (result.suggestions.length ? (

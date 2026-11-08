@@ -18,6 +18,12 @@ Deploy the web and mobile code entry screens before changing the Supabase **Conf
 
 Pickup forms accept a manually entered street address and optional door or intercom instructions by default. To enable Google Maps suggestions, set the server-only `GOOGLE_PLACES_API_KEY` in Vercel after enabling Places API (New), setting quotas, and reviewing the [Places API requirements](https://developers.google.com/maps/documentation/places/web-service/policies). Then deploy and check a Malta address. When enabled, publishing requires selecting an address from the dropdown.
 
+## Admin dashboard
+
+Open `/admin` and sign in with an existing BottleForMe account. Set the server-only `BOTTLEFORME_ADMIN_USER_IDS` to a comma-separated list of the selected accounts' Supabase Auth user IDs. An empty list grants access to nobody. Changing a marketplace Giver or Taker role does not grant admin access.
+
+The dashboard lists pickup status and account profiles. It does not display street addresses, contact details, or payment handles.
+
 ## Marketplace API
 
 Open `/api/docs` for the API explorer and `/api/docs/schema` for the OpenAPI JSON. Radar requires a verified session in Taker mode and returns open pickups from other accounts with approximate locality coordinates. Pickup instructions and contact details are available to the seller and the assigned collector during the handover.
