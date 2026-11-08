@@ -1,5 +1,5 @@
 import { after } from 'next/server';
-import { drainMobilePush } from '@/lib/mobile-push-server';
+import { drainPush } from '@/lib/push-server';
 import { adminPickupStatuses, isAdminUser } from '@/lib/admin-policy';
 import { failure, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
 
@@ -85,9 +85,9 @@ export async function POST(request: Request) {
   if (data === 0) return failure('No confirmed accounts matched the selected audience.', 404);
   after(async () => {
     try {
-      await drainMobilePush(key);
+      await drainPush(key);
     } catch {
-      console.error('BottleForMe could not process queued mobile push alerts.');
+      console.error('BottleForMe could not process queued push alerts.');
     }
   });
   return response({ sent: data });

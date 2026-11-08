@@ -85,7 +85,7 @@ export function searchPickupAddresses(input: string, signal: AbortSignal): Promi
   });
 }
 
-async function accountRequest(path: string, init: RequestInit, authenticated = true) {
+export async function accountRequest(path: string, init: RequestInit, authenticated = true) {
   const headers = new Headers(init.headers);
   if (authenticated) {
     const { data, error } = await authClient().auth.getSession();

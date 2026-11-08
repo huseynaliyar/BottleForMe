@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { failure, response } from '@/lib/pickups-server';
-import { drainMobilePush } from '@/lib/mobile-push-server';
+import { drainPush } from '@/lib/push-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    return response({ processed: await drainMobilePush() });
+    return response({ processed: await drainPush() });
   } catch {
     return failure('Could not process queued push alerts.', 503);
   }

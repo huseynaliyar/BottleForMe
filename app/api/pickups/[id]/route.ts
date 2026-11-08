@@ -1,5 +1,5 @@
 import { after } from 'next/server';
-import { drainMobilePush } from '@/lib/mobile-push-server';
+import { drainPush } from '@/lib/push-server';
 import type { PickupOffer } from '@/lib/types';
 import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
@@ -51,7 +51,7 @@ export async function PATCH(request: Request, { params }: Context) {
   if (error?.code === '23514') return failure('Request a pickup time and wait for the owner to accept.', 409);
   if (error) return failure('Could not update the pickup.', 503);
   if (data) {
-    if (status === 'cancelled' || status === 'reserved') after(() => drainMobilePush().catch(() => {}));
+    if (status === 'cancelled' || status === 'reserved') after(() => drainPush().catch(() => {}));
     return response(participantPickup(data as PickupOffer & { status: string }, user.id));
   }
   return failure('Pickup is unavailable or this change is no longer allowed.', 409);

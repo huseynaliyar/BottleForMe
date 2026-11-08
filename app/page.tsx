@@ -20,6 +20,7 @@ import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
 import { useInbox } from '@/lib/use-inbox';
+import { disableBrowserPush } from '@/lib/browser-push';
 
 const RadarMap = dynamic(() => import('@/components/RadarMap'), {
   ssr: false,
@@ -68,6 +69,21 @@ export default function HomePage() {
   const sessionId = useRef<string | null>(null);
   const inbox = useInbox(supabase, sessionUser?.id, isNotifOpen);
   const notifications = [...inbox.notifications, ...sessionNotifications];
+
+  useEffect(() => {
+    const openInbox = (event: MessageEvent) => {
+      if (event.data?.type === 'bottleforme-open-inbox') setIsNotifOpen(true);
+    };
+    const serviceWorker = navigator.serviceWorker;
+    serviceWorker?.addEventListener('message', openInbox);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('inbox') === '1') {
+      url.searchParams.delete('inbox');
+      window.history.replaceState(window.history.state, '', url);
+      queueMicrotask(() => setIsNotifOpen(true));
+    }
+    return () => serviceWorker?.removeEventListener('message', openInbox);
+  }, []);
 
   useEffect(() => {
     try { localStorage.removeItem('bottleforme_current_user'); } catch { /* Storage may be disabled. */ }
@@ -322,6 +338,7 @@ export default function HomePage() {
 
   async function handleSignOut() {
     try {
+      await disableBrowserPush().catch(() => {});
       await signOutFromSupabase();
       setToastMessage('Signed out.');
     } catch {
@@ -1075,6 +1092,7 @@ export default function HomePage() {
         {/* Notification Center Modal */}
         <NotificationModal
           isOpen={isNotifOpen}
+          userId={sessionUser?.id}
           onClose={() => setIsNotifOpen(false)}
           notifications={notifications}
           error={inbox.error}

@@ -3,9 +3,11 @@
 import { useEffect, useRef } from 'react';
 import { Bell, X } from 'lucide-react';
 import { NotificationItem } from '@/lib/types';
+import WebPushControl from './WebPushControl';
 
-export default function NotificationModal({ isOpen, onClose, notifications, error, onMarkAllAsRead }: {
+export default function NotificationModal({ isOpen, onClose, notifications, error, onMarkAllAsRead, userId }: {
   isOpen: boolean;
+  userId?: string;
   onClose: () => void;
   notifications: NotificationItem[];
   error?: string;
@@ -30,6 +32,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
         <button type="button" aria-label="Close notifications" onClick={onClose} className="rounded-xl p-2 hover:bg-white/10"><X className="size-4" /></button>
       </header>
       {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
+      {isOpen && userId && <WebPushControl key={userId} userId={userId} />}
       {notifications.some((item) => !item.read) && (
         <button type="button" onClick={onMarkAllAsRead} className="mb-2 text-xs font-semibold text-blue-300">Mark all as read</button>
       )}

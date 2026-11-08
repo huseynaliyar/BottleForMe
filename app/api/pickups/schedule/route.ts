@@ -1,5 +1,5 @@
 import { after } from 'next/server';
-import { drainMobilePush } from '@/lib/mobile-push-server';
+import { drainPush } from '@/lib/push-server';
 import { canonicalAppointment, validateWindows } from '@/lib/pickup-schedule';
 import { failure, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
 
@@ -64,6 +64,6 @@ export async function POST(request: Request) {
   if (error) return failure('Could not save your pickup arrangement. Try again.', 503);
   if (!data) return failure('This arrangement is unavailable, has changed, or you already have a pending request. Refresh and try again.', 409);
 
-  if (action !== 'availability') after(() => drainMobilePush().catch(() => {}));
+  if (action !== 'availability') after(() => drainPush().catch(() => {}));
   return response({ ok: true });
 }

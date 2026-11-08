@@ -80,6 +80,11 @@ test('migrated database handles scheduling, private notifications and legacy res
     )).rows[0].ok;
     const transition = (listing: string, actor: string, status: string) =>
       db.query('SELECT * FROM public.transition_pickup($1,$2,$3)', [listing, actor, status]);
+    const endpoint = 'https://fcm.googleapis.com/fcm/send/test-browser';
+    const registerPush = (owner: string) => db.query(
+      'SELECT public.register_web_push($1,$2,$3,$4)', [owner, endpoint, 'browser-public-key', 'browser-auth'],
+    );
+    await registerPush(seller);
     assert.equal((await transition(offer, collector, 'reserved')).rows.length, 0);
     assert.equal((await transition(legacy, collector, 'reserved')).rows.length, 1);
     assert.equal(await act(giver, 'request', request, { at: time('10:15'), kind: 'available' }), false);
@@ -118,6 +123,11 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(await act(seller, 'availability', null, { version: 1, availability: windows }), false);
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
 
+    const claimed = await db.query<{ endpoint: string; lease_id: string }>('SELECT * FROM public.claim_web_push()');
+    assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
+    assert.equal((await db.query('SELECT * FROM public.claim_web_push()')).rows.length, 0, 'leased jobs are not claimed twice');
+    await registerPush(collector);
+    assert.equal((await db.query('SELECT * FROM public.web_push_jobs')).rows.length, 0, 'a new browser owner does not inherit pending jobs');
     await db.exec('RESET ROLE');
     const notices = (await db.query<{ title: string; user_id: string }>('SELECT title, user_id FROM public.account_notifications')).rows;
     assert.equal(notices.filter((notice) => notice.title === 'Pickup time requested' && notice.user_id === seller).length, 2);
@@ -132,6 +142,8 @@ test('migrated database handles scheduling, private notifications and legacy res
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [giver]);
     assert.equal((await db.query('SELECT * FROM public.pickup_requests')).rows.length, 0);
     await assert.rejects(act(giver, 'accept', request, { version: 0 }), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public.web_push_subscriptions'), /permission denied/);
+    await assert.rejects(db.query('SELECT * FROM public.claim_web_push()'), /permission denied/);
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [assigned]);
     const own = (await db.query<{ status: string }>('SELECT status FROM public.pickup_requests')).rows;
     assert.ok(own.some((row) => row.status === 'cancelled'));

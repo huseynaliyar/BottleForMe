@@ -1,5 +1,27 @@
 const CACHE_NAME = 'bottleforme-shell-v2';
 
+self.addEventListener('push', (event) => {
+  event.waitUntil(self.registration.showNotification('BottleForMe', {
+    body: 'You have new activity. Open BottleForMe to see it.',
+    icon: '/logo.jpg',
+    tag: 'bottleforme-inbox',
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const home = windows.find((client) => new URL(client.url).pathname === '/');
+    if (home) {
+      await home.focus();
+      home.postMessage({ type: 'bottleforme-open-inbox' });
+    } else {
+      await self.clients.openWindow('/?inbox=1');
+    }
+  })());
+});
+
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
 });

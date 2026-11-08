@@ -28,6 +28,10 @@ Open `/admin` and sign in with an existing BottleForMe account. Set the server-o
 
 The dashboard lists pickups and profiles, including account email addresses. In Profiles, send an in-app notification to one account or all confirmed accounts. Recipients see messages in the notification bell on web and mobile.
 
+## Web Push
+
+Configure a Web Push VAPID key pair with `BOTTLEFORME_VAPID_PUBLIC_KEY` and the server-only `BOTTLEFORME_VAPID_PRIVATE_KEY`. Keep the production key pair stable so browser subscriptions remain valid. Admin messages and pickup updates use the existing inbox and push worker. Signed-in users can turn lock-screen alerts on or off from the web inbox. On iPhone or iPad, open BottleForMe from the Home Screen to enable alerts.
+
 ## Marketplace API
 
 Open `/api/docs` for the API explorer and `/api/docs/schema` for the OpenAPI JSON. Radar requires a verified session in Taker mode and returns open pickups from other accounts with approximate locality coordinates. Pickup instructions and contact details are available to the seller and the assigned collector during the handover.
