@@ -4,13 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { MALTA_LOCALITIES, UserProfile, UserRole } from '@/lib/types';
 import { registerWithSupabase, requestPasswordReset, resendSignupCode, signInWithSupabase, updatePassword, verifySignupCode } from '@/lib/auth';
+import { authErrorCode, signupCodeError } from '@/lib/signup-otp';
+import { useSignupCode } from '@/lib/use-signup-code';
 import { REVOLUT_TAG } from '@/lib/pickup-validation';
 
 interface AuthModalProps {
   isOpen: boolean;
   recovery: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: UserProfile) => void;
+  onAuthSuccess: (user: UserProfile, verified?: boolean) => void;
   onPasswordUpdated: () => void;
 }
 
@@ -21,6 +23,7 @@ type AccountField = 'name' | 'email' | 'password' | 'revolut' | 'code';
 export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, onPasswordUpdated }: AuthModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
+  const otp = useSignupCode();
   const [mode, setMode] = useState<'signin' | 'register' | 'forgot' | 'verify'>('signin');
   const [accountEmail, setAccountEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -70,6 +73,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
       return fieldError('revolut', 'Enter a valid Revolut tag or leave it blank.');
     }
     const code = String(fields.get('code') ?? '').trim();
+    if (!recovery && mode === 'verify' && !otp.canVerify()) return fieldError('code', 'Wait before trying another code.');
     if (!recovery && mode === 'verify' && !/^\d{6}$/.test(code)) return fieldError('code', 'Enter the six-digit code from your email.');
     submitting.current = true;
     setLoading(true);
@@ -81,13 +85,13 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         form.reset();
         onPasswordUpdated();
       } else if (mode === 'verify') {
-        onAuthSuccess(await verifySignupCode(email, code));
+        onAuthSuccess(await verifySignupCode(email, code), true);
         form.reset();
       } else if (mode === 'forgot') {
         await requestPasswordReset(email);
         setNotice({ text: 'If an account exists, a password reset link will be sent.' });
       } else if (mode === 'register') {
-        const user = await registerWithSupabase({
+        await registerWithSupabase({
           full_name: name,
           email,
           password,
@@ -97,11 +101,9 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
           locality: String(fields.get('locality') ?? ''),
         });
         form.reset();
-        if (user) onAuthSuccess(user);
-        else {
-          setMode('verify');
-          setNotice({ text: 'Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.' });
-        }
+        otp.sent();
+        setMode('verify');
+        setNotice({ text: 'Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.' });
       } else {
         const user = await signInWithSupabase(email, password);
         form.reset();
@@ -110,10 +112,15 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
     } catch (error) {
       if (mode === 'signin' && error && typeof error === 'object' && 'code' in error && error.code === 'email_not_confirmed') {
         setMode('verify');
-        setNotice({ text: 'Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.' });
+        setNotice({ text: 'Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.' });
         return;
       }
-      setNotice({ error: true, text: error instanceof Error ? error.message : 'Account request failed.' });
+      if (mode === 'verify' && !recovery) {
+        otp.verificationFailed(error);
+        fieldError('code', signupCodeError(error, 'verify'));
+      } else {
+        setNotice({ error: true, text: error instanceof Error ? error.message : 'Account request failed.' });
+      }
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -122,16 +129,18 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
 
   async function resend() {
     const email = accountEmail.trim();
-    if (submitting.current) return;
+    if (submitting.current || !otp.canResend()) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fieldError('email', 'Enter a valid email address.');
     submitting.current = true;
     setLoading(true);
     setNotice(null);
     try {
       await resendSignupCode(email);
-      setNotice({ text: 'If the account is awaiting confirmation, a new code will be sent.' });
+      otp.sent();
+      setNotice({ text: 'If the account is awaiting confirmation, check your email for a new verification message.' });
     } catch (error) {
-      setNotice({ error: true, text: error instanceof Error ? error.message : 'Could not resend the code.' });
+      if (['over_request_rate_limit', 'over_email_send_rate_limit'].includes(String(authErrorCode(error)))) otp.sent();
+      setNotice({ error: true, text: signupCodeError(error, 'resend') });
     } finally {
       submitting.current = false;
       setLoading(false);
@@ -184,10 +193,11 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         {mode === 'verify' && !recovery && <>
           <label className="block">Six-digit code<input name="code" inputMode="numeric" autoComplete="one-time-code"
             maxLength={6} {...fieldFeedback('code')} className={inputClass} /></label>
-          <button type="button" disabled={loading} className={buttonClass} onClick={() => void resend()}>Resend code</button>
+          <button type="button" disabled={loading || otp.resendSeconds > 0} className={buttonClass} onClick={() => void resend()}>{otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : 'Resend code'}</button>
+          {otp.verifySeconds > 0 && <p role="status">Try another code in {otp.verifySeconds}s.</p>}
         </>}
         {notice && <p id="account-notice" role={notice.error ? 'alert' : 'status'} className={notice.error ? 'text-red-300' : 'text-emerald-300'}>{notice.text}</p>}
-        <button type="submit" disabled={loading} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
+        <button type="submit" disabled={loading || (!recovery && mode === 'verify' && otp.verifySeconds > 0)} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
           {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify code' : 'Sign in'}
         </button>
       </form>

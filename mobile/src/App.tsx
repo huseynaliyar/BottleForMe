@@ -251,7 +251,7 @@ function Marketplace() {
           <Button label={session ? 'Switch to Taker' : 'Sign in to use Radar'} onPress={toggleRole} />
         </Card>
       </View>}
-      {tab === 'handover' && <HandoverScreen key={userId ?? 'guest'} userId={userId} offers={offers} loading={handovers.loading}
+      {tab === 'handover' && <HandoverScreen key={userId ?? 'guest'} userId={userId} revision={revision} offers={offers} loading={handovers.loading}
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
         onRefresh={refresh} onChange={(offer, status) => void updatePickup(offer, status)} />}
       {tab === 'profile' && (authReady
@@ -268,7 +268,7 @@ function Marketplace() {
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{label}</Text>
       </Pressable>)}
     </View>
-    {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={() => setDialog(undefined)} />}
+    {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) setToast('Email verified. Signed in.'); }} />}
     {dialog === 'activity' && <Dialog title="Recent activity" onClose={() => setDialog(undefined)}>
       {userId && push.supported && <>
         <Button label={push.enabled ? 'Turn off lock screen alerts' : 'Enable lock screen alerts'} kind="secondary"

@@ -35,7 +35,10 @@ export async function registerWithSupabase(data: {
     options: { emailRedirectTo: window.location.origin, data: metadata },
   });
   if (error) throw error;
-  return result.session?.user ? loadProfile(result.session.user) : null;
+  if (result.session) {
+    await signOutFromSupabase();
+    throw new Error('Email verification is unavailable. Try again later.');
+  }
 }
 
 export async function signInWithSupabase(email: string, password: string) {
@@ -46,7 +49,7 @@ export async function signInWithSupabase(email: string, password: string) {
 
 export async function verifySignupCode(email: string, token: string) {
   const { data, error } = await authClient().auth.verifyOtp({ email, token, type: 'email' });
-  if (error || !data.user) throw error ?? new Error('Could not confirm your email.');
+  if (error || !data.user?.email_confirmed_at || !data.session) throw error ?? new Error('Could not confirm your email.');
   return loadProfile(data.user);
 }
 

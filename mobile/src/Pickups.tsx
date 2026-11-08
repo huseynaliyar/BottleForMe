@@ -4,6 +4,7 @@ import { Alert, Linking, Platform, RefreshControl, ScrollView, View } from 'reac
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
+import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { errorMessage, listPickups } from './backend';
 import { Badge, Button, Card, colors, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text } from './ui';
 
@@ -108,14 +109,18 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
       </View>
       <View style={[styles.between, styles.rule]}>
         <Text style={styles.muted}>Pay Giver: <Text weight="bold">€{offer.seller_payout.toFixed(2)}</Text></Text>
-        <Button label="Reserve pickup →" kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />
+        {!offer.availability?.length && <Button label="Reserve pickup →" kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
       </View>
+      {offer.availability?.length ? <>
+        <PickupAvailability offer={offer} />
+        <RequestPickupTime offer={offer} onSaved={onRefresh} />
+      </> : null}
     </Card>)}
   </ScrollView>;
 }
 
-export function HandoverScreen({ userId, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
-  userId?: string; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
+export function HandoverScreen({ userId, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
+  userId?: string; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
   onSelect: (id: string) => void; onSignIn: () => void; onRefresh: () => void; onChange: (offer: PickupOffer, status: NextStatus) => void;
 }) {
   const [linkError, setLinkError] = useState('');
@@ -136,6 +141,7 @@ export function HandoverScreen({ userId, offers, loading, error, busy, selectedI
     <Card style={{ borderRadius: 24 }}>
       <Text accessibilityRole="header" weight="heavy" style={styles.body}>Your pickups</Text>
       {!userId ? <Button label="Sign in to view pickups" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
+        <PickupArrangements userId={userId} revision={revision} onSaved={onRefresh} />
         {loading && <Loading label="Loading your pickups…" />}
         {!loading && !error && !offers.length && <Text style={styles.body}>You have no pickups yet.</Text>}
         <ErrorText message={error} />
@@ -148,6 +154,8 @@ export function HandoverScreen({ userId, offers, loading, error, busy, selectedI
             }))} />
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
           <Text style={styles.small}>Status · {statusNames[selected.status]}</Text>
+          <PickupAvailability offer={selected} />
+          {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
           {active && selected.seller_phone && <Text style={styles.small}>Seller phone · {selected.seller_phone}</Text>}
           <Text style={styles.small}>{selected.seller_payout === 0 ? 'Free pickup' :

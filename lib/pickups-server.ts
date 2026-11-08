@@ -9,7 +9,7 @@ export const pickupsDb = url && key ? createClient(url, key, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 }) : null;
 
-export const PRIVATE_COLUMNS = `${PUBLIC_COLUMNS},seller_id,collector_id,seller_name,seller_phone,seller_revolut_tag,address_notes` as const;
+export const PRIVATE_COLUMNS = `${PUBLIC_COLUMNS},seller_id,collector_id,seller_name,seller_phone,seller_revolut_tag,address_notes,confirmed_at,availability_version` as const;
 
 export function response(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -23,7 +23,7 @@ export async function requestUser(request: Request) {
   const token = request.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
   if (!token || !pickupsDb) return null;
   const { data, error } = await pickupsDb.auth.getUser(token);
-  return error || !data.user || !UUID.test(data.user.id) ? null : data.user;
+  return error || !data.user?.email_confirmed_at || !UUID.test(data.user.id) ? null : data.user;
 }
 
 export async function takerAccess(userId: string) {

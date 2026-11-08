@@ -1,6 +1,6 @@
 import { MALTA_LOCALITIES, PickupOffer } from './types';
 
-export const PUBLIC_COLUMNS = 'id,locality,bag_count,containers,estimated_bottles,total_bcrs_value,split_percentage,seller_payout,collector_profit,payout_method,status,created_at,updated_at';
+export const PUBLIC_COLUMNS = 'id,locality,bag_count,containers,estimated_bottles,total_bcrs_value,split_percentage,seller_payout,collector_profit,payout_method,status,created_at,updated_at,availability';
 
 export function publicPickup(row: Partial<PickupOffer>) {
   const locality = MALTA_LOCALITIES.find((item) => item.name === row.locality);
@@ -12,5 +12,6 @@ export function participantPickup<T extends Partial<PickupOffer> & { status: str
   if (row.seller_id === userId) return row;
   if (row.collector_id !== userId) return publicPickup(row);
   if (row.seller_id && ['reserved', 'en_route', 'arrived'].includes(row.status)) return row;
-  return { ...row, address_notes: '', seller_phone: null, seller_revolut_tag: null };
+  const locality = MALTA_LOCALITIES.find((item) => item.name === row.locality);
+  return { ...row, address_notes: '', seller_phone: null, seller_revolut_tag: null, lat: locality?.lat, lng: locality?.lng };
 }

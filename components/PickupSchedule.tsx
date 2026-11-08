@@ -1,0 +1,232 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { CalendarDays } from 'lucide-react';
+import { pickupRequest } from '@/lib/auth';
+import {
+  formatAppointment, formatPickupDate, formatPickupTime, formatPickupWindow, maltaDateTime, maltaToday,
+  maxPickupWindows, newWindow, parseWindowDrafts, pickupTimeOptions, windowDrafts,
+  type ScheduleAction, type ScheduleRequest, type WindowDraft,
+} from '@/lib/pickup-schedule';
+import type { PickupOffer } from '@/lib/types';
+
+const field = 'block w-full rounded-lg border border-blue-400/20 bg-[#0b1220] p-2 text-base text-white';
+const button = 'rounded-lg bg-white/10 px-3 py-2 text-sm font-bold text-white disabled:opacity-50';
+const primary = 'blue-btn ' + button;
+const windowsError = 'Enter future Malta times on the same date. Start must be before end, and windows cannot overlap.';
+
+function ScheduleButton({ children, onClick, busy, main = false }: {
+  children: React.ReactNode; onClick: () => void; busy?: boolean; main?: boolean;
+}) {
+  return <button type="button" className={main ? primary : button} disabled={busy} onClick={onClick}>{children}</button>;
+}
+
+export function AvailabilityEditor({ drafts, onChange, disabled }: {
+  drafts: WindowDraft[]; onChange: (drafts: WindowDraft[]) => void; disabled?: boolean;
+}) {
+  return <fieldset disabled={disabled} className="space-y-2 rounded-xl border border-blue-400/20 p-3">
+    <legend className="px-1 font-bold text-white">Pickup availability · Malta time</legend>
+    {drafts.map((draft, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1.5fr_1fr_1fr_auto] sm:items-end">
+      {(['date', 'start', 'end'] as const).map((key) => <label key={key} className="text-sm text-blue-100">
+        {key === 'date' ? 'Date' : key === 'start' ? 'From' : 'Until'}
+        <input type={key === 'date' ? 'date' : 'time'} min={key === 'date' ? maltaToday() : undefined}
+          aria-label={'Window ' + (index + 1) + ' ' + key} value={draft[key]} className={field}
+          onChange={(event) => onChange(drafts.map((item, i) => i === index ? { ...item, [key]: event.target.value } : item))} />
+      </label>)}
+      {drafts.length > 1 && <ScheduleButton onClick={() => onChange(drafts.filter((_, i) => i !== index))}>Remove</ScheduleButton>}
+    </div>)}
+    <ScheduleButton busy={drafts.length >= maxPickupWindows} onClick={() => onChange([...drafts, newWindow()])}>Add a window</ScheduleButton>
+  </fieldset>;
+}
+
+export function PickupAvailability({ offer }: { offer: PickupOffer }) {
+  const windows = offer.availability ?? [];
+  if (!windows.length && !offer.confirmed_at) return null;
+  return <div className="space-y-1 text-sm text-blue-100">
+    <p className="flex items-center gap-2 font-bold"><CalendarDays size={16} /> Pickup schedule · Malta time</p>
+    {offer.confirmed_at && offer.status !== 'cancelled'
+      ? <p>Confirmed for {formatAppointment(offer.confirmed_at)}</p>
+      : <ul className="space-y-1">{windows.map((window) => <li key={window.start}>{formatPickupWindow(window)}</li>)}</ul>}
+  </div>;
+}
+
+function DateAndTime({ date, time, setDate, setTime }: {
+  date: string; time: string; setDate: (value: string) => void; setTime: (value: string) => void;
+}) {
+  return <div className="grid gap-2 sm:grid-cols-2">
+    <label className="text-sm">Pickup date<input className={field} type="date" min={maltaToday()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+    <label className="text-sm">Pickup time<input className={field} type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
+  </div>;
+}
+
+function useScheduleSubmit(listingId: string, onSaved: () => void) {
+  const pending = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  async function submit(action: ScheduleAction, success: string) {
+    if (pending.current) return false;
+    pending.current = true;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await pickupRequest('/schedule', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, ...action }),
+      });
+      setNotice(success);
+      onSaved();
+      return true;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save the arrangement.');
+      return false;
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+  return { submit, busy, error, setError, notice };
+}
+
+function Feedback({ error, notice }: { error: string; notice: string }) {
+  return <>{error && <p role="alert" className="text-sm text-red-300">{error}</p>}
+    {notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}</>;
+}
+
+export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSaved: () => void }) {
+  const [mode, setMode] = useState<'available' | 'alternative'>('available');
+  const [availableDate, setAvailableDate] = useState('');
+  const [selected, setSelected] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const key = useRef<{ selection: string; id: string } | null>(null);
+  const { submit, busy, error, setError, notice } = useScheduleSubmit(offer.id, onSaved);
+  const slots = pickupTimeOptions(offer.availability ?? []);
+  const dates = [...new Set(slots.map(formatPickupDate))];
+  const day = availableDate || dates[0] || '';
+  const daySlots = slots.filter((slot) => formatPickupDate(slot) === day);
+
+  async function requestTime() {
+    const at = mode === 'available' ? selected : maltaDateTime(date, time);
+    if (!at || Date.parse(at) <= Date.now()) {
+      setError('Choose a future pickup time. Avoid the repeated or skipped hour when the clocks change.');
+      return;
+    }
+    const selection = mode + ':' + at;
+    if (key.current?.selection !== selection) key.current = { selection, id: crypto.randomUUID() };
+    await submit({ action: 'request', id: key.current.id, at, kind: mode }, 'Request sent. The owner needs to respond.');
+  }
+
+  return <details className="w-full rounded-xl border border-blue-400/25 p-3 text-blue-100">
+    <summary className="cursor-pointer font-bold text-white">Request a pickup time</summary>
+    <fieldset disabled={busy} className="mt-3 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>Available time</ScheduleButton>
+        <ScheduleButton onClick={() => setMode('alternative')} main={mode === 'alternative'}>Propose another time</ScheduleButton>
+      </div>
+      <p className="text-sm">Times are in Europe/Malta.</p>
+      {mode === 'available' ? dates.length ? <div className="grid gap-2 sm:grid-cols-2">
+        <label className="text-sm">Available date<select className={field} value={day}
+          onChange={(event) => { setAvailableDate(event.target.value); setSelected(''); }}>
+          {dates.map((value) => <option key={value}>{value}</option>)}
+        </select></label>
+        <label className="text-sm">Available time<select className={field} value={selected} onChange={(event) => setSelected(event.target.value)}>
+          <option value="">Choose a time</option>
+          {daySlots.map((value) => <option key={value} value={value}>{formatPickupTime(value)}</option>)}
+        </select></label>
+      </div> : <p className="text-sm">No upcoming windows. You can propose another time.</p>
+        : <DateAndTime date={date} time={time} setDate={setDate} setTime={setTime} />}
+      <ScheduleButton onClick={() => void requestTime()} main>Send request</ScheduleButton>
+      <Feedback error={error} notice={notice} />
+    </fieldset>
+  </details>;
+}
+
+export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer; onSaved: () => void }) {
+  const [drafts, setDrafts] = useState(() => {
+    const current = windowDrafts(offer.availability ?? []);
+    return current.length ? current : [newWindow()];
+  });
+  const { submit, busy, error, setError, notice } = useScheduleSubmit(offer.id, onSaved);
+  function save() {
+    const availability = parseWindowDrafts(drafts);
+    if (!availability) { setError(windowsError); return; }
+    void submit({ action: 'availability', availability, version: offer.availability_version ?? 0 }, 'Availability saved.');
+  }
+  return <details className="rounded-xl border border-blue-400/25 p-3">
+    <summary className="cursor-pointer font-bold text-white">Edit availability</summary>
+    <div className="mt-3 space-y-2">
+      <AvailabilityEditor drafts={drafts} onChange={setDrafts} disabled={busy} />
+      <ScheduleButton busy={busy} onClick={save} main>Save availability</ScheduleButton>
+      <Feedback error={error} notice={notice} />
+    </div>
+  </details>;
+}
+
+function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId: string; onSaved: () => void }) {
+  const [counter, setCounter] = useState(false);
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const { submit, busy, error, setError, notice } = useScheduleSubmit(item.pickup_id, onSaved);
+  const pending = item.status === 'pending';
+  const canRespond = pending && item.proposed_by !== userId;
+  const [now, setNow] = useState(Date.now);
+  const future = Date.parse(item.proposed_at) > now;
+  useEffect(() => {
+    if (!pending || !future) return;
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [pending, future]);
+  const canCancel = pending || (item.status === 'accepted' && ['reserved', 'en_route', 'arrived'].includes(item.pickup?.status ?? ''));
+  const base = { id: item.id, version: item.version };
+  return <li className="space-y-2 rounded-xl bg-[#0b1220] p-3">
+    <p className="font-bold">{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? 'Pending' : item.status === 'rejected' ? 'Declined' : 'Cancelled'}</p>
+    <p className="text-sm">{formatAppointment(item.proposed_at)} · Malta time</p>
+    {pending && <p className="text-sm">{future ? (canRespond ? 'Your response is needed.' : 'Waiting for the other person.') : 'This proposed time has passed.'}</p>}
+    <div className="flex flex-wrap gap-2">
+      {canRespond && <>
+        <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>Accept</ScheduleButton>
+        <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>Decline</ScheduleButton>
+        <ScheduleButton busy={busy} onClick={() => setCounter(!counter)}>Suggest another time</ScheduleButton>
+      </>}
+      {canCancel && <ScheduleButton busy={busy} onClick={() => {
+        if (window.confirm('Cancel this pickup arrangement?')) void submit({ ...base, action: 'cancel' }, 'Arrangement cancelled.');
+      }}>Cancel arrangement</ScheduleButton>}
+    </div>
+    {canRespond && counter && <fieldset disabled={busy} className="space-y-2">
+      <DateAndTime date={date} time={time} setDate={setDate} setTime={setTime} />
+      <ScheduleButton main onClick={() => {
+        const at = maltaDateTime(date, time);
+        if (!at || Date.parse(at) <= Date.now()) { setError('Choose a valid future time in Malta.'); return; }
+        void submit({ ...base, action: 'counter', at }, 'New time proposed. Waiting for a response.').then((saved) => { if (saved) setCounter(false); });
+      }}>Send new time</ScheduleButton>
+    </fieldset>}
+    <Feedback error={error} notice={notice} />
+  </li>;
+}
+
+export function PickupArrangements({ userId, revision, onSaved }: {
+  userId: string; revision: number; onSaved: () => void;
+}) {
+  const [requests, setRequests] = useState<ScheduleRequest[]>();
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    pickupRequest('/schedule', { signal: controller.signal }).then((result: { requests: ScheduleRequest[] }) => {
+      if (!controller.signal.aborted) { setRequests(result.requests); setError(''); }
+    }).catch(() => {
+      if (!controller.signal.aborted) setError('Could not load your pickup arrangements.');
+    });
+    return () => controller.abort();
+  }, [revision, userId]);
+  return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
+    <div className="flex items-center justify-between gap-2">
+      <h3 className="font-bold text-white">Pickup arrangements</h3>
+      <ScheduleButton onClick={onSaved}>Refresh</ScheduleButton>
+    </div>
+    <Feedback error={error} notice="" />
+    {requests?.length ? <ul className="space-y-2">{requests.map((item) =>
+      <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
+      : !error && <p className="text-sm">{requests ? 'No requests yet.' : 'Loading arrangements…'}</p>}
+  </section>;
+}

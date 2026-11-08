@@ -4,6 +4,7 @@ import { createClient, type User } from '@supabase/supabase-js';
 import { loadProfile as readProfile, saveProfile as writeProfile } from '../../lib/profile';
 import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib/types';
 import type { validatePickup } from '../../lib/pickup-validation';
+import type { PickupWindow, ScheduleAction, ScheduleRequest } from '../../lib/pickup-schedule';
 import type { AddressSuggestion } from '../../lib/pickup-address';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -41,12 +42,15 @@ export async function register(email: string, password: string, metadata: Pick<U
     },
   });
   if (error) throw error;
-  return !!data.session;
+  if (data.session) {
+    await signOut();
+    throw new Error('Email verification is unavailable. Try again later.');
+  }
 }
 
 export async function verifySignupCode(email: string, token: string) {
-  const { error } = await client().auth.verifyOtp({ email, token, type: 'email' });
-  if (error) throw error;
+  const { data, error } = await client().auth.verifyOtp({ email, token, type: 'email' });
+  if (error || !data.user?.email_confirmed_at || !data.session) throw error ?? new Error('Could not confirm your email.');
 }
 
 export async function resendSignupCode(email: string) {
@@ -123,8 +127,18 @@ export function searchPickupAddresses(input: string, signal: AbortSignal) {
   }, true);
 }
 
+export function listScheduleRequests(signal: AbortSignal) {
+  return request<{ requests: ScheduleRequest[] }>('/api/pickups/schedule', { signal }, true);
+}
+
+export function saveSchedule(listingId: string, action: ScheduleAction) {
+  return request<{ ok: boolean }>('/api/pickups/schedule', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, ...action }),
+  }, true);
+}
+
 export function publishPickup(values: NonNullable<ReturnType<typeof validatePickup>> & {
-  pickup_address: string; address_proof?: string;
+  pickup_address: string; address_proof?: string; availability?: PickupWindow[];
 }, key: string) {
   return request<PickupOffer>('/api/pickups', {
     method: 'POST',

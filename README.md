@@ -14,7 +14,11 @@ Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` for loc
 
 ## Signup email and pickup addresses
 
-Deploy the web and mobile code entry screens before changing the Supabase **Confirm sign up** email. Set its body to [confirmation.html](supabase/templates/confirmation.html) and keep the email OTP length at six digits. In Supabase, configure custom SMTP with a verified sender such as `noreply@bottleforme.com`. The site's Auth URL and the email sender are configured separately. See [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp).
+In a staging Supabase project, enable **Confirm email**, set the email OTP length to **6** with a **10-minute expiry**, and keep the signup/resend minimum interval at **60 seconds**. Set **Confirm sign up** to the [code-only template](supabase/templates/confirmation.html) with the subject **Your BottleForMe verification code**. Keep the password recovery template and redirect URLs configured for the same environment. Supabase applies its own Auth rate limits alongside the app's cooldown. [Supabase email templates](https://supabase.com/docs/guides/auth/auth-email-templates) · [Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits)
+
+Supabase's built-in SMTP is limited to project team addresses. On free projects where template editing requires custom SMTP, configure a supported SMTP sender before switching the template. A verified sender such as `noreply@bottleforme.com` is optional for OTP itself. [Supabase custom SMTP](https://supabase.com/docs/guides/auth/auth-smtp)
+
+Use a fresh staging email to test signup, the resend countdown, a wrong code, a code past expiry, a valid code, and a replay of that code from a signed-out browser. Verify that password sign-in is blocked before confirmation and works afterward, and run a password reset separately.
 
 Pickup forms accept a manually entered street address and optional door or intercom instructions by default. To enable Google Maps suggestions, set the server-only `GOOGLE_PLACES_API_KEY` in Vercel after enabling Places API (New), setting quotas, and reviewing the [Places API requirements](https://developers.google.com/maps/documentation/places/web-service/policies). Then deploy and check a Malta address. When enabled, publishing requires selecting an address from the dropdown.
 
@@ -27,5 +31,11 @@ The dashboard lists pickups and profiles, including account email addresses. In 
 ## Marketplace API
 
 Open `/api/docs` for the API explorer and `/api/docs/schema` for the OpenAPI JSON. Radar requires a verified session in Taker mode and returns open pickups from other accounts with approximate locality coordinates. Pickup instructions and contact details are available to the seller and the assigned collector during the handover.
+
+### Pickup scheduling
+
+Apply the pending pickup scheduling migration before deploying the app or API. New listings created in the updated apps require at least one availability window. Listings created before the update can still be reserved directly. Owners can edit availability while a listing is open. Any pending proposals remain visible and require a response. Confirming a pickup closes the listing to competing requests. A cancelled confirmed arrangement closes that listing.
+
+All displayed times use Europe/Malta. If a manually entered time falls in the missing or repeated hour at a daylight-saving change, choose another time. Scheduling alerts appear in the in-app inbox and use the existing mobile push queue for registered devices. Verify the new scheduling flow with one Giver and two Takers in staging, including a competing acceptance, a counteroffer, and cancellation after confirmation.
 
 Existing pickups without a verified seller remain in the database and are excluded from Radar. Review ownership before restoring any legacy listings. Coordinate the schema migration and app release so the old API does not keep serving private fields. See [AUDIT.md](AUDIT.md) for findings and rollout checks.

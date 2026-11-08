@@ -3,6 +3,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, LogOut } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
+import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
+import { useSignupCode } from '../../lib/use-signup-code';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import type { PickupOffer, UserProfile } from '../../lib/types';
 import { errorMessage, register, resendSignupCode, resetPassword, signIn, supabase, verifySignupCode } from './backend';
@@ -14,7 +16,7 @@ const modes = [
 ] as const;
 const roles = [{ value: 'giver', label: 'Giver' }, { value: 'taker', label: 'Taker' }] as const;
 
-export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; onSignedIn: () => void }) {
+export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; onSignedIn: (verified?: boolean) => void }) {
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -29,6 +31,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const pending = useRef(false);
+  const otp = useSignupCode();
 
   const emailError = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? '' : 'Enter a valid email address.';
   const nameError = mode === 'register' && !name.trim() ? 'Enter your full name.' : '';
@@ -52,6 +55,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     setAttempted(true);
     setError('');
     setNotice('');
+    if (mode === 'verify' && !otp.canVerify()) return;
     if (emailError || nameError || passwordError || tagError || codeError) return;
     pending.current = true;
     setBusy(true);
@@ -62,19 +66,17 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         onSignedIn();
       } else if (mode === 'verify') {
         await verifySignupCode(email.trim(), code);
-        onSignedIn();
+        onSignedIn(true);
       } else if (mode === 'register') {
-        const signedIn = await register(email.trim(), password, {
+        await register(email.trim(), password, {
           full_name: name.trim(), role, phone: phone.trim(), revolut_tag: tag.trim(), locality,
         });
-        if (signedIn) onSignedIn();
-        else {
-          setMode('verify');
-          setPassword('');
-          setCode('');
-          setAttempted(false);
-          setNotice('Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.');
-        }
+        otp.sent();
+        setMode('verify');
+        setPassword('');
+        setCode('');
+        setAttempted(false);
+        setNotice('Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.');
       } else {
         await resetPassword(email.trim());
         setNotice('If an account exists, a password reset link will be sent. Open it in your browser.');
@@ -84,7 +86,10 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         setMode('verify');
         setPassword('');
         setAttempted(false);
-        setNotice('Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.');
+        setNotice('Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.');
+      } else if (mode === 'verify') {
+        otp.verificationFailed(cause);
+        setError(signupCodeError(cause, 'verify'));
       } else {
         setError(errorMessage(cause));
       }
@@ -95,7 +100,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   }
 
   async function resend() {
-    if (pending.current) return;
+    if (pending.current || !otp.canResend()) return;
     if (emailError) { setAttempted(true); return; }
     pending.current = true;
     setBusy(true);
@@ -103,9 +108,11 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     setNotice('');
     try {
       await resendSignupCode(email.trim());
-      setNotice('If the account is awaiting confirmation, a new code will be sent.');
+      otp.sent();
+      setNotice('If the account is awaiting confirmation, check your email for a new verification message.');
     } catch (cause) {
-      setError(errorMessage(cause));
+      if (['over_request_rate_limit', 'over_email_send_rate_limit'].includes(String(authErrorCode(cause)))) otp.sent();
+      setError(signupCodeError(cause, 'resend'));
     } finally {
       pending.current = false;
       setBusy(false);
@@ -140,12 +147,13 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     {mode === 'verify' && <>
       <Field label="Six-digit code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
         keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} editable={!busy} error={attempted ? codeError : ''} />
-      <Button label="Resend code" kind="secondary" onPress={resend} disabled={busy} />
+      <Button label={otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : 'Resend code'} kind="secondary" onPress={resend} disabled={busy || otp.resendSeconds > 0} />
+      {otp.verifySeconds > 0 && <Text style={styles.small}>Try another code in {otp.verifySeconds}s.</Text>}
     </>}
     {notice ? <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text> : null}
     <ErrorText message={error || (supabase ? '' : 'Account service is unavailable in this build.')} />
     <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : 'Send reset link'}
-      disabled={busy || !supabase} onPress={submit} />
+      disabled={busy || !supabase || (mode === 'verify' && otp.verifySeconds > 0)} onPress={submit} />
   </Dialog>;
 }
 

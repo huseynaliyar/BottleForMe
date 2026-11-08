@@ -8,6 +8,8 @@ import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup
 import { calculateDepositSplit, MALTA_LOCALITIES, type PickupOffer, type UserProfile } from '../../lib/types';
 import { apiOrigin, errorMessage, publishPickup } from './backend';
 import { pickupAddressText, type AddressSuggestion } from '../../lib/pickup-address';
+import { newWindow, parseWindowDrafts } from '../../lib/pickup-schedule';
+import { AvailabilityEditor } from './PickupSchedule';
 import { PickupAddressField } from './PickupAddressField';
 import { Badge, Button, Card, colors, ErrorText, Field, Metric, Select, styles, Text } from './ui';
 
@@ -56,6 +58,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
 }) {
   const [counts, setCounts] = useState(zeroCounts);
   const [bags, setBags] = useState(1);
+  const [availabilityDraft, setAvailabilityDraft] = useState(() => [newWindow()]);
   const [split, setSplit] = useState(50);
   const [locality, setLocality] = useState('');
   const [notes, setNotes] = useState('');
@@ -105,7 +108,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const needsTag = method === 'revolut' && totals.sellerPayout > 0;
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
-  const errors = [countsError, localityError, addressError, tagError].filter(Boolean);
+  const availability = parseWindowDrafts(availabilityDraft);
+  const errors = [countsError, localityError, addressError, tagError,
+    availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
   async function useGps() {
@@ -138,19 +143,20 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values || addressError) {
+    if (!values || addressError || !availability) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const request = { ...values, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof };
+      const request = { ...values, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability };
       const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
       const created = await publishPickup(request, key);
       requestKeys.current.clear();
+      setAvailabilityDraft([newWindow()]);
       setCounts(zeroCounts);
       setBags(1);
       setNotes('');
@@ -253,6 +259,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       {errors.map((message) => <ErrorText key={message} message={'• ' + message} />)}
     </View>}
     <ErrorText message={serverError} />
+    <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={busy} />
     <Button label={busy ? 'Publishing…' : 'Publish Collection Request'} disabled={!authReady || busy || locating} onPress={submit}>
       <ArrowRight size={16} color={colors.white} />
     </Button>

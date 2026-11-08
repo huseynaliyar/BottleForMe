@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { hasConfirmedAddress } from '@/lib/google-addresses';
 import { MALTA_LOCALITIES } from '@/lib/types';
+import { validateWindows } from '@/lib/pickup-schedule';
 import { validatePickup } from '@/lib/pickup-validation';
 import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
@@ -47,6 +48,8 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const values = validatePickup(body);
+  const availability = body?.availability === undefined ? null : validateWindows(body.availability);
+  if (body?.availability !== undefined && !availability) return failure('Enter valid, non-overlapping pickup windows in Malta time.', 400);
   if (!values) return failure('Check container counts, bag count, seller split, location and payment details.', 400);
   if (!hasConfirmedAddress(user.id, body.pickup_address, body.address_proof, values.address_notes)) {
     return failure('Choose your pickup address from the Google Maps suggestions.', 400);
@@ -58,6 +61,7 @@ export async function POST(request: Request) {
   const metadata = user.user_metadata;
   const { data, error } = await pickupsDb.from('pickups').insert({
     ...values,
+    availability,
     id,
     seller_id: user.id,
     seller_name: typeof metadata.full_name === 'string' ? metadata.full_name.trim().slice(0, 100) || 'Giver' : 'Giver',
@@ -75,9 +79,12 @@ export async function POST(request: Request) {
         row.address_notes === values.address_notes && row.seller_revolut_tag === values.seller_revolut_tag &&
         row.containers?.plastic_bottles === values.containers.plastic_bottles &&
         row.containers?.cans === values.containers.cans && row.containers?.glass_bottles === values.containers.glass_bottles;
-      if (sameRequest) return response(row);
+      const sameWindows = (row.availability ?? []).length === (availability ?? []).length &&
+        (availability ?? []).every((window, index) => row.availability?.[index]?.start === window.start && row.availability?.[index]?.end === window.end);
+      if (sameRequest && sameWindows) return response(row);
     }
     return failure('That request key is already in use.', 409);
   }
+  if (error.code === '23514' || error.code === '22008') return failure('Choose future pickup windows in Malta time.', 400);
   return failure('Could not save the pickup.', 503);
 }

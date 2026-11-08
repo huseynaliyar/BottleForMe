@@ -1,3 +1,5 @@
+import type { PickupWindow } from './pickup-schedule';
+
 export type PickupStatus =
   | 'open'        // Listed on Malta radar, waiting for collector
   | 'reserved'    // Collector claimed offer, coordinating handover
@@ -20,6 +22,9 @@ export interface PickupOffer {
   id: string;
   seller_id?: string | null;
   collector_id?: string | null;
+  availability?: PickupWindow[] | null;
+  confirmed_at?: string | null;
+  availability_version?: number;
   seller_name: string;
   seller_phone?: string;
   seller_revolut_tag?: string;

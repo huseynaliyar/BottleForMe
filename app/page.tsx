@@ -10,6 +10,8 @@ import {
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
 import { loadProfile, pickupRequest, saveProfile, signOutFromSupabase } from '@/lib/auth';
+import { AvailabilityEditor, EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from '@/components/PickupSchedule';
+import { newWindow, parseWindowDrafts } from '@/lib/pickup-schedule';
 import PickupAddressField from '@/components/PickupAddressField';
 import { pickupAddressText, type AddressSuggestion } from '@/lib/pickup-address';
 import { readAvatar } from '@/lib/avatar';
@@ -55,6 +57,7 @@ export default function HomePage() {
   const [revision, setRevision] = useState(0);
   const [isPublishing, setIsPublishing] = useState(false);
   const [triedToPublish, setTriedToPublish] = useState(false);
+  const [availabilityDraft, setAvailabilityDraft] = useState(() => [newWindow()]);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPinningLocation, setIsPinningLocation] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -94,6 +97,7 @@ export default function HomePage() {
           setSplitPercent(50);
           setPayoutMethod('cash');
           setTriedToPublish(false);
+          setAvailabilityDraft([newWindow()]);
         }
       }
       if (event === 'PASSWORD_RECOVERY') {
@@ -174,7 +178,9 @@ export default function HomePage() {
     : addressLookup && accountId && !addressSelection ? 'Choose an address from the Google Maps suggestions.'
       : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
-  const publishErrors = [countError, localityError, addressError, revolutError].filter(Boolean);
+  const availability = parseWindowDrafts(availabilityDraft);
+  const publishErrors = [countError, localityError, addressError, revolutError,
+    availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const selectedOffer = handovers.find((offer) => offer.id === selectedId) ?? handovers[0];
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
@@ -209,10 +215,10 @@ export default function HomePage() {
     if (actionInProgress.current) return;
     setActionError('');
     setTriedToPublish(true);
-    if (publishErrors.length) return;
+    if (publishErrors.length || !availability) return;
     const input = {
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: splitPercent,
-      pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof,
+      pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability,
       payout_method: payoutMethod, seller_revolut_tag: revolutTag,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
     };
@@ -234,6 +240,7 @@ export default function HomePage() {
       if (sessionId.current !== accountId) return;
       publishRequest.current = null;
       setTriedToPublish(false);
+      setAvailabilityDraft([newWindow()]);
       setPlasticCount('0');
       setCanCount('0');
       setGlassCount('0');
@@ -663,6 +670,7 @@ export default function HomePage() {
                 </div>
               </div>
 
+              <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
               {/* Publish Request Button */}
               {triedToPublish && publishErrors.length > 0 && (
                 <div id="publish-errors" role="alert" className="rounded-xl bg-red-950 p-3 text-sm text-red-200">
@@ -789,14 +797,18 @@ export default function HomePage() {
                           {offer.seller_revolut_tag ? `(${offer.seller_revolut_tag})` : ''}
                         </strong>
                       </span>
-                      <button
+                      {!offer.availability?.length && <button
                         disabled={isUpdating}
                         onClick={() => changePickup(offer, 'reserved')}
                         className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
                       >
                         Reserve pickup →
-                      </button>
+                      </button>}
                     </div>
+                    {offer.availability?.length ? <>
+                      <PickupAvailability offer={offer} />
+                      <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} />
+                    </> : null}
                   </div>
                 ))}
               </div>
@@ -810,6 +822,7 @@ export default function HomePage() {
                 <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>Sign in to view pickups</button>
               ) : (
                 <>
+                  <PickupArrangements key={currentUser.id} userId={currentUser.id} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                   <p role="status" className="text-blue-200">{handoverStatus || (!handovers.length && 'You have no pickups yet.')}</p>
                   <button type="button" className="text-xs font-bold text-blue-300" onClick={() => setRevision((value) => value + 1)}>Refresh pickups</button>
                   {selectedOffer && (
@@ -824,6 +837,9 @@ export default function HomePage() {
                       </label>
                       <p className="break-words text-white">{selectedOffer.seller_name} · {selectedOffer.locality}</p>
                       <p className="text-blue-200">Status · {selectedOffer.status.replace('_', ' ')}</p>
+                      <PickupAvailability offer={selectedOffer} />
+                      {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
+                        key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
                       {(handoverActive || !isCollector) && <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>}
                       {handoverActive && selectedOffer.seller_phone && (
                         <p className="break-words text-blue-200">Seller phone · {selectedOffer.seller_phone}</p>
@@ -1042,12 +1058,12 @@ export default function HomePage() {
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
           recovery={recovery}
-          onAuthSuccess={(user) => {
+          onAuthSuccess={(user, verified) => {
             if (sessionId.current !== user.id) return;
             setCurrentUser(user);
             setIsAuthOpen(false);
             setActionError('');
-            setToastMessage(`Signed in as ${user.full_name}.`);
+            setToastMessage(verified ? 'Email verified. Signed in.' : `Signed in as ${user.full_name}.`);
           }}
           onPasswordUpdated={() => {
             setRecovery(false);
