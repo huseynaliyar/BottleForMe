@@ -5,10 +5,10 @@ import { Camera, LogOut } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import type { PickupOffer, UserProfile } from '../../lib/types';
-import { errorMessage, register, resetPassword, signIn, supabase } from './backend';
+import { errorMessage, register, resendSignupCode, resetPassword, signIn, supabase, verifySignupCode } from './backend';
 import { Badge, Button, Card, colors, Dialog, ErrorText, Field, localityOptions, Loading, Metric, Segmented, Select, styles, Text } from './ui';
 
-type Mode = 'signin' | 'register' | 'reset';
+type Mode = 'signin' | 'register' | 'reset' | 'verify';
 const modes = [
   { value: 'signin', label: 'Log in' }, { value: 'register', label: 'Register' }, { value: 'reset', label: 'Forgot password' },
 ] as const;
@@ -19,6 +19,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [phone, setPhone] = useState('');
   const [tag, setTag] = useState('');
   const [locality, setLocality] = useState(localityOptions[0].value);
@@ -33,12 +34,14 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const nameError = mode === 'register' && !name.trim() ? 'Enter your full name.' : '';
   const passwordError = mode === 'register' && password.length < 6 ? 'Use at least 6 characters for your password.'
     : mode === 'signin' && !password ? 'Enter your password.' : '';
+  const codeError = mode === 'verify' && !/^\d{6}$/.test(code) ? 'Enter the six-digit code from your email.' : '';
   const tagError = mode === 'register' && tag.trim() && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag or leave it blank.' : '';
 
   function switchMode(next: Mode) {
     if (pending.current) return;
     setMode(next);
     setPassword('');
+    setCode('');
     setError('');
     setNotice('');
     setAttempted(false);
@@ -49,7 +52,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     setAttempted(true);
     setError('');
     setNotice('');
-    if (emailError || nameError || passwordError || tagError) return;
+    if (emailError || nameError || passwordError || tagError || codeError) return;
     pending.current = true;
     setBusy(true);
     Keyboard.dismiss();
@@ -57,21 +60,50 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
       if (mode === 'signin') {
         await signIn(email.trim(), password);
         onSignedIn();
+      } else if (mode === 'verify') {
+        await verifySignupCode(email.trim(), code);
+        onSignedIn();
       } else if (mode === 'register') {
         const signedIn = await register(email.trim(), password, {
           full_name: name.trim(), role, phone: phone.trim(), revolut_tag: tag.trim(), locality,
         });
         if (signedIn) onSignedIn();
         else {
-          setMode('signin');
+          setMode('verify');
           setPassword('');
+          setCode('');
           setAttempted(false);
-          setNotice('Check your email to confirm your address, then sign in.');
+          setNotice('Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.');
         }
       } else {
         await resetPassword(email.trim());
         setNotice('If an account exists, a password reset link will be sent. Open it in your browser.');
       }
+    } catch (cause) {
+      if (mode === 'signin' && cause && typeof cause === 'object' && 'code' in cause && cause.code === 'email_not_confirmed') {
+        setMode('verify');
+        setPassword('');
+        setAttempted(false);
+        setNotice('Enter the six-digit code from your email. If you received a confirmation link, open it and then sign in.');
+      } else {
+        setError(errorMessage(cause));
+      }
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
+
+  async function resend() {
+    if (pending.current) return;
+    if (emailError) { setAttempted(true); return; }
+    pending.current = true;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await resendSignupCode(email.trim());
+      setNotice('If the account is awaiting confirmation, a new code will be sent.');
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -80,14 +112,16 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     }
   }
 
-  return <Dialog title={mode === 'register' ? 'Join BottleForMe' : mode === 'reset' ? 'Reset password' : 'Log in to BottleForMe'}
+  return <Dialog title={mode === 'register' ? 'Join BottleForMe' : mode === 'reset' ? 'Reset password' : mode === 'verify' ? 'Confirm your email' : 'Log in to BottleForMe'}
     onClose={() => { if (!pending.current) onClose(); }}>
-    <Segmented options={modes} value={mode} onChange={switchMode} />
+    {mode !== 'verify' && <Segmented options={modes} value={mode} onChange={switchMode} />}
+    {mode === 'signin' && <Button label="Confirm email with a code" kind="quiet" onPress={() => switchMode('verify')} disabled={busy} />}
+    {mode === 'verify' && <Button label="Back to log in" kind="quiet" onPress={() => switchMode('signin')} disabled={busy} />}
     {mode === 'register' && <Field label="Full name" value={name} onChangeText={setName} maxLength={100}
       autoComplete="name" editable={!busy} error={attempted ? nameError : ''} />}
     <Field label="Email address" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
       keyboardType="email-address" autoComplete="email" editable={!busy} error={attempted ? emailError : ''} />
-    {mode !== 'reset' && <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry
+    {mode !== 'reset' && mode !== 'verify' && <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry
       autoCapitalize="none" autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
       editable={!busy} error={attempted ? passwordError : ''} />}
     {mode === 'register' && <>
@@ -103,9 +137,14 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         <Select label="Locality" value={locality} onChange={setLocality} options={localityOptions} disabled={busy} inline />
       </View>
     </>}
+    {mode === 'verify' && <>
+      <Field label="Six-digit code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+        keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} editable={!busy} error={attempted ? codeError : ''} />
+      <Button label="Resend code" kind="secondary" onPress={resend} disabled={busy} />
+    </>}
     {notice ? <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text> : null}
     <ErrorText message={error || (supabase ? '' : 'Account service is unavailable in this build.')} />
-    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : 'Send reset link'}
+    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : 'Send reset link'}
       disabled={busy || !supabase} onPress={submit} />
   </Dialog>;
 }
@@ -151,7 +190,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
       <ErrorText message={error} />
       {!signedIn && <Button label="Sign in or register" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} />}
       {signedIn && !loading && <Button label="Reload profile" onPress={onRefresh} style={{ alignSelf: 'flex-start' }} />}
-      {signedIn && <Button label="Log Out (Supabase)" kind="quiet" onPress={onSignOut} />}
+      {signedIn && <Button label="Log out" kind="quiet" onPress={onSignOut} />}
     </Card> : <>
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -199,7 +238,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
           <Text weight="semibold" style={styles.small}>{value || '—'}</Text>
         </View>)}
       </Card>
-      <Button label="Log Out (Supabase)" kind="quiet" onPress={onSignOut} disabled={uploading}>
+      <Button label="Log out" kind="quiet" onPress={onSignOut} disabled={uploading}>
         <LogOut size={13} color={colors.muted} />
       </Button>
     </>}

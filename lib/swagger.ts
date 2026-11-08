@@ -2,7 +2,7 @@ const json = (schema: object) => ({ 'application/json': { schema } });
 const pickup = { $ref: '#/components/schemas/PickupOffer' };
 const containers = { $ref: '#/components/schemas/ContainerBreakdown' };
 const auth = [{ BearerAuth: [] }];
-const id = { in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Pickup UUID or development fixture ID.' };
+const id = { in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Pickup UUID.' };
 const status = { type: 'string', enum: ['open', 'reserved', 'en_route', 'arrived', 'completed', 'cancelled'] };
 const integer = (minimum: number, maximum: number) => ({ type: 'integer', minimum, maximum });
 
@@ -19,8 +19,8 @@ export function getApiDocs() {
       '/api/pickups': {
         get: {
           summary: 'List open Radar pickups or your own pickups',
-          description: 'Radar responses contain locality-level data. Set mine=true with a bearer token to view pickups you listed or reserved.',
-          security: [{}, ...auth],
+          description: 'Radar requires Taker mode and returns locality-level data for pickups listed by other accounts. Set mine=true to view pickups you listed or reserved.',
+          security: auth,
           parameters: [
             { in: 'query', name: 'locality', schema: { type: 'string' } },
             { in: 'query', name: 'mine', schema: { type: 'boolean' } },
@@ -29,7 +29,8 @@ export function getApiDocs() {
             200: { description: 'Pickup list', content: json({ type: 'object', properties: {
               count: { type: 'integer' }, offers: { type: 'array', items: pickup }, source: { type: 'string' },
             } }) },
-            401: { description: 'Sign in to view your pickups' },
+            401: { description: 'Sign in to view pickups' },
+            403: { description: 'Switch to Taker to view Radar' },
             503: { description: 'Pickup service unavailable' },
           },
         },
@@ -55,15 +56,17 @@ export function getApiDocs() {
         get: {
           summary: 'Get a pickup visible to the caller',
           parameters: [id],
-          security: [{}, ...auth],
+          security: auth,
           responses: {
-            200: { description: 'Public or participant pickup details', content: json(pickup) },
+            200: { description: 'Radar or participant pickup details', content: json(pickup) },
+            401: { description: 'Sign in to view pickups' },
+            403: { description: 'Switch to Taker to view Radar details' },
             404: { description: 'Pickup not visible or not found' },
           },
         },
         patch: {
           summary: 'Reserve, update or cancel a pickup',
-          description: 'Reservations are exclusive. An assigned collector can record progress or completion. Either participant can cancel an active pickup.',
+          description: 'Only Takers can reserve pickups listed by other accounts. Reservations are exclusive. An assigned collector can record progress or completion. Either participant can cancel an active pickup.',
           security: auth,
           parameters: [id],
           requestBody: { required: true, content: json({
@@ -73,6 +76,7 @@ export function getApiDocs() {
             200: { description: 'Updated pickup', content: json(pickup) },
             400: { description: 'Invalid status' },
             401: { description: 'Sign in to change a pickup' },
+            403: { description: 'Switch to Taker to reserve a pickup' },
             409: { description: 'Pickup unavailable or transition not allowed' },
           },
         },

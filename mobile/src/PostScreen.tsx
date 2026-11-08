@@ -6,7 +6,9 @@ import { ArrowRight, MapPin } from 'lucide-react-native';
 import { Keyboard, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '../../lib/pickup-validation';
 import { calculateDepositSplit, MALTA_LOCALITIES, type PickupOffer, type UserProfile } from '../../lib/types';
-import { errorMessage, publishPickup } from './backend';
+import { apiOrigin, errorMessage, publishPickup } from './backend';
+import { pickupAddressText, type AddressSuggestion } from '../../lib/pickup-address';
+import { PickupAddressField } from './PickupAddressField';
 import { Badge, Button, Card, colors, ErrorText, Field, Metric, Select, styles, Text } from './ui';
 
 const containerFields = [
@@ -57,6 +59,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const [split, setSplit] = useState(50);
   const [locality, setLocality] = useState('');
   const [notes, setNotes] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
+  const [addressLookup, setAddressLookup] = useState(false);
   const [method, setMethod] = useState<'cash' | 'revolut'>('cash');
   const [tag, setTag] = useState('');
   const [attempted, setAttempted] = useState(false);
@@ -76,6 +81,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     if (profileTag) setTag((value) => value || profileTag);
   }, [profileLocality, profileTag]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(apiOrigin + '/api/addresses', { signal: controller.signal }).then((response) => response.ok ? response.json() : null)
+      .then((settings) => { if (!controller.signal.aborted) setAddressLookup(settings?.enabled === true); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
   const containers = {
     plastic_bottles: whole(counts.plastic_bottles),
     cans: whole(counts.cans),
@@ -86,10 +99,13 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const countsError = !countsValid || totals.totalContainers < 1 || totals.totalContainers > MAX_CONTAINERS
     ? 'Enter whole numbers for a total of 1–10,000 eligible containers.' : '';
   const localityError = locality ? '' : 'Choose a pickup locality.';
-  const notesError = notes.trim() ? '' : 'Enter the street and door or intercom.';
+  const fullAddress = pickupAddressText(pickupAddress, notes);
+  const addressError = !pickupAddress.trim() ? 'Enter your pickup address.'
+    : addressLookup && !addressSelection ? 'Choose an address from the Google Maps suggestions.'
+      : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const needsTag = method === 'revolut' && totals.sellerPayout > 0;
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
-  const errors = [countsError, localityError, notesError, tagError].filter(Boolean);
+  const errors = [countsError, localityError, addressError, tagError].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
   async function useGps() {
@@ -119,24 +135,27 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     setAttempted(true);
     setServerError('');
     const values = validatePickup({
-      locality, address_notes: notes, bag_count: bags, split_percentage: split,
+      locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values) {
+    if (!values || addressError) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const payload = JSON.stringify(values);
+      const request = { ...values, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof };
+      const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
-      const created = await publishPickup(values, key);
+      const created = await publishPickup(request, key);
       requestKeys.current.clear();
       setCounts(zeroCounts);
       setBags(1);
       setNotes('');
+      setPickupAddress('');
+      setAddressSelection(null);
       setAttempted(false);
       onPublished(created);
     } catch (error) {
@@ -217,8 +236,11 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       {locationMessage ? <Text style={styles.muted}>{locationMessage}</Text> : null}
       {needsTag && <Field label="Revolut tag" showLabel={false} value={tag} onChangeText={setTag} maxLength={51}
         placeholder="@your_revolut_tag" autoCapitalize="none" autoCorrect={false} editable={!busy} error={attempted ? tagError : ''} />}
+      <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={signedIn} busy={busy}
+        onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
+        onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />
       <Field label="Private pickup instructions" showLabel={false} value={notes} onChangeText={setNotes} maxLength={300}
-        placeholder="Street and door or intercom" editable={!busy} error={attempted ? notesError : ''} />
+        placeholder="Door, intercom, or other instructions (optional)" editable={!busy} />
       <Text style={styles.muted}>Pickup instructions are shared with the collector who reserves this listing.</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button label="⚡ Revolut P2P" kind={method === 'revolut' ? 'secondary' : 'quiet'}

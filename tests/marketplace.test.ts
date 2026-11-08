@@ -113,6 +113,7 @@ test('migration secures legacy data and enforces participant transitions in Post
         total_bcrs_value, seller_payout, collector_profit) VALUES ('Legacy', 'Sliema', 'Private legacy address', 1, 1, 0.1, 0, 0.1);
     `);
     await db.exec(await readFile(new URL('../supabase/migrations/20261108083018_secure_marketplace.sql', import.meta.url), 'utf8'));
+    await db.exec(await readFile(new URL('../supabase/migrations/20261108135923_taker_only_reservations.sql', import.meta.url), 'utf8'));
     const legacy = await db.query<{ id: string; address_notes: string }>('SELECT id, address_notes FROM public.pickups');
     assert.equal(legacy.rows[0].address_notes, 'Private legacy address');
 
@@ -140,6 +141,14 @@ test('migration secures legacy data and enforces participant transitions in Post
     assert.equal((await transition(taker, 'reserved', legacy.rows[0].id)).rows.length, 0);
     assert.equal((await transition(seller, 'reserved')).rows.length, 0);
     assert.equal((await transition(taker, 'completed')).rows.length, 0);
+    assert.equal((await transition(other, 'reserved')).rows.length, 0, 'an account without a profile cannot reserve');
+    await db.exec('RESET ROLE');
+    await db.query("INSERT INTO public.profiles (id, full_name, role) VALUES ($1, 'Other', 'giver')", [other]);
+    await db.exec('SET ROLE service_role');
+    assert.equal((await transition(other, 'reserved')).rows.length, 0, 'a giver cannot reserve another account’s listing');
+    await db.exec('RESET ROLE');
+    await db.query("UPDATE public.profiles SET role = 'taker' WHERE id = $1", [other]);
+    await db.exec('SET ROLE service_role');
     const [claim, competingClaim] = await Promise.all([transition(taker, 'reserved'), transition(other, 'reserved')]);
     assert.equal(claim.rows[0].collector_id, taker);
     assert.equal(competingClaim.rows.length, 0);

@@ -10,6 +10,8 @@ import {
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
 import { loadProfile, pickupRequest, saveProfile, signOutFromSupabase } from '@/lib/auth';
+import PickupAddressField from '@/components/PickupAddressField';
+import { pickupAddressText, type AddressSuggestion } from '@/lib/pickup-address';
 import { readAvatar } from '@/lib/avatar';
 import { supabase } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
@@ -39,10 +41,13 @@ export default function HomePage() {
   const [locality, setLocality] = useState('');
   const [revolutTag, setRevolutTag] = useState('');
   const [addressNotes, setAddressNotes] = useState('');
+  const [pickupAddress, setPickupAddress] = useState('');
+  const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
+  const [addressLookup, setAddressLookup] = useState(false);
   const [payoutMethod, setPayoutMethod] = useState<'revolut' | 'cash'>('cash');
   const [offers, setOffers] = useState<PickupOffer[]>([]);
   const [radarStatus, setRadarStatus] = useState('Loading Radar…');
-  const [demoRadar, setDemoRadar] = useState(false);
+  const canUseRadar = currentUser?.role === 'taker';
   const [handovers, setHandovers] = useState<PickupOffer[]>([]);
   const [handoverStatus, setHandoverStatus] = useState('Loading your pickups…');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -69,12 +74,15 @@ export default function HomePage() {
         setSessionUser(session?.user ?? null);
         setCurrentUser(null);
         setHandovers([]);
+        setOffers([]);
         setSelectedId(null);
         setNotifications([]);
         publishRequest.current = null;
         if (previousId) {
           setRevolutTag('');
           setAddressNotes('');
+          setPickupAddress('');
+          setAddressSelection(null);
           setLocality('');
           setPlasticCount('0');
           setCanCount('0');
@@ -108,23 +116,23 @@ export default function HomePage() {
   }, [sessionUser]);
 
   useEffect(() => {
-    if (activeTab !== 'driver') return;
+    if (activeTab !== 'driver' || !canUseRadar) return;
     const controller = new AbortController();
-    pickupRequest(radarLocality ? '?locality=' + encodeURIComponent(radarLocality) : '', { signal: controller.signal }, false)
+    pickupRequest(radarLocality ? '?locality=' + encodeURIComponent(radarLocality) : '', { signal: controller.signal })
       .then((payload) => {
         if (controller.signal.aborted) return;
         setOffers(payload.offers);
-        setDemoRadar(payload.source === 'demo');
+
         setRadarStatus(payload.offers.length ? '' : 'No open listings in this area.');
       })
       .catch(() => {
         if (controller.signal.aborted) return;
         setOffers([]);
-        setDemoRadar(false);
+
         setRadarStatus('Radar is unavailable. Try refreshing.');
       });
     return () => controller.abort();
-  }, [activeTab, radarLocality, revision]);
+  }, [accountId, activeTab, canUseRadar, radarLocality, revision]);
 
   useEffect(() => {
     if (!accountId || (activeTab !== 'chat' && activeTab !== 'profile')) return;
@@ -139,6 +147,14 @@ export default function HomePage() {
     return () => controller.abort();
   }, [accountId, activeTab, revision]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/addresses', { signal: controller.signal }).then((response) => response.ok ? response.json() : null)
+      .then((settings) => { if (!controller.signal.aborted) setAddressLookup(settings?.enabled === true); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, []);
+
   const plastic = parseCount(plasticCount);
   const cans = parseCount(canCount);
   const glass = parseCount(glassCount);
@@ -150,7 +166,10 @@ export default function HomePage() {
   const countError = !countsValid ? 'Enter whole counts with up to 10,000 containers in total.'
     : totalContainers === 0 ? 'Add at least one eligible container.' : '';
   const localityError = locality ? '' : 'Choose a pickup locality.';
-  const addressError = addressNotes.trim() ? '' : 'Enter private pickup instructions.';
+  const fullAddress = pickupAddressText(pickupAddress, addressNotes);
+  const addressError = !pickupAddress.trim() ? 'Enter your pickup address.'
+    : addressLookup && accountId && !addressSelection ? 'Choose an address from the Google Maps suggestions.'
+      : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const publishErrors = [countError, localityError, addressError, revolutError].filter(Boolean);
   const selectedOffer = handovers.find((offer) => offer.id === selectedId) ?? handovers[0];
@@ -189,7 +208,8 @@ export default function HomePage() {
     setTriedToPublish(true);
     if (publishErrors.length) return;
     const input = {
-      locality, address_notes: addressNotes, bag_count: bags, split_percentage: splitPercent,
+      locality, address_notes: fullAddress, bag_count: bags, split_percentage: splitPercent,
+      pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof,
       payout_method: payoutMethod, seller_revolut_tag: revolutTag,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
     };
@@ -216,9 +236,12 @@ export default function HomePage() {
       setGlassCount('0');
       setBags(1);
       setAddressNotes('');
+      setPickupAddress('');
+      setAddressSelection(null);
       setRadarLocality('');
       setRevision((value) => value + 1);
-      setActiveTab('driver');
+      setActiveTab('chat');
+      setSelectedId(created.id);
       setNotifications((items) => [{
         id: created.id, title: 'Listing published', message: `${created.estimated_bottles} eligible containers in ${created.locality}.`,
         timestamp: 'Just now', read: false, type: 'pickup',
@@ -236,6 +259,7 @@ export default function HomePage() {
     if (actionInProgress.current) return;
     setActionError('');
     if (!accountId) { setIsAuthOpen(true); return; }
+    if (status === 'reserved' && !canUseRadar) { setActionError('Switch to Taker to reserve pickups.'); return; }
     actionInProgress.current = true;
     setIsUpdating(true);
     try {
@@ -590,6 +614,9 @@ export default function HomePage() {
                   />
                 </div>}
 
+                <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={!!accountId}
+                  onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
+                  onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />
                 {/* Address Notes Full-Width Row */}
                 <div>
                   <input
@@ -597,9 +624,8 @@ export default function HomePage() {
                     aria-label="Private pickup instructions"
                     aria-invalid={triedToPublish && Boolean(addressError) || undefined}
                     aria-describedby={triedToPublish && addressError ? 'publish-errors' : undefined}
-                    placeholder="Street and door or intercom"
+                    placeholder="Door, intercom, or other instructions (optional)"
                     maxLength={300}
-                    required
                     value={addressNotes}
                     onChange={(e) => setAddressNotes(e.target.value)}
                     className="w-full bg-[#0b1220] border border-blue-500/25 text-white text-xs rounded-2xl px-3 py-2.5 placeholder-blue-300/40 focus:outline-none focus:border-blue-500 box-border"
@@ -654,7 +680,16 @@ export default function HomePage() {
           )}
 
           {/* ================= 2. TAKER / RADAR VIEW ================= */}
-          {activeTab === 'driver' && (
+          {activeTab === 'driver' && !canUseRadar && (
+            <section className="glass-navy space-y-3 rounded-[28px] p-4">
+              <h2 className="font-extrabold text-white">Radar is for Takers</h2>
+              <p className="text-sm text-blue-200">Switch to Taker to see and reserve pickups from other accounts.</p>
+              <button type="button" className="blue-btn rounded-xl px-3 py-2 text-sm font-bold text-white" onClick={handleToggleRole}>
+                {currentUser ? 'Switch to Taker' : 'Sign in to use Radar'}
+              </button>
+            </section>
+          )}
+          {activeTab === 'driver' && canUseRadar && (
             <section className="space-y-3.5">
               {/* Radar HUD Card with Map/List Toggle */}
               <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
@@ -700,10 +735,10 @@ export default function HomePage() {
                   </select>
                   <button type="button" onClick={() => setRevision((value) => value + 1)} className="rounded-xl bg-blue-950 p-2 text-xs text-blue-200">Refresh</button>
                 </div>
-                {demoRadar && <p className="text-xs text-blue-300">Local demo listings</p>}
+
                 {radarStatus && <p role="status" className="text-xs text-blue-200">{radarStatus}</p>}
                 {radarView === 'map' && (
-                  <RadarMap offers={offers} onSelectOffer={demoRadar ? undefined : (offer) => changePickup(offer, 'reserved')} />
+                  <RadarMap offers={offers} onSelectOffer={(offer) => changePickup(offer, 'reserved')} />
                 )}
               </div>
 
@@ -752,7 +787,7 @@ export default function HomePage() {
                         </strong>
                       </span>
                       <button
-                        disabled={demoRadar || isUpdating}
+                        disabled={isUpdating}
                         onClick={() => changePickup(offer, 'reserved')}
                         className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
                       >
@@ -786,7 +821,7 @@ export default function HomePage() {
                       </label>
                       <p className="break-words text-white">{selectedOffer.seller_name} · {selectedOffer.locality}</p>
                       <p className="text-blue-200">Status · {selectedOffer.status.replace('_', ' ')}</p>
-                      {(handoverActive || !isCollector) && <p className="break-words text-blue-200">{selectedOffer.address_notes}</p>}
+                      {(handoverActive || !isCollector) && <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>}
                       {handoverActive && selectedOffer.seller_phone && (
                         <p className="break-words text-blue-200">Seller phone · {selectedOffer.seller_phone}</p>
                       )}
@@ -952,7 +987,7 @@ export default function HomePage() {
                   className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-red-400 text-xs font-semibold transition flex items-center justify-center gap-1"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span>Log Out (Supabase)</span>
+                  <span>Log out</span>
                 </button>
               </div>
             </section>

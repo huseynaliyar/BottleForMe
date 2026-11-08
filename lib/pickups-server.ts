@@ -26,4 +26,11 @@ export async function requestUser(request: Request) {
   return error || !data.user || !UUID.test(data.user.id) ? null : data.user;
 }
 
+export async function takerAccess(userId: string) {
+  if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
+  const { data, error } = await pickupsDb.from('profiles').select('role').eq('id', userId).maybeSingle();
+  if (error) return failure('Could not check your active role. Try again.', 503);
+  return data?.role === 'taker' ? null : failure('Switch to Taker to view Radar or reserve a pickup.', 403);
+}
+
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

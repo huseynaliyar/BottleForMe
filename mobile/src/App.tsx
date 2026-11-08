@@ -14,7 +14,7 @@ import { AccountDialog, Avatar, ProfileScreen } from './AccountScreen';
 import { changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
-import { Badge, Button, colors, Dialog, ErrorText, Loading, Segmented, styles, Text } from './ui';
+import { Badge, Button, Card, colors, Dialog, ErrorText, Loading, Segmented, styles, Text } from './ui';
 
 const primaryTabs = [
   { value: 'give', label: 'List Empties' },
@@ -131,7 +131,9 @@ function Marketplace() {
   function afterPublish(offer: PickupOffer) {
     if (!userId || accountId.current !== userId) return;
     setRadarReset((previous) => previous + 1);
-    setTab('radar');
+    setTab('handover');
+    setSelectedId(offer.id);
+    setRecentPickup({ userId, offer });
     setToast('Listing published to Radar.');
     setNotifications((items) => [{
       id: offer.id, title: 'Listing published', message: offer.estimated_bottles + ' eligible containers in ' + offer.locality + '.',
@@ -142,6 +144,7 @@ function Marketplace() {
 
   async function updatePickup(offer: PickupOffer, status: Exclude<PickupStatus, 'open'>) {
     if (!userId) { openAccount(); return; }
+    if (status === 'reserved' && !taker) { setActionError('Switch to Taker to reserve pickups.'); return; }
     if (updating.current) return;
     updating.current = true;
     setBusy(true);
@@ -232,8 +235,15 @@ function Marketplace() {
         <PostScreen key={draftReset} profile={currentProfile} signedIn={!!session} authReady={authReady}
           onSignIn={openAccount} onPublished={afterPublish} />
       </View>
-      {tab === 'radar' && <RadarScreen key={radarReset} revision={revision} busy={busy} onRefresh={refresh}
+      {tab === 'radar' && taker && <RadarScreen key={radarReset} revision={revision} busy={busy} onRefresh={refresh}
         onReserve={(offer) => void updatePickup(offer, 'reserved')} />}
+      {tab === 'radar' && !taker && <View style={styles.scroll}>
+        <Card>
+          <Text weight="heavy" style={styles.title}>Radar is for Takers</Text>
+          <Text style={styles.small}>Switch to Taker to see and reserve pickups from other accounts.</Text>
+          <Button label={session ? 'Switch to Taker' : 'Sign in to use Radar'} onPress={toggleRole} />
+        </Card>
+      </View>}
       {tab === 'handover' && <HandoverScreen key={userId ?? 'guest'} userId={userId} offers={offers} loading={handovers.loading}
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
         onRefresh={refresh} onChange={(offer, status) => void updatePickup(offer, status)} />}

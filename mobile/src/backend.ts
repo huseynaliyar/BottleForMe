@@ -4,6 +4,7 @@ import { createClient, type User } from '@supabase/supabase-js';
 import { loadProfile as readProfile, saveProfile as writeProfile } from '../../lib/profile';
 import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib/types';
 import type { validatePickup } from '../../lib/pickup-validation';
+import type { AddressSuggestion } from '../../lib/pickup-address';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const publishableKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -43,6 +44,16 @@ export async function register(email: string, password: string, metadata: Pick<U
   return !!data.session;
 }
 
+export async function verifySignupCode(email: string, token: string) {
+  const { error } = await client().auth.verifyOtp({ email, token, type: 'email' });
+  if (error) throw error;
+}
+
+export async function resendSignupCode(email: string) {
+  const { error } = await client().auth.resend({ email, type: 'signup' });
+  if (error) throw error;
+}
+
 export async function resetPassword(email: string) {
   const { error } = await client().auth.resetPasswordForEmail(email, { redirectTo: apiOrigin });
   if (error) throw error;
@@ -75,7 +86,7 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
     if (error || !data.session) throw new Error('Sign in to continue.');
     headers.set('Authorization', 'Bearer ' + data.session.access_token);
   }
-  const response = await fetch(apiOrigin + '/api/pickups' + path, { ...init, headers });
+  const response = await fetch(apiOrigin + path, { ...init, headers });
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload === null) {
     throw new Error(payload?.error || 'Could not load a response from the pickup service.');
@@ -85,12 +96,20 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
 
 export async function listPickups(locality: string, mine: boolean, signal: AbortSignal) {
   const query = mine ? '?mine=true' : locality ? '?locality=' + encodeURIComponent(locality) : '';
-  const { offers } = await request<{ offers: PickupOffer[] }>(query, { signal }, mine);
+  const { offers } = await request<{ offers: PickupOffer[] }>('/api/pickups' + query, { signal }, true);
   return offers;
 }
 
-export function publishPickup(values: NonNullable<ReturnType<typeof validatePickup>>, key: string) {
-  return request<PickupOffer>('', {
+export function searchPickupAddresses(input: string, signal: AbortSignal) {
+  return request<{ suggestions: AddressSuggestion[] }>('/api/addresses', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }), signal,
+  }, true);
+}
+
+export function publishPickup(values: NonNullable<ReturnType<typeof validatePickup>> & {
+  pickup_address: string; address_proof?: string;
+}, key: string) {
+  return request<PickupOffer>('/api/pickups', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key },
     body: JSON.stringify(values),
@@ -98,7 +117,7 @@ export function publishPickup(values: NonNullable<ReturnType<typeof validatePick
 }
 
 export function changePickup(id: string, status: Exclude<PickupStatus, 'open'>) {
-  return request<PickupOffer>('/' + encodeURIComponent(id), {
+  return request<PickupOffer>('/api/pickups/' + encodeURIComponent(id), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),

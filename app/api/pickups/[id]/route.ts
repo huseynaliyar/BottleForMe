@@ -1,6 +1,5 @@
 import type { PickupOffer } from '@/lib/types';
-import { INITIAL_OFFERS } from '@/lib/mock-data';
-import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, UUID } from '@/lib/pickups-server';
+import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
 export const dynamic = 'force-dynamic';
@@ -9,10 +8,6 @@ type Context = { params: Promise<{ id: string }> };
 
 export async function GET(request: Request, { params }: Context) {
   const { id } = await params;
-  if (!pickupsDb && process.env.NODE_ENV === 'development') {
-    const fixture = INITIAL_OFFERS.find((offer) => offer.id === id && offer.status === 'open');
-    if (fixture) return response(publicPickup(fixture));
-  }
   if (!UUID.test(id)) return failure('Pickup not found.', 404);
   if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
   const user = await requestUser(request);
@@ -22,8 +17,11 @@ export async function GET(request: Request, { params }: Context) {
     if (error) return failure('Could not load the pickup.', 503);
     if (data) return response(participantPickup(data, user.id));
   }
+  if (!user) return failure('Sign in as a Taker to view Radar.', 401);
+  const blocked = await takerAccess(user.id);
+  if (blocked) return blocked;
   const { data, error } = await pickupsDb.from('pickups').select(PUBLIC_COLUMNS).eq('id', id)
-    .eq('status', 'open').not('seller_id', 'is', null).maybeSingle();
+    .eq('status', 'open').is('collector_id', null).not('seller_id', 'is', null).maybeSingle();
   if (error) return failure('Could not load the pickup.', 503);
   return data ? response(publicPickup(data)) : failure('Pickup not found.', 404);
 }
@@ -38,6 +36,11 @@ export async function PATCH(request: Request, { params }: Context) {
   const status = body?.status;
   if (status !== 'reserved' && status !== 'en_route' && status !== 'arrived' &&
       status !== 'completed' && status !== 'cancelled') return failure('Invalid pickup status.', 400);
+
+  if (status === 'reserved') {
+    const blocked = await takerAccess(user.id);
+    if (blocked) return blocked;
+  }
 
   const { data, error } = await pickupsDb.rpc('transition_pickup', {
     pickup_id: id, actor_id: user.id, next_status: status,

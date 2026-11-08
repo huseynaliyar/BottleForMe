@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { hasConfirmedAddress } from '@/lib/google-addresses';
 import { MALTA_LOCALITIES } from '@/lib/types';
-import { INITIAL_OFFERS } from '@/lib/mock-data';
 import { validatePickup } from '@/lib/pickup-validation';
-import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, UUID } from '@/lib/pickups-server';
+import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
 export const dynamic = 'force-dynamic';
@@ -14,27 +14,22 @@ export async function GET(request: Request) {
   const status = params.get('status');
   if (!mine && status && status !== 'open') return failure('Radar only lists open pickups.', 400);
 
-  if (!pickupsDb) {
-    if (process.env.NODE_ENV === 'development' && !mine) {
-      const offers = INITIAL_OFFERS.filter((offer) => offer.status === 'open' &&
-        (!locality || locality === 'all' || offer.locality.toLowerCase() === locality.toLowerCase())).map(publicPickup);
-      return response({ count: offers.length, offers, source: 'demo' });
-    }
-    return failure('Pickup service is unavailable.', 503);
-  }
-
+  if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
+  const user = await requestUser(request);
+  if (!user) return failure(mine ? 'Sign in to view your pickups.' : 'Sign in as a Taker to view Radar.', 401);
   const client = pickupsDb;
   if (mine) {
-    const user = await requestUser(request);
-    if (!user) return failure('Sign in to view your pickups.', 401);
     const { data, error } = await client.from('pickups').select(PRIVATE_COLUMNS)
       .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).order('updated_at', { ascending: false });
     if (error) return failure('Could not load your pickups.', 503);
     return response({ count: data.length, offers: data.map((row) => participantPickup(row, user.id)), source: 'supabase' });
   }
 
+  const blocked = await takerAccess(user.id);
+  if (blocked) return blocked;
   let query = client.from('pickups').select(PUBLIC_COLUMNS)
-    .eq('status', 'open').not('seller_id', 'is', null).order('created_at', { ascending: false });
+    .eq('status', 'open').is('collector_id', null).not('seller_id', 'is', null)
+    .neq('seller_id', user.id).order('created_at', { ascending: false });
   if (locality && locality !== 'all') {
     const canonical = MALTA_LOCALITIES.find((item) => item.name.toLowerCase() === locality.toLowerCase());
     if (!canonical) return response({ count: 0, offers: [], source: 'supabase' });
@@ -53,6 +48,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const values = validatePickup(body);
   if (!values) return failure('Check container counts, bag count, seller split, location and payment details.', 400);
+  if (!hasConfirmedAddress(user.id, body.pickup_address, body.address_proof, values.address_notes)) {
+    return failure('Choose your pickup address from the Google Maps suggestions.', 400);
+  }
   const key = request.headers.get('idempotency-key');
   if (key !== null && !UUID.test(key)) return failure('Invalid idempotency key.', 400);
   const id = key ?? randomUUID();
