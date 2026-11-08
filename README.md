@@ -7,7 +7,7 @@ BottleForMe is a free marketplace for arranging doorstep pickups of eligible Mal
 1. Use Node.js 22 or later and run `npm ci`.
 2. Copy `.env.example` to `.env.local` and configure a development Supabase project. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Use the browser's anon key in `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 3. For a new Supabase database, run `supabase/schema.sql` followed by `supabase/migrations/20261108083018_secure_marketplace.sql`. For a database provisioned by the original schema, apply only the migration.
-4. Set the Supabase Auth site URL and allow the application's origin as a redirect URL for signup confirmation and password recovery. Allow localhost for development and the deployed app origin for that environment.
+4. In the production Supabase project's Auth URL Configuration, set the Site URL to `https://bottleforme.vercel.app` and add that same URL under Redirect URLs. Signup and password recovery request the current app origin. Supabase falls back to the Site URL when a requested URL is missing or isn't allowed. Add localhost to the redirect list for development as needed.
 5. Run `npm run dev`. Without a Supabase configuration, the development server offers read-only Radar fixtures.
 
 Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` for local verification. Tests use an embedded PostgreSQL instance and local test records.

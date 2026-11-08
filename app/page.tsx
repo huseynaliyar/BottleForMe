@@ -48,6 +48,7 @@ export default function HomePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [triedToPublish, setTriedToPublish] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPinningLocation, setIsPinningLocation] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -81,6 +82,7 @@ export default function HomePage() {
           setBags(1);
           setSplitPercent(50);
           setPayoutMethod('cash');
+          setTriedToPublish(false);
         }
       }
       if (event === 'PASSWORD_RECOVERY') {
@@ -144,6 +146,13 @@ export default function HomePage() {
     plastic ?? 0, cans ?? 0, glass ?? 0, splitPercent,
   );
   const countsValid = plastic !== null && cans !== null && glass !== null && totalContainers <= MAX_CONTAINERS;
+  const needsRevolutTag = payoutMethod === 'revolut' && sellerPayout > 0;
+  const countError = !countsValid ? 'Enter whole counts with up to 10,000 containers in total.'
+    : totalContainers === 0 ? 'Add at least one eligible container.' : '';
+  const localityError = locality ? '' : 'Choose a pickup locality.';
+  const addressError = addressNotes.trim() ? '' : 'Enter private pickup instructions.';
+  const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
+  const publishErrors = [countError, localityError, addressError, revolutError].filter(Boolean);
   const selectedOffer = handovers.find((offer) => offer.id === selectedId) ?? handovers[0];
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
@@ -177,7 +186,8 @@ export default function HomePage() {
     event.preventDefault();
     if (actionInProgress.current) return;
     setActionError('');
-    if (!accountId) { setIsAuthOpen(true); return; }
+    setTriedToPublish(true);
+    if (publishErrors.length) return;
     const input = {
       locality, address_notes: addressNotes, bag_count: bags, split_percentage: splitPercent,
       payout_method: payoutMethod, seller_revolut_tag: revolutTag,
@@ -187,6 +197,7 @@ export default function HomePage() {
       setActionError('Enter 1–10,000 eligible containers, select a locality and check the pickup and payment details.');
       return;
     }
+    if (!accountId) { setIsAuthOpen(true); return; }
     actionInProgress.current = true;
     setIsPublishing(true);
     try {
@@ -199,6 +210,7 @@ export default function HomePage() {
       });
       if (sessionId.current !== accountId) return;
       publishRequest.current = null;
+      setTriedToPublish(false);
       setPlasticCount('0');
       setCanCount('0');
       setGlassCount('0');
@@ -408,7 +420,7 @@ export default function HomePage() {
         <main className="flex-1 px-4 pb-4 space-y-4 relative z-10">
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
-            <form className="space-y-3.5" onSubmit={handlePublishOffer}>
+            <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
               {/* Hero Card */}
               <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
                 <div className="flex flex-wrap justify-between gap-2">
@@ -447,7 +459,7 @@ export default function HomePage() {
                   <p className="text-xs text-blue-200/70">
                     Total: <strong className="text-white">{countsValid ? totalContainers : '—'} eligible items</strong>
                   </p>
-                  {!countsValid && <p className="text-xs text-red-300">Enter whole counts from 0 to 10,000, with up to 10,000 items in total.</p>}
+                  {!countsValid && <p className="text-xs text-red-300">{countError}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                     <span className="text-xs text-blue-200/70">Pickup bags (packing only) · {bags}</span>
                     <div className="flex gap-1.5">
@@ -537,6 +549,8 @@ export default function HomePage() {
                     <select
                       value={locality}
                       aria-label="Pickup locality"
+                      aria-invalid={triedToPublish && Boolean(localityError) || undefined}
+                      aria-describedby={triedToPublish && localityError ? 'publish-errors' : undefined}
                       required
                       onChange={(e) => setLocality(e.target.value)}
                       className="w-full bg-[#0b1220] border border-blue-500/25 text-white text-xs font-semibold rounded-2xl px-3 py-2.5 appearance-none focus:outline-none focus:border-blue-500 truncate"
@@ -561,10 +575,12 @@ export default function HomePage() {
                   </button>
                 </div>
 
-                {payoutMethod === 'revolut' && sellerPayout > 0 && <div>
+                {needsRevolutTag && <div>
                   <input
                     type="text"
                     aria-label="Revolut tag"
+                    aria-invalid={triedToPublish && Boolean(revolutError) || undefined}
+                    aria-describedby={triedToPublish && revolutError ? 'publish-errors' : undefined}
                     placeholder="@your_revolut_tag"
                     maxLength={51}
                     required
@@ -579,6 +595,8 @@ export default function HomePage() {
                   <input
                     type="text"
                     aria-label="Private pickup instructions"
+                    aria-invalid={triedToPublish && Boolean(addressError) || undefined}
+                    aria-describedby={triedToPublish && addressError ? 'publish-errors' : undefined}
                     placeholder="Street and door or intercom"
                     maxLength={300}
                     required
@@ -617,9 +635,16 @@ export default function HomePage() {
               </div>
 
               {/* Publish Request Button */}
+              {triedToPublish && publishErrors.length > 0 && (
+                <div id="publish-errors" role="alert" className="rounded-xl bg-red-950 p-3 text-sm text-red-200">
+                  <ul className="list-disc space-y-1 pl-5">
+                    {publishErrors.map((error) => <li key={error}>{error}</li>)}
+                  </ul>
+                </div>
+              )}
               <button
                 type="submit"
-                disabled={isPublishing || !countsValid || totalContainers === 0}
+                disabled={isPublishing}
                 className="w-full py-3.5 rounded-2xl blue-btn text-white font-extrabold text-sm tracking-tight flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
               >
                 <span>{isPublishing ? 'Publishing…' : 'Publish Collection Request'}</span>
