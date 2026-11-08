@@ -1,19 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const isSupabaseConfigured = () => {
-  return Boolean(supabaseUrl && supabaseAnonKey && supabaseUrl.startsWith('https://'));
-};
+export const isSupabaseConfigured = () => Boolean(url && key &&
+  (url.startsWith('https://') || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url)));
 
-// Client-side Supabase instance (browser / client components)
-export const supabase = isSupabaseConfigured()
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
-
-// Server-side admin client (for API routes with service role key if present)
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
-export const supabaseAdmin = isSupabaseConfigured()
-  ? createClient(supabaseUrl, serviceRoleKey)
-  : null;
+export const supabase = isSupabaseConfigured() ? createClient(url!, key!) : null;

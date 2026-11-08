@@ -1,82 +1,48 @@
-import { NextResponse } from 'next/server';
+import type { PickupOffer } from '@/lib/types';
 import { INITIAL_OFFERS } from '@/lib/mock-data';
+import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, UUID } from '@/lib/pickups-server';
+import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
-/**
- * @swagger
- * /api/pickups/{id}:
- *   get:
- *     summary: Get details of a specific bottle pickup offer
- *     tags:
- *       - Pickups & Radar
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Offer details
- *       404:
- *         description: Offer not found
- */
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const offer = INITIAL_OFFERS.find((o) => o.id === params.id);
-  if (!offer) {
-    return NextResponse.json({ error: 'Offer not found' }, { status: 404 });
+export const dynamic = 'force-dynamic';
+
+type Context = { params: Promise<{ id: string }> };
+
+export async function GET(request: Request, { params }: Context) {
+  const { id } = await params;
+  if (!pickupsDb && process.env.NODE_ENV === 'development') {
+    const fixture = INITIAL_OFFERS.find((offer) => offer.id === id && offer.status === 'open');
+    if (fixture) return response(publicPickup(fixture));
   }
-  return NextResponse.json(offer);
+  if (!UUID.test(id)) return failure('Pickup not found.', 404);
+  if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
+  const user = await requestUser(request);
+  if (user) {
+    const { data, error } = await pickupsDb.from('pickups').select(PRIVATE_COLUMNS).eq('id', id)
+      .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).maybeSingle();
+    if (error) return failure('Could not load the pickup.', 503);
+    if (data) return response(participantPickup(data, user.id));
+  }
+  const { data, error } = await pickupsDb.from('pickups').select(PUBLIC_COLUMNS).eq('id', id)
+    .eq('status', 'open').not('seller_id', 'is', null).maybeSingle();
+  if (error) return failure('Could not load the pickup.', 503);
+  return data ? response(publicPickup(data)) : failure('Pickup not found.', 404);
 }
 
-/**
- * @swagger
- * /api/pickups/{id}:
- *   patch:
- *     summary: Update offer status (reserve, claim, complete)
- *     tags:
- *       - Handover & Payments
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               status:
- *                 type: string
- *                 enum: [reserved, en_route, arrived, completed, cancelled]
- *               collector_name:
- *                 type: string
- *     responses:
- *       200:
- *         description: Status updated successfully
- */
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const body = await request.json();
-    const offer = INITIAL_OFFERS.find((o) => o.id === params.id);
-    if (!offer) {
-      return NextResponse.json({ error: 'Offer not found' }, { status: 404 });
-    }
+export async function PATCH(request: Request, { params }: Context) {
+  const { id } = await params;
+  if (!UUID.test(id)) return failure('Pickup not found.', 404);
+  if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
+  const user = await requestUser(request);
+  if (!user) return failure('Sign in to update a pickup.', 401);
+  const body = await request.json().catch(() => null);
+  const status = body?.status;
+  if (status !== 'reserved' && status !== 'en_route' && status !== 'arrived' &&
+      status !== 'completed' && status !== 'cancelled') return failure('Invalid pickup status.', 400);
 
-    if (body.status) offer.status = body.status;
-    if (body.collector_name) offer.collector_name = body.collector_name;
-    offer.updated_at = new Date().toISOString();
-
-    return NextResponse.json(offer);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to update' }, { status: 400 });
-  }
+  const { data, error } = await pickupsDb.rpc('transition_pickup', {
+    pickup_id: id, actor_id: user.id, next_status: status,
+  }).maybeSingle();
+  if (error) return failure('Could not update the pickup.', 503);
+  if (data) return response(participantPickup(data as PickupOffer & { status: string }, user.id));
+  return failure('Pickup is unavailable or this change is no longer allowed.', 409);
 }

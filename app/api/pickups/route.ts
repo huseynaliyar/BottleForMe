@@ -1,137 +1,85 @@
-import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { MALTA_LOCALITIES } from '@/lib/types';
 import { INITIAL_OFFERS } from '@/lib/mock-data';
-import { calculateBcrsSplit, PickupOffer } from '@/lib/types';
-import { supabaseAdmin, isSupabaseConfigured } from '@/lib/supabase';
+import { validatePickup } from '@/lib/pickup-validation';
+import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, UUID } from '@/lib/pickups-server';
+import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
-// In-memory fallback store when Supabase keys are not set
-let inMemoryStore: PickupOffer[] = [...INITIAL_OFFERS];
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const locality = searchParams.get('locality');
-  const status = searchParams.get('status');
+  const params = new URL(request.url).searchParams;
+  const mine = params.get('mine') === 'true';
+  const locality = params.get('locality');
+  const status = params.get('status');
+  if (!mine && status && status !== 'open') return failure('Radar only lists open pickups.', 400);
 
-  // 1. Supabase integration if credentials present
-  if (isSupabaseConfigured() && supabaseAdmin) {
-    try {
-      let query = supabaseAdmin
-        .from('pickups')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (locality && locality !== 'all') {
-        query = query.ilike('locality', locality);
-      }
-      if (status) {
-        query = query.eq('status', status);
-      }
-
-      const { data, error } = await query;
-      if (!error && data) {
-        return NextResponse.json({
-          count: data.length,
-          offers: data,
-          source: 'supabase',
-        });
-      }
-    } catch (err) {
-      console.warn('Supabase query failed, falling back to local memory store', err);
+  if (!pickupsDb) {
+    if (process.env.NODE_ENV === 'development' && !mine) {
+      const offers = INITIAL_OFFERS.filter((offer) => offer.status === 'open' &&
+        (!locality || locality === 'all' || offer.locality.toLowerCase() === locality.toLowerCase())).map(publicPickup);
+      return response({ count: offers.length, offers, source: 'demo' });
     }
+    return failure('Pickup service is unavailable.', 503);
   }
 
-  // 2. Fallback to in-memory store
-  let results = [...inMemoryStore];
+  const client = pickupsDb;
+  if (mine) {
+    const user = await requestUser(request);
+    if (!user) return failure('Sign in to view your pickups.', 401);
+    const { data, error } = await client.from('pickups').select(PRIVATE_COLUMNS)
+      .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).order('updated_at', { ascending: false });
+    if (error) return failure('Could not load your pickups.', 503);
+    return response({ count: data.length, offers: data.map((row) => participantPickup(row, user.id)), source: 'supabase' });
+  }
 
+  let query = client.from('pickups').select(PUBLIC_COLUMNS)
+    .eq('status', 'open').not('seller_id', 'is', null).order('created_at', { ascending: false });
   if (locality && locality !== 'all') {
-    results = results.filter(
-      (o) => o.locality.toLowerCase() === locality.toLowerCase()
-    );
+    const canonical = MALTA_LOCALITIES.find((item) => item.name.toLowerCase() === locality.toLowerCase());
+    if (!canonical) return response({ count: 0, offers: [], source: 'supabase' });
+    query = query.eq('locality', canonical.name);
   }
-
-  if (status) {
-    results = results.filter((o) => o.status === status);
-  }
-
-  return NextResponse.json({
-    count: results.length,
-    offers: results,
-    source: 'in-memory',
-  });
+  const { data, error } = await query;
+  if (error) return failure('Could not load Radar listings.', 503);
+  return response({ count: data.length, offers: data.map(publicPickup), source: 'supabase' });
 }
 
 export async function POST(request: Request) {
-  try {
-    const body = await request.json();
-    const bagCount = Number(body.bag_count) || 1;
-    const splitPercentage = body.split_percentage !== undefined ? Number(body.split_percentage) : 50;
+  if (!pickupsDb) return failure('Pickup service is unavailable.', 503);
+  const user = await requestUser(request);
+  if (!user) return failure('Sign in to publish a pickup.', 401);
 
-    const calculated = calculateBcrsSplit(bagCount, splitPercentage);
-    const estimatedBottles = body.estimated_bottles || calculated.estimatedBottles;
-    const totalDepositValue = body.total_bcrs_value || calculated.totalBcrsValue;
-    const sellerPayout = body.seller_payout !== undefined ? body.seller_payout : calculated.sellerPayout;
-    const collectorProfit = body.collector_profit !== undefined ? body.collector_profit : calculated.collectorProfit;
+  const body = await request.json().catch(() => null);
+  const values = validatePickup(body);
+  if (!values) return failure('Check container counts, bag count, seller split, location and payment details.', 400);
+  const key = request.headers.get('idempotency-key');
+  if (key !== null && !UUID.test(key)) return failure('Invalid idempotency key.', 400);
+  const id = key ?? randomUUID();
 
-    const newOffer: PickupOffer = {
-      id: `malta-offer-${Date.now()}`,
-      seller_name: body.seller_name || 'Resident',
-      seller_phone: body.seller_phone || '',
-      seller_revolut_tag: body.seller_revolut_tag || '',
-      locality: body.locality || 'Sliema',
-      address_notes: body.address_notes || '',
-      bag_count: bagCount,
-      containers: body.containers,
-      estimated_bottles: estimatedBottles,
-      total_bcrs_value: totalDepositValue,
-      split_percentage: splitPercentage,
-      seller_payout: sellerPayout,
-      collector_profit: collectorProfit,
-      payout_method: body.payout_method || 'revolut',
-      status: 'open',
-      lat: body.lat,
-      lng: body.lng,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // Save to Supabase if configured
-    if (isSupabaseConfigured() && supabaseAdmin) {
-      try {
-        const { data, error } = await supabaseAdmin
-          .from('pickups')
-          .insert([
-            {
-              seller_name: newOffer.seller_name,
-              seller_phone: newOffer.seller_phone,
-              seller_revolut_tag: newOffer.seller_revolut_tag,
-              locality: newOffer.locality,
-              address_notes: newOffer.address_notes,
-              bag_count: newOffer.bag_count,
-              estimated_bottles: newOffer.estimated_bottles,
-              total_bcrs_value: newOffer.total_bcrs_value,
-              split_percentage: newOffer.split_percentage,
-              seller_payout: newOffer.seller_payout,
-              collector_profit: newOffer.collector_profit,
-              payout_method: newOffer.payout_method,
-              status: newOffer.status,
-            },
-          ])
-          .select()
-          .single();
-
-        if (!error && data) {
-          return NextResponse.json({ ...data, containers: newOffer.containers, lat: newOffer.lat, lng: newOffer.lng }, { status: 201 });
-        }
-      } catch (err) {
-        console.warn('Supabase insert failed, using memory store fallback', err);
-      }
+  const metadata = user.user_metadata;
+  const { data, error } = await pickupsDb.from('pickups').insert({
+    ...values,
+    id,
+    seller_id: user.id,
+    seller_name: typeof metadata.full_name === 'string' ? metadata.full_name.trim().slice(0, 100) || 'Giver' : 'Giver',
+    seller_phone: typeof metadata.phone === 'string' ? metadata.phone.trim().slice(0, 40) : null,
+    status: 'open',
+  }).select(PRIVATE_COLUMNS).single();
+  if (!error) return response(data, 201);
+  if (error.code === '23505' && key) {
+    const existing = await pickupsDb.from('pickups').select(PRIVATE_COLUMNS).eq('id', id).eq('seller_id', user.id).maybeSingle();
+    if (existing.error) return failure('Could not verify the previous request.', 503);
+    if (existing.data) {
+      const row = existing.data;
+      const sameRequest = row.locality === values.locality && row.bag_count === values.bag_count &&
+        row.split_percentage === values.split_percentage && row.payout_method === values.payout_method &&
+        row.address_notes === values.address_notes && row.seller_revolut_tag === values.seller_revolut_tag &&
+        row.containers?.plastic_bottles === values.containers.plastic_bottles &&
+        row.containers?.cans === values.containers.cans && row.containers?.glass_bottles === values.containers.glass_bottles;
+      if (sameRequest) return response(row);
     }
-
-    inMemoryStore.unshift(newOffer);
-    return NextResponse.json(newOffer, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: 'Failed to create pickup offer' },
-      { status: 400 }
-    );
+    return failure('That request key is already in use.', 409);
   }
+  return failure('Could not save the pickup.', 503);
 }

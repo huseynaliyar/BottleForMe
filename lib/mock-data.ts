@@ -3,11 +3,9 @@ import { PickupOffer } from './types';
 export const INITIAL_OFFERS: PickupOffer[] = [
   {
     id: 'malta-offer-101',
-    seller_name: 'Maria Borg',
-    seller_phone: '+356 9912 3456',
-    seller_revolut_tag: '@maria_mlt',
+    seller_name: 'Demo giver',
     locality: 'Sliema',
-    address_notes: 'Tower Road, near Preluna. Lift available in building.',
+    address_notes: '',
     bag_count: 2,
     containers: {
       plastic_bottles: 40,
@@ -28,11 +26,9 @@ export const INITIAL_OFFERS: PickupOffer[] = [
   },
   {
     id: 'malta-offer-102',
-    seller_name: 'David Galea',
-    seller_phone: '+356 7944 5566',
-    seller_revolut_tag: '@david_g',
+    seller_name: 'Demo giver',
     locality: 'Gzira',
-    address_notes: 'Near Manoel Island Marina. Ground floor maisonette.',
+    address_notes: '',
     bag_count: 1,
     containers: {
       plastic_bottles: 25,
@@ -53,11 +49,9 @@ export const INITIAL_OFFERS: PickupOffer[] = [
   },
   {
     id: 'malta-offer-103',
-    seller_name: 'Elena Vella',
-    seller_phone: '+356 9988 7711',
-    seller_revolut_tag: '@elena_v',
+    seller_name: 'Demo giver',
     locality: 'Birkirkara',
-    address_notes: 'Triq il-Wied, near church. Intercom 3.',
+    address_notes: '',
     bag_count: 3,
     containers: {
       plastic_bottles: 60,
@@ -78,11 +72,9 @@ export const INITIAL_OFFERS: PickupOffer[] = [
   },
   {
     id: 'malta-offer-104',
-    seller_name: 'Luca Camilleri',
-    seller_phone: '+356 7922 1133',
-    seller_revolut_tag: '@luca_cam',
+    seller_name: 'Demo giver',
     locality: "St Julian's",
-    address_notes: 'Spinola Bay. Big party empties, clean sorted cans & glass bottles.',
+    address_notes: '',
     bag_count: 4,
     containers: {
       plastic_bottles: 65,

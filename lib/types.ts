@@ -3,7 +3,7 @@ export type PickupStatus =
   | 'reserved'    // Collector claimed offer, coordinating handover
   | 'en_route'    // Collector driving to doorstep
   | 'arrived'     // Collector at door
-  | 'completed'   // Handover complete & payment confirmed
+  | 'completed'   // Handover recorded by collector
   | 'cancelled';
 
 export type PayoutMethod = 'revolut' | 'cash' | 'charity';
@@ -18,15 +18,17 @@ export interface ContainerBreakdown {
 
 export interface PickupOffer {
   id: string;
+  seller_id?: string | null;
+  collector_id?: string | null;
   seller_name: string;
   seller_phone?: string;
   seller_revolut_tag?: string;
   locality: string;
   address_notes: string;
   bag_count: number;
-  containers?: ContainerBreakdown;
+  containers?: ContainerBreakdown | null;
   estimated_bottles: number;
-  total_bcrs_value: number; // Deposit value in € (€0.10 per container: plastic, can, glass)
+  total_bcrs_value: number; // Estimated voucher value in € (€0.10 per eligible container)
   split_percentage: number; // 0% (free gift to taker) to 70% (50% is default)
   seller_payout: number;    // Amount giver receives at doorstep
   collector_profit: number; // Reward taker keeps from recycling redemption
@@ -86,38 +88,21 @@ export interface NotificationItem {
   type: 'pickup' | 'arrival' | 'payment' | 'system';
 }
 
-/**
- * Calculates deposit economics based on container counts and split percentage.
- * Standard rate is €0.10 per container (plastic bottle, aluminum can, or glass bottle).
- */
+// Keep all calculations in cents until the final display/database conversion.
 export function calculateDepositSplit(
   plasticCount: number,
   canCount: number,
   glassCount: number,
   splitPercentage: number
 ) {
-  const totalContainers = Math.max(1, plasticCount + canCount + glassCount);
-  const depositRate = 0.10; // €0.10 per container (plastic bottle, can, glass bottle)
-  const totalDepositValue = Number((totalContainers * depositRate).toFixed(2));
-  const sellerPayout = Number((totalDepositValue * (splitPercentage / 100)).toFixed(2));
-  const collectorProfit = Number((totalDepositValue - sellerPayout).toFixed(2));
+  const totalContainers = plasticCount + canCount + glassCount;
+  const depositCents = totalContainers * 10;
+  const payoutCents = Math.round(depositCents * splitPercentage / 100);
 
   return {
     totalContainers,
-    estimatedBottles: totalContainers,
-    totalDepositValue,
-    totalBcrsValue: totalDepositValue, // alias for backwards compatibility
-    sellerPayout,
-    collectorProfit,
+    totalDepositValue: depositCents / 100,
+    sellerPayout: payoutCents / 100,
+    collectorProfit: (depositCents - payoutCents) / 100,
   };
-}
-
-// Backwards-compatibility alias for bags-based calculation
-export function calculateBcrsSplit(bags: number, splitPercentage: number) {
-  const avgBottlesPerBag = 35;
-  const estimatedBottles = bags * avgBottlesPerBag;
-  const plastic = Math.round(estimatedBottles * 0.5);
-  const cans = Math.round(estimatedBottles * 0.35);
-  const glass = Math.round(estimatedBottles * 0.15);
-  return calculateDepositSplit(plastic, cans, glass, splitPercentage);
 }

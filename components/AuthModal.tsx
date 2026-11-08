@@ -1,390 +1,134 @@
 'use client';
 
-import { useState } from 'react';
-import { X, User, Lock, Mail, Phone, MapPin, Camera, Zap, Check, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { UserProfile, UserRole, MALTA_LOCALITIES } from '@/lib/types';
-import { DEMO_GIVER, DEMO_TAKER, registerWithSupabase, signInWithSupabase, saveStoredUser } from '@/lib/auth';
-import { isSupabaseConfigured } from '@/lib/supabase';
+import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
+import { MALTA_LOCALITIES, UserProfile, UserRole } from '@/lib/types';
+import { registerWithSupabase, requestPasswordReset, signInWithSupabase, updatePassword } from '@/lib/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
+  recovery: boolean;
   onClose: () => void;
-  onAuthSuccess: (user: UserProfile, message?: string) => void;
+  onAuthSuccess: (user: UserProfile) => void;
+  onPasswordUpdated: () => void;
 }
 
-export default function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
-  const [mode, setMode] = useState<'signin' | 'register'>('register');
-  const [role, setRole] = useState<UserRole>('giver');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [phone, setPhone] = useState('+356 ');
-  const [revolutTag, setRevolutTag] = useState('@');
-  const [locality, setLocality] = useState('Sliema');
-  const [avatarUrl, setAvatarUrl] = useState<string>('');
+const inputClass = 'w-full rounded-xl border border-blue-500/25 bg-[#0d1527] px-3 py-2.5 text-white';
+const buttonClass = 'rounded-xl px-3 py-2 text-sm font-bold text-blue-200 hover:bg-blue-900/40 disabled:opacity-50';
+
+export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, onPasswordUpdated }: AuthModalProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const submitting = useRef(false);
+  const [mode, setMode] = useState<'signin' | 'register' | 'forgot'>('signin');
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    const element = dialog.current;
+    if (isOpen && element && !element.open) element.showModal();
+    if (!isOpen && element?.open) element.close();
+  }, [isOpen]);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+  function changeMode(next: typeof mode) {
+    setMode(next);
+    setNotice(null);
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg(null);
-    setInfoMsg(null);
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting.current) return;
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const email = String(fields.get('email') ?? '').trim();
+    const password = String(fields.get('password') ?? '');
+    submitting.current = true;
     setLoading(true);
+    setNotice(null);
 
     try {
-      if (mode === 'register') {
-        if (!fullName.trim() || !email.trim()) {
-          setErrorMsg('Please enter your full name and email.');
-          setLoading(false);
-          return;
-        }
-
-        if (!password || password.length < 6) {
-          setErrorMsg('Password must be at least 6 characters.');
-          setLoading(false);
-          return;
-        }
-
-        const result = await registerWithSupabase({
-          full_name: fullName.trim(),
-          email: email.trim(),
+      if (recovery) {
+        await updatePassword(password);
+        form.reset();
+        onPasswordUpdated();
+      } else if (mode === 'forgot') {
+        await requestPasswordReset(email);
+        setNotice({ text: 'If an account exists, a password reset link will be sent.' });
+      } else if (mode === 'register') {
+        const name = String(fields.get('name') ?? '').trim();
+        if (!name) throw new Error('Enter your full name.');
+        const user = await registerWithSupabase({
+          full_name: name,
+          email,
           password,
-          role,
-          phone: phone.trim(),
-          revolut_tag: revolutTag.trim(),
-          locality,
-          avatar_url: avatarUrl || undefined,
+          role: fields.get('role') as UserRole,
+          phone: String(fields.get('phone') ?? '').trim(),
+          revolut_tag: String(fields.get('revolut') ?? '').trim(),
+          locality: String(fields.get('locality') ?? ''),
         });
-
-        if (result.message) {
-          setInfoMsg(result.message);
+        form.reset();
+        if (user) onAuthSuccess(user);
+        else {
+          setMode('signin');
+          setNotice({ text: 'Check your email to confirm your address, then sign in.' });
         }
-        onAuthSuccess(result.user, result.message);
-        onClose();
       } else {
-        // Sign In mode
-        if (!email.trim() || !password) {
-          setErrorMsg('Please enter your email and password.');
-          setLoading(false);
-          return;
-        }
-
-        const user = await signInWithSupabase(email.trim(), password);
-        onAuthSuccess(user, `Welcome back, ${user.full_name}!`);
-        onClose();
+        const user = await signInWithSupabase(email, password);
+        form.reset();
+        onAuthSuccess(user);
       }
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication error. Please verify credentials.');
+    } catch (error) {
+      setNotice({ error: true, text: error instanceof Error ? error.message : 'Account request failed.' });
     } finally {
+      submitting.current = false;
       setLoading(false);
     }
-  };
-
-  const handleQuickDemo = (demoUser: UserProfile) => {
-    saveStoredUser(demoUser);
-    onAuthSuccess(demoUser, `Switched to demo ${demoUser.role}: ${demoUser.full_name}`);
-    onClose();
-  };
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-[390px] bg-[#090f1d] border border-blue-500/30 rounded-[32px] p-5 shadow-2xl relative overflow-hidden flex flex-col max-h-[92vh]">
-        {/* Glow */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-20 bg-blue-600/20 blur-[50px] pointer-events-none" />
-
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08] relative z-10">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-base font-extrabold text-white">
-                {mode === 'register' ? 'Join BottleForMe' : 'Welcome Back'}
-              </h3>
-              {isSupabaseConfigured() && (
-                <span className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-[#00e599] border border-emerald-500/30">
-                  <ShieldCheck className="w-2.5 h-2.5" />
-                  Supabase Auth
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-blue-200/60 mt-0.5">
-              {mode === 'register' ? 'Register as Giver or Taker' : 'Secure Supabase Login'}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Quick Demo Selector */}
-        <div className="my-2.5 p-2.5 bg-blue-950/40 rounded-2xl border border-blue-500/20">
-          <span className="text-[10px] uppercase font-bold text-blue-400 tracking-wider block mb-1">
-            ⚡ Quick Test Profiles (1-Tap Switch)
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleQuickDemo(DEMO_GIVER)}
-              className="py-1.5 px-2 bg-blue-600/30 hover:bg-blue-600 text-white rounded-xl text-xs font-bold border border-blue-500/40 transition flex items-center justify-center gap-1"
-            >
-              <span>🎁 Giver (Maria)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickDemo(DEMO_TAKER)}
-              className="py-1.5 px-2 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-200 hover:text-white rounded-xl text-xs font-bold border border-emerald-500/30 transition flex items-center justify-center gap-1"
-            >
-              <span>🚛 Taker (Alex)</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs: Sign In vs Register */}
-        <div className="flex bg-[#070b14] p-1 rounded-xl mb-3 border border-white/5">
-          <button
-            type="button"
-            onClick={() => {
-              setMode('register');
-              setErrorMsg(null);
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
-              mode === 'register' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Register
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode('signin');
-              setErrorMsg(null);
-            }}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${
-              mode === 'signin' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Log In
-          </button>
-        </div>
-
-        {/* Scrollable Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
-          {errorMsg && (
-            <div className="p-2.5 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 text-xs font-medium">
-              ⚠️ {errorMsg}
-            </div>
-          )}
-
-          {infoMsg && (
-            <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 text-xs font-medium">
-              ℹ️ {infoMsg}
-            </div>
-          )}
-
-          {/* Role Selection (on Register) */}
-          {mode === 'register' && (
-            <div>
-              <label className="text-[11px] font-bold text-blue-200 block mb-1.5">
-                Select Your Role <span className="text-red-400">*</span>
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRole('giver')}
-                  className={`p-3 rounded-2xl border text-left transition ${
-                    role === 'giver'
-                      ? 'bg-blue-600/30 border-blue-500 text-white shadow-[0_0_15px_rgba(0,102,255,0.3)]'
-                      : 'bg-[#0d1527] border-white/10 text-slate-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="text-base mb-1">🎁</div>
-                  <div className="font-extrabold text-white text-xs">Giver</div>
-                  <p className="text-[10px] text-blue-200/60 leading-tight mt-0.5">
-                    I have bottles & cans to give away or split
-                  </p>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('taker')}
-                  className={`p-3 rounded-2xl border text-left transition ${
-                    role === 'taker'
-                      ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-[0_0_15px_rgba(0,229,153,0.3)]'
-                      : 'bg-[#0d1527] border-white/10 text-slate-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="text-base mb-1">🚛</div>
-                  <div className="font-extrabold text-[#00e599] text-xs">Taker</div>
-                  <p className="text-[10px] text-emerald-200/60 leading-tight mt-0.5">
-                    I collect bottles & cans to earn recycling deposit
-                  </p>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Profile Picture Upload */}
-          {mode === 'register' && (
-            <div>
-              <label className="text-[11px] font-bold text-blue-200 block mb-1">
-                Profile Photo (Optional)
-              </label>
-              <div className="flex items-center gap-3">
-                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-blue-500/40 bg-blue-950/60 flex items-center justify-center shrink-0">
-                  {avatarUrl ? (
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-6 h-6 text-blue-400" />
-                  )}
-                </div>
-                <label className="cursor-pointer px-3 py-2 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-500/30 rounded-xl text-blue-300 text-xs font-semibold flex items-center gap-1.5 transition">
-                  <Camera className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Choose Photo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                  />
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Full Name */}
-          {mode === 'register' && (
-            <div>
-              <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-                Full Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Maria Borg"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-          )}
-
-          {/* Email */}
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-              Email Address <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="email"
-              required
-              placeholder="maria@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          {/* Password with View Toggle */}
-          <div>
-            <label className="text-[11px] font-semibold text-slate-300 block mb-1">
-              Password {mode === 'register' ? '(Min 6 chars)' : ''} <span className="text-red-400">*</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Phone & Revolut (Register mode) */}
-          {mode === 'register' && (
-            <>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="+356 9912 3456"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Revolut Tag</label>
-                  <input
-                    type="text"
-                    placeholder="@username"
-                    value={revolutTag}
-                    onChange={(e) => setRevolutTag(e.target.value)}
-                    className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] font-semibold text-slate-300 block mb-1">Town / Locality</label>
-                <select
-                  value={locality}
-                  onChange={(e) => setLocality(e.target.value)}
-                  className="w-full bg-[#0d1527] border border-blue-500/25 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500"
-                >
-                  {MALTA_LOCALITIES.map((loc) => (
-                    <option key={loc.id} value={loc.name}>
-                      {loc.name} ({loc.region})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </>
-          )}
-
-          {/* Submit */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 blue-btn rounded-2xl text-white font-extrabold text-sm tracking-tight flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
-            >
-              <span>
-                {loading
-                  ? 'Authenticating with Supabase...'
-                  : mode === 'register'
-                  ? `Create Secure ${role === 'giver' ? 'Giver' : 'Taker'} Account`
-                  : 'Sign In to Supabase'}
-              </span>
-            </button>
-          </div>
-        </form>
+    <dialog
+      ref={dialog}
+      aria-labelledby="auth-title"
+      onCancel={(event) => { event.preventDefault(); if (!loading) onClose(); }}
+      className="m-auto max-h-[90dvh] w-[calc(100%-1.5rem)] max-w-[390px] overflow-y-auto rounded-[28px] border border-blue-500/30 bg-[#090f1d] p-5 text-slate-100 backdrop:bg-black/80"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h2 id="auth-title" className="text-lg font-extrabold text-white">
+          {recovery ? 'Choose a new password' : mode === 'register' ? 'Join BottleForMe' : mode === 'forgot' ? 'Reset password' : 'Log in to BottleForMe'}
+        </h2>
+        <button type="button" onClick={onClose} aria-label="Close account dialog" disabled={loading} className={buttonClass}>
+          <X className="size-4" />
+        </button>
       </div>
-    </div>
+      {!recovery && (
+        <div className="mb-3 flex flex-wrap gap-1">
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>Log in</button>
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'register'} onClick={() => changeMode('register')}>Register</button>
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'forgot'} onClick={() => changeMode('forgot')}>Forgot password</button>
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-3 text-sm">
+        {notice && <p role={notice.error ? 'alert' : 'status'} className={notice.error ? 'text-red-300' : 'text-emerald-300'}>{notice.text}</p>}
+        {!recovery && mode === 'register' && (
+          <label className="block">Full name<input name="name" autoComplete="name" maxLength={100} required className={inputClass} /></label>
+        )}
+        {!recovery && (
+          <label className="block">Email address<input name="email" type="email" autoComplete="email" required className={inputClass} /></label>
+        )}
+        {(recovery || mode !== 'forgot') && (
+          <label className="block">Password<input name="password" type="password" required minLength={recovery || mode === 'register' ? 6 : undefined} autoComplete={recovery || mode === 'register' ? 'new-password' : 'current-password'} className={inputClass} /></label>
+        )}
+        {!recovery && mode === 'register' && (
+          <>
+            <label className="block">Starting role<select name="role" className={inputClass}><option value="giver">Giver</option><option value="taker">Taker</option></select></label>
+            <label className="block">Phone (optional)<input name="phone" type="tel" autoComplete="tel" maxLength={40} className={inputClass} /></label>
+            <label className="block">Revolut tag (optional)<input name="revolut" maxLength={51} className={inputClass} /></label>
+            <label className="block">Locality<select name="locality" className={inputClass}>{MALTA_LOCALITIES.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
+          </>
+        )}
+        <button type="submit" disabled={loading} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
+          {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Sign in'}
+        </button>
+      </form>
+    </dialog>
   );
 }
