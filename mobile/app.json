@@ -2,7 +2,10 @@
   "expo": {
     "name": "BottleForMe",
     "slug": "bottleforme",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
@@ -12,6 +15,12 @@
     },
     "android": {
       "package": "com.bottleforme.app"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6066a8d3-4290-4d41-8683-149e0c505b4e"
+      }
+    },
+    "owner": "huseynaliyar"
   }
 }

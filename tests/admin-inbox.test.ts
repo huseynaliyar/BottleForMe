@@ -30,7 +30,14 @@ test('admin sends once and each recipient can only read and mark their own inbox
     `);
     await db.exec(await readFile(new URL('../supabase/migrations/20261108144637_admin_inbox.sql', import.meta.url), 'utf8'));
 
+    await db.exec(await readFile(new URL('../supabase/migrations/20261108151118_mobile_push.sql', import.meta.url), 'utf8'));
     await db.exec('set role service_role');
+    const installation = '00000000-0000-0000-0000-000000000006';
+    const token = 'ExpoPushToken[fixture-token-123]';
+    const register = (owner: string) => db.query(
+      'select public.register_mobile_push($1, $2, $3) as registered', [installation, owner, token],
+    );
+    assert.deepEqual((await register(recipient)).rows, [{ registered: true }]);
     const emails = await db.query('select email from public.admin_profile_emails($1::uuid[])', [[recipient]]);
     assert.deepEqual(emails.rows, [{ email: 'recipient@example.test' }]);
 
@@ -43,6 +50,14 @@ test('admin sends once and each recipient can only read and mark their own inbox
     await assert.rejects(send(targeted, recipient, 'Different text'), /already used/);
     assert.deepEqual((await send(broadcast, null, 'Announcement')).rows, [{ sent: 2 }]);
 
+    const claim = (batch: string) => db.query(
+      'select user_id, token from public.claim_mobile_push($1)', [batch],
+    );
+    assert.deepEqual((await claim(targeted)).rows, [{ user_id: recipient, token }]);
+    assert.equal((await claim(targeted)).rows.length, 0);
+    assert.deepEqual((await register(admin)).rows, [{ registered: true }]);
+    assert.equal((await claim(broadcast)).rows.length, 0);
+
     await db.exec('reset role; set role anon');
     await assert.rejects(db.query('select title from public.account_notifications'), /permission denied/);
 
@@ -52,6 +67,9 @@ test('admin sends once and each recipient can only read and mark their own inbox
       [{ message: 'Private' }, { message: 'Announcement' }]);
     await assert.rejects(db.query('select * from public.admin_profile_emails($1::uuid[])', [[admin]]), /permission denied/);
     await assert.rejects(send(targeted, admin, 'Forbidden'), /permission denied/);
+    await assert.rejects(claim(targeted), /permission denied/);
+    await assert.rejects(register(admin), /permission denied/);
+    await assert.rejects(db.query('select token from public.mobile_push_devices'), /permission denied/);
     await assert.rejects(db.query("update public.account_notifications set title = 'Tampered'"), /permission denied/);
     assert.equal((await db.query('update public.account_notifications set read_at = now() where user_id = $1', [admin])).affectedRows, 0);
     assert.equal((await db.query('update public.account_notifications set read_at = now()')).affectedRows, 2);

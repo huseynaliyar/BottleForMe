@@ -3,3 +3,11 @@
 /dist/
 /android/
 /ios/
+/google-services.json
+/firebase-service-account.json
+/firebase-debug.log
+/credentials.json
+*.p8
+*.p12
+*.jks
+*.keystore

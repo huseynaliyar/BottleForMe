@@ -1,7 +1,10 @@
+import { after } from 'next/server';
+import { drainMobilePush } from '@/lib/mobile-push-server';
 import { adminPickupStatuses, isAdminUser } from '@/lib/admin-policy';
 import { failure, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 const pageSize = 20;
 
@@ -80,5 +83,12 @@ export async function POST(request: Request) {
   if (error?.code === '22023') return failure('That send request has already been used.', 409);
   if (error) return failure('Could not send the notification. Try again.', 503);
   if (data === 0) return failure('No confirmed accounts matched the selected audience.', 404);
+  after(async () => {
+    try {
+      await drainMobilePush(key);
+    } catch {
+      console.error('BottleForMe could not process queued mobile push alerts.');
+    }
+  });
   return response({ sent: data });
 }

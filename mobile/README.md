@@ -28,3 +28,13 @@ npx expo export --platform all
 ```
 
 Before a standalone Android build, set `BOTTLEFORME_ANDROID_MAPS_API_KEY` to a Maps SDK for Android key restricted to the Android package and the signing certificate’s SHA-1. Expo Go supplies its own map configuration. iOS uses Apple Maps. The bundle identifier and Android package are currently `com.bottleforme.app`; verify availability before registering the store apps.
+
+## Native push alerts
+
+An admin send saves the message in the account inbox and queues a generic lock screen alert for each opted-in device. Install a signed build, sign in, open the bell, and tap **Enable lock screen alerts**. Tap a received alert to open the inbox.
+
+- Android: register `com.bottleforme.app` in Firebase, set `BOTTLEFORME_GOOGLE_SERVICES_FILE` as an EAS file variable for preview and production, and upload the FCM v1 key using `npx eas-cli credentials -p android`.
+- iOS: use an active Apple Developer team to enable push for `com.bottleforme.app` and configure an APNs key using `npx eas-cli credentials -p ios`.
+- From this folder, run `npx eas-cli build -p android --profile preview` for a test APK. Use the production profile for store builds. Expo Go still works for in-app testing. Device push requires a signed build.
+
+[Expo push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/)

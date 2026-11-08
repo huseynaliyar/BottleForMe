@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,7 @@ import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react
 import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useInbox } from '../../lib/use-inbox';
+import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
 import { AccountDialog, Avatar, ProfileScreen } from './AccountScreen';
 import { changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
@@ -66,7 +67,9 @@ function Marketplace() {
   const savingProfile = useRef(false);
   const sessionUser = session?.user;
   const userId = sessionUser?.id;
+  const openInbox = useCallback(() => setDialog('activity'), []);
   const inbox = useInbox(supabase, userId, dialog === 'activity');
+  const push = useMobilePush(userId, openInbox);
   const notifications = [...inbox.notifications, ...sessionNotifications];
   const currentProfile = profile?.id === userId ? profile : null;
   const handovers = usePickupFeed({
@@ -193,6 +196,7 @@ function Marketplace() {
   async function logout() {
     setActionError('');
     try {
+      await push.unregister().catch(() => {});
       await signOut();
       setToast('Signed out.');
     } catch (cause) {
@@ -218,7 +222,7 @@ function Marketplace() {
           <Text weight="medium" style={styles.muted}>Plastic · Cans · Glass Collection</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 4 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" style={appStyles.iconButton} onPress={() => setDialog('activity')}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" style={appStyles.iconButton} onPress={openInbox}>
             <Bell size={16} color={colors.lightBlue} />
             {notifications.some((item) => !item.read) && <View style={appStyles.unread} />}
           </Pressable>
@@ -266,6 +270,11 @@ function Marketplace() {
     </View>
     {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={() => setDialog(undefined)} />}
     {dialog === 'activity' && <Dialog title="Recent activity" onClose={() => setDialog(undefined)}>
+      {userId && push.supported && <>
+        <Button label={push.enabled ? 'Turn off lock screen alerts' : 'Enable lock screen alerts'} kind="secondary"
+          disabled={push.busy} onPress={push.toggle} />
+        <ErrorText message={push.error ?? ''} />
+      </>}
       <ErrorText message={inbox.error ?? ''} />
       {notifications.some((item) => !item.read) && <Button label="Mark all as read" kind="secondary"
         onPress={() => {

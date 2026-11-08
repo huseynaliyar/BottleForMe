@@ -94,6 +94,23 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
   return payload as T;
 }
 
+export async function setMobilePushDevice(userId: string, installationId: string, token: string | null) {
+  const { data: { session } } = await client().auth.getSession();
+  if (session?.user.id !== userId) throw new Error('Sign in to change push settings.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    return await request<{ ok: boolean }>('/api/push/device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ installationId, token }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export async function listPickups(locality: string, mine: boolean, signal: AbortSignal) {
   const query = mine ? '?mine=true' : locality ? '?locality=' + encodeURIComponent(locality) : '';
   const { offers } = await request<{ offers: PickupOffer[] }>('/api/pickups' + query, { signal }, true);
