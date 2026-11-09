@@ -34,7 +34,7 @@ async function notificationToken(prompt: boolean) {
     await api.setNotificationChannelAsync(channel, {
       name: 'BottleForMe messages',
       importance: api.AndroidImportance.HIGH,
-      lockscreenVisibility: api.AndroidNotificationVisibility.PRIVATE,
+      lockscreenVisibility: api.AndroidNotificationVisibility.PUBLIC,
       sound: 'default',
     });
   }
@@ -47,7 +47,7 @@ async function notificationToken(prompt: boolean) {
   return (await api.getExpoPushTokenAsync({ projectId })).data;
 }
 
-export function useMobilePush(userId: string | undefined, openInbox: () => void) {
+export function useMobilePush(userId: string | undefined, openInbox: (pickupId?: string) => void) {
   const [state, setState] = useState<{ userId: string; enabled: boolean; error?: string }>();
   const [busy, setBusy] = useState(false);
   const operation = useRef<Promise<void> | null>(null);
@@ -66,7 +66,8 @@ export function useMobilePush(userId: string | undefined, openInbox: () => void)
       });
       const openMessage = (response: Awaited<ReturnType<typeof api.getLastNotificationResponseAsync>>) => {
         if (!active || response?.notification.request.content.data?.type !== 'admin_message') return;
-        openInbox();
+        const pickupId = response.notification.request.content.data.pickupId;
+        openInbox(typeof pickupId === 'string' && /^[0-9a-f-]{36}$/i.test(pickupId) ? pickupId : undefined);
         void api.clearLastNotificationResponseAsync().catch(() => {});
       };
       subscription = api.addNotificationResponseReceivedListener(openMessage);
@@ -83,13 +84,14 @@ export function useMobilePush(userId: string | undefined, openInbox: () => void)
     async function sync() {
       if (operation.current) return;
       const task = (async () => {
-        const preferred = await AsyncStorage.getItem(preferenceKey(account)) === 'yes';
+        const preferred = await AsyncStorage.getItem(preferenceKey(account));
         if (!active) return;
-        if (!preferred) {
+        if (preferred === 'no') {
           setState({ userId: account, enabled: false });
           return;
         }
-        const token = await notificationToken(false);
+        const token = await notificationToken(preferred === null);
+        if (active && preferred === null) await AsyncStorage.setItem(preferenceKey(account), 'yes');
         if (!active) return;
         await setMobilePushDevice(account, await installationId(), token);
         if (active) setState({ userId: account, enabled: !!token });

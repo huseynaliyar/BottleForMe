@@ -7,8 +7,10 @@ self.addEventListener('push', (event) => {
   const body = typeof payload?.body === 'string' && payload.body.trim()
     ? payload.body : 'You have new activity. Open BottleForMe to see it.';
   const id = typeof payload?.id === 'string' && /^[0-9a-f-]{36}$/i.test(payload.id) ? payload.id : '';
+  const pickupId = typeof payload?.pickupId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.pickupId) ? payload.pickupId : null;
   event.waitUntil(self.registration.showNotification(title, {
     body,
+    data: { pickupId },
     icon: '/logo.jpg',
     tag: id ? 'bottleforme-inbox-' + id : 'bottleforme-inbox',
   }));
@@ -17,13 +19,14 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
+    const pickupId = event.notification.data?.pickupId ?? null;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const home = windows.find((client) => new URL(client.url).pathname === '/');
     if (home) {
       await home.focus();
-      home.postMessage({ type: 'bottleforme-open-inbox' });
+      home.postMessage({ type: 'bottleforme-open-inbox', pickupId });
     } else {
-      await self.clients.openWindow('/?inbox=1');
+      await self.clients.openWindow(pickupId ? '/?pickup=' + encodeURIComponent(pickupId) : '/?inbox=1');
     }
   })());
 });

@@ -26,39 +26,38 @@ test('signup requires confirmation and delegates code validation and resend to S
   let token = '123456';
   let expired = false;
   let confirmed = false;
+  let duplicate = false;
+  const access = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + Buffer.from(JSON.stringify({
+    exp: Math.floor(Date.now() / 1000) + 3600, sub: user.id, role: 'authenticated',
+  })).toString('base64url') + '.c2ln';
   let profileReads = 0;
   let recoveries = 0;
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : input);
+    const url = new URL(input instanceof Request ? input.url : input, 'http://127.0.0.1:3100');
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
     const json = (data: unknown, status = 200) => Response.json(data, { status, headers: { 'x-supabase-api-version': '2024-01-01' } });
     switch (url.pathname) {
       case '/auth/v1/signup':
         assert.equal(body.email, email);
-        return json(user);
+        return json({ ...user, identities: duplicate ? [] : [{ id: user.id, provider: 'email' }] });
       case '/auth/v1/resend':
         assert.equal(body.type, 'signup');
         token = '654321';
         expired = false;
         return json({});
-      case '/auth/v1/verify':
+      case '/api/auth/email':
         assert.equal(body.email, email);
-        assert.equal(body.type, 'email');
-        if (confirmed || expired || body.token !== token) {
-          return json({ code: 'otp_expired', msg: 'Token has expired or is invalid' }, 403);
-        }
+        if (body.action === 'reset') { recoveries += 1; return json({ ok: true }); }
+        assert.equal(body.action, 'otp');
+        if (confirmed || expired || body.code !== token) return json({ code: 'otp_expired', error: 'Token has expired or is invalid' }, 400);
         confirmed = true;
-        return json({
-          access_token: 'fixture-access', refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600,
-          user: { ...user, email_confirmed_at: user.created_at },
-        });
+        return json({ access_token: access, refresh_token: 'fixture-refresh' });
+      case '/auth/v1/user':
+        return json({ ...user, email_confirmed_at: user.created_at });
       case '/auth/v1/token':
         return confirmed
-          ? json({ access_token: 'fixture-access', refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, user })
+          ? json({ access_token: access, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_in: 3600, user })
           : json({ code: 'email_not_confirmed', msg: 'Email not confirmed' }, 400);
-      case '/auth/v1/recover':
-        recoveries += 1;
-        return json({});
       case '/rest/v1/profiles':
         profileReads += 1;
         return json([{ id: user.id, ...user.user_metadata }]);
@@ -89,4 +88,6 @@ test('signup requires confirmation and delegates code validation and resend to S
   assert.equal((await signInWithSupabase(email, 'test-password')).id, user.id);
   await requestPasswordReset(email);
   assert.equal(recoveries, 1);
+  duplicate = true;
+  await assert.rejects(registerWithSupabase({ ...user.user_metadata, email, password: 'test-password', role: 'giver', phone: '', revolut_tag: '' }), /account.*already exists/i);
 });

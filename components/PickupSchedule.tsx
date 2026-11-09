@@ -10,7 +10,7 @@ import {
 } from '@/lib/pickup-schedule';
 import type { PickupOffer } from '@/lib/types';
 
-const field = 'block w-full rounded-lg border border-blue-400/20 bg-[#0b1220] p-2 text-base text-white';
+const field = 'block box-border w-full min-w-0 max-w-full appearance-none rounded-lg border border-blue-400/20 bg-[#0b1220] p-2 text-base text-white';
 const button = 'rounded-lg bg-white/10 px-3 py-2 text-sm font-bold text-white disabled:opacity-50';
 const primary = 'blue-btn ' + button;
 const windowsError = 'Enter future Malta times on the same date. Start must be before end, and windows cannot overlap.';
@@ -24,9 +24,9 @@ function ScheduleButton({ children, onClick, busy, main = false }: {
 export function AvailabilityEditor({ drafts, onChange, disabled }: {
   drafts: WindowDraft[]; onChange: (drafts: WindowDraft[]) => void; disabled?: boolean;
 }) {
-  return <fieldset disabled={disabled} className="space-y-2 rounded-xl border border-blue-400/20 p-3">
+  return <fieldset disabled={disabled} className="min-w-0 space-y-2 rounded-xl border border-blue-400/20 p-3">
     <legend className="px-1 font-bold text-white">Pickup availability · Malta time</legend>
-    {drafts.map((draft, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1.5fr_1fr_1fr_auto] sm:items-end">
+    {drafts.map((draft, index) => <div key={index} className="grid min-w-0 grid-cols-1 gap-2">
       {(['date', 'start', 'end'] as const).map((key) => <label key={key} className="text-sm text-blue-100">
         {key === 'date' ? 'Date' : key === 'start' ? 'From' : 'Until'}
         <input type={key === 'date' ? 'date' : 'time'} min={key === 'date' ? maltaToday() : undefined}
@@ -53,7 +53,7 @@ export function PickupAvailability({ offer }: { offer: PickupOffer }) {
 function DateAndTime({ date, time, setDate, setTime }: {
   date: string; time: string; setDate: (value: string) => void; setTime: (value: string) => void;
 }) {
-  return <div className="grid gap-2 sm:grid-cols-2">
+  return <div className="grid min-w-0 grid-cols-1 gap-2">
     <label className="text-sm">Pickup date<input className={field} type="date" min={maltaToday()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
     <label className="text-sm">Pickup time<input className={field} type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
   </div>;
@@ -103,12 +103,12 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
   const { submit, busy, error, setError, notice } = useScheduleSubmit(offer.id, onSaved);
   const slots = pickupTimeOptions(offer.availability ?? []);
   const dates = [...new Set(slots.map(formatPickupDate))];
-  const day = availableDate || dates[0] || '';
+  const day = dates.includes(availableDate) ? availableDate : dates[0] || '';
   const daySlots = slots.filter((slot) => formatPickupDate(slot) === day);
 
   async function requestTime() {
-    const at = mode === 'available' ? selected : maltaDateTime(date, time);
-    if (!at || Date.parse(at) <= Date.now()) {
+    const at = mode === 'available' ? (daySlots.includes(selected) ? selected : '') : maltaDateTime(date, time);
+    if (!at) {
       setError('Choose a future pickup time. Avoid the repeated or skipped hour when the clocks change.');
       return;
     }
@@ -125,12 +125,12 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
         <ScheduleButton onClick={() => setMode('alternative')} main={mode === 'alternative'}>Propose another time</ScheduleButton>
       </div>
       <p className="text-sm">Times are in Europe/Malta.</p>
-      {mode === 'available' ? dates.length ? <div className="grid gap-2 sm:grid-cols-2">
+      {mode === 'available' ? dates.length ? <div className="grid min-w-0 grid-cols-1 gap-2">
         <label className="text-sm">Available date<select className={field} value={day}
           onChange={(event) => { setAvailableDate(event.target.value); setSelected(''); }}>
           {dates.map((value) => <option key={value}>{value}</option>)}
         </select></label>
-        <label className="text-sm">Available time<select className={field} value={selected} onChange={(event) => setSelected(event.target.value)}>
+        <label className="text-sm">Available time<select className={field} value={daySlots.includes(selected) ? selected : ''} onChange={(event) => setSelected(event.target.value)}>
           <option value="">Choose a time</option>
           {daySlots.map((value) => <option key={value} value={value}>{formatPickupTime(value)}</option>)}
         </select></label>
@@ -205,20 +205,20 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </li>;
 }
 
-export function PickupArrangements({ userId, revision, onSaved }: {
-  userId: string; revision: number; onSaved: () => void;
+export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen }: {
+  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
 }) {
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController();
-    pickupRequest('/schedule', { signal: controller.signal }).then((result: { requests: ScheduleRequest[] }) => {
+    pickupRequest('/schedule' + (listingId ? '?listing=' + encodeURIComponent(listingId) : ''), { signal: controller.signal }).then((result: { requests: ScheduleRequest[] }) => {
       if (!controller.signal.aborted) { setRequests(result.requests); setError(''); }
     }).catch(() => {
       if (!controller.signal.aborted) setError('Could not load your pickup arrangements.');
     });
     return () => controller.abort();
-  }, [revision, userId]);
+  }, [revision, userId, listingId]);
   return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
     <div className="flex items-center justify-between gap-2">
       <h3 className="font-bold text-white">Pickup arrangements</h3>
@@ -226,7 +226,10 @@ export function PickupArrangements({ userId, revision, onSaved }: {
     </div>
     <Feedback error={error} notice="" />
     {requests?.length ? <ul className="space-y-2">{requests.map((item) =>
-      <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
+      onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="block w-full rounded-lg bg-white/5 p-2 text-left hover:bg-white/10">
+        <strong>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</strong>
+        <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
+      </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
       : !error && <p className="text-sm">{requests ? 'No requests yet.' : 'Loading arrangements…'}</p>}
   </section>;
 }

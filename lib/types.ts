@@ -85,6 +85,7 @@ export interface UserProfile {
 }
 
 export interface NotificationItem {
+  pickupId?: string;
   id: string;
   title: string;
   message: string;

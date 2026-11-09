@@ -60,6 +60,10 @@ export async function POST(request: Request) {
     expected_version: action === 'request' ? null : version,
     windows,
   });
+  if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
+  if (error?.code === 'BF003' || error?.code === '23505' && error.message.includes('pickups_one_active_per_taker')) {
+    return failure('Finish or cancel your current pickup first.', 409);
+  }
   if (error?.code === '23514' || error?.code === '22008') return failure('Choose future pickup windows in Malta time.', 400);
   if (error) return failure('Could not save your pickup arrangement. Try again.', 503);
   if (!data) return failure('This arrangement is unavailable, has changed, or you already have a pending request. Refresh and try again.', 409);

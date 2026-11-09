@@ -6,6 +6,7 @@ import { MALTA_LOCALITIES, UserProfile, UserRole } from '@/lib/types';
 import { registerWithSupabase, requestPasswordReset, resendSignupCode, signInWithSupabase, updatePassword, verifySignupCode } from '@/lib/auth';
 import { authErrorCode, signupCodeError } from '@/lib/signup-otp';
 import { useSignupCode } from '@/lib/use-signup-code';
+import { formatPhone, phoneCountries } from '@/lib/phone';
 import { REVOLUT_TAG } from '@/lib/pickup-validation';
 
 interface AuthModalProps {
@@ -18,7 +19,7 @@ interface AuthModalProps {
 
 const inputClass = 'w-full rounded-xl border border-blue-500/25 bg-[#0d1527] px-3 py-2.5 text-white';
 const buttonClass = 'rounded-xl px-3 py-2 text-sm font-bold text-blue-200 hover:bg-blue-900/40 disabled:opacity-50';
-type AccountField = 'name' | 'email' | 'password' | 'revolut' | 'code';
+type AccountField = 'name' | 'email' | 'password' | 'confirm' | 'revolut' | 'code';
 
 export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, onPasswordUpdated }: AuthModalProps) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -69,6 +70,8 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
     if ((recovery || mode === 'register') && password.length < 6) {
       return fieldError('password', 'Use at least 6 characters for your password.');
     }
+    if (recovery && password !== fields.get('confirm')) return fieldError('confirm', 'The passwords you entered are different.');
+    if (!recovery && mode === 'forgot' && otp.resetSeconds > 0) return;
     if (!recovery && mode === 'register' && revolutTag && !REVOLUT_TAG.test(revolutTag)) {
       return fieldError('revolut', 'Enter a valid Revolut tag or leave it blank.');
     }
@@ -89,6 +92,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         form.reset();
       } else if (mode === 'forgot') {
         await requestPasswordReset(email);
+        otp.resetRequested();
         setNotice({ text: 'If an account exists, a password reset link will be sent.' });
       } else if (mode === 'register') {
         await registerWithSupabase({
@@ -96,14 +100,14 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
           email,
           password,
           role: fields.get('role') as UserRole,
-          phone: String(fields.get('phone') ?? '').trim(),
+          phone: formatPhone(String(fields.get('phoneCountry') ?? 'MT'), String(fields.get('phone') ?? '')),
           revolut_tag: revolutTag,
           locality: String(fields.get('locality') ?? ''),
         });
         form.reset();
         otp.sent();
         setMode('verify');
-        setNotice({ text: 'Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.' });
+        setNotice({ text: 'Enter the six-digit code from your email within five minutes.' });
       } else {
         const user = await signInWithSupabase(email, password);
         form.reset();
@@ -112,9 +116,10 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
     } catch (error) {
       if (mode === 'signin' && error && typeof error === 'object' && 'code' in error && error.code === 'email_not_confirmed') {
         setMode('verify');
-        setNotice({ text: 'Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.' });
+        setNotice({ text: 'Enter the six-digit code from your email within five minutes.' });
         return;
       }
+      if (mode === 'forgot' && authErrorCode(error) === 'over_request_rate_limit') otp.resetRequested(error);
       if (mode === 'verify' && !recovery) {
         otp.verificationFailed(error);
         fieldError('code', signupCodeError(error, 'verify'));
@@ -182,10 +187,14 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         {(recovery || (mode !== 'forgot' && mode !== 'verify')) && (
           <label className="block">Password<input name="password" type="password" required minLength={recovery || mode === 'register' ? 6 : undefined} autoComplete={recovery || mode === 'register' ? 'new-password' : 'current-password'} {...fieldFeedback('password')} className={inputClass} /></label>
         )}
+        {recovery && <label className="block">Confirm new password<input name="confirm" type="password" required autoComplete="new-password" {...fieldFeedback('confirm')} className={inputClass} /></label>}
         {!recovery && mode === 'register' && (
           <>
             <label className="block">Starting role<select name="role" className={inputClass}><option value="giver">Giver</option><option value="taker">Taker</option></select></label>
-            <label className="block">Phone (optional)<input name="phone" type="tel" autoComplete="tel" maxLength={40} className={inputClass} /></label>
+            <label className="block">Country calling code<select name="phoneCountry" defaultValue="MT" autoComplete="tel-country-code" className={inputClass}>
+              {phoneCountries.map((country) => <option value={country.value} key={country.value}>{country.label}</option>)}
+            </select></label>
+            <label className="block">Phone (optional)<input name="phone" type="tel" autoComplete="tel-national" maxLength={40} className={inputClass} /></label>
             <label className="block">Revolut tag (optional)<input name="revolut" maxLength={51} {...fieldFeedback('revolut')} className={inputClass} /></label>
             <label className="block">Locality<select name="locality" className={inputClass}>{MALTA_LOCALITIES.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
           </>
@@ -197,8 +206,8 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
           {otp.verifySeconds > 0 && <p role="status">Try another code in {otp.verifySeconds}s.</p>}
         </>}
         {notice && <p id="account-notice" role={notice.error ? 'alert' : 'status'} className={notice.error ? 'text-red-300' : 'text-emerald-300'}>{notice.text}</p>}
-        <button type="submit" disabled={loading || (!recovery && mode === 'verify' && otp.verifySeconds > 0)} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
-          {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : mode === 'verify' ? 'Verify code' : 'Sign in'}
+        <button type="submit" disabled={loading || (!recovery && ((mode === 'verify' && otp.verifySeconds > 0) || (mode === 'forgot' && otp.resetSeconds > 0)))} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
+          {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link' : mode === 'verify' ? 'Verify code' : 'Sign in'}
         </button>
       </form>
     </dialog>

@@ -46,6 +46,9 @@ export async function POST(request: Request) {
   const user = await requestUser(request);
   if (!user) return failure('Sign in to publish a pickup.', 401);
 
+  const profile = await pickupsDb.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  if (profile.error) return failure('Could not check your account role.', 503);
+  if (profile.data?.role === 'taker') return failure('Switch to Giver to publish a pickup.', 403);
   const body = await request.json().catch(() => null);
   const values = validatePickup(body);
   const availability = body?.availability === undefined ? null : validateWindows(body.availability);
@@ -69,6 +72,7 @@ export async function POST(request: Request) {
     status: 'open',
   }).select(PRIVATE_COLUMNS).single();
   if (!error) return response(data, 201);
+  if (error.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
   if (error.code === '23505' && key) {
     const existing = await pickupsDb.from('pickups').select(PRIVATE_COLUMNS).eq('id', id).eq('seller_id', user.id).maybeSingle();
     if (existing.error) return failure('Could not verify the previous request.', 503);

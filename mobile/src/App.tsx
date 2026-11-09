@@ -9,11 +9,12 @@ import {
 import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react-native';
 import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
 import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
 import { AccountDialog, Avatar, ProfileScreen } from './AccountScreen';
-import { changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
+import { apiOrigin, changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
 import { Badge, Button, Card, colors, Dialog, ErrorText, Loading, Segmented, styles, Text } from './ui';
@@ -45,9 +46,10 @@ export default function App() {
 }
 
 function Marketplace() {
+  const maintenance = useMarketplaceStatus(apiOrigin);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!supabase);
-  const [tab, setTab] = useState<Tab>('give');
+  const [requestedTab, setTab] = useState<Tab>('give');
   const [dialog, setDialog] = useState<'account' | 'activity'>();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -67,18 +69,26 @@ function Marketplace() {
   const savingProfile = useRef(false);
   const sessionUser = session?.user;
   const userId = sessionUser?.id;
-  const openInbox = useCallback(() => setDialog('activity'), []);
+  const openInbox = useCallback((pickupId?: string) => {
+    if (pickupId) {
+      setSelectedId(pickupId);
+      setTab('handover');
+      setDialog(undefined);
+      setRevision((value) => value + 1);
+    } else setDialog('activity');
+  }, []);
   const inbox = useInbox(supabase, userId, dialog === 'activity');
   const push = useMobilePush(userId, openInbox);
   const notifications = [...inbox.notifications, ...sessionNotifications];
   const currentProfile = profile?.id === userId ? profile : null;
+  const taker = currentProfile?.role === 'taker';
+  const tab = requestedTab === 'give' && taker ? 'radar' : requestedTab === 'radar' && !taker ? 'give' : requestedTab;
+  const canSeeTab = ({ value }: { value: Tab }) => value === 'give' ? !taker : value === 'radar' ? taker : true;
   const handovers = usePickupFeed({
     userId: tab === 'handover' || tab === 'profile' ? userId : undefined, mine: true, revision,
   });
   const recent = recentPickup && recentPickup.userId === userId && handovers.loading ? recentPickup.offer : undefined;
   const offers = recent ? [recent, ...handovers.offers.filter((offer) => offer.id !== recent.id)] : handovers.offers;
-  const taker = currentProfile?.role === 'taker';
-
   useEffect(() => {
     const auth = supabase?.auth;
     if (!auth) return;
@@ -89,7 +99,7 @@ function Marketplace() {
         accountId.current = id;
         setProfile(null);
         setProfileError('');
-        setSelectedId(undefined);
+        if (id === undefined) setSelectedId(undefined);
         setRecentPickup(undefined);
         setNotifications([]);
         setToast('');
@@ -148,7 +158,7 @@ function Marketplace() {
     refresh();
   }
 
-  async function updatePickup(offer: PickupOffer, status: Exclude<PickupStatus, 'open'>) {
+  async function updatePickup(offer: PickupOffer, status: Exclude<PickupStatus, 'open'>, code?: string) {
     if (!userId) { openAccount(); return; }
     if (status === 'reserved' && !taker) { setActionError('Switch to Taker to reserve pickups.'); return; }
     if (updating.current) return;
@@ -156,7 +166,7 @@ function Marketplace() {
     setBusy(true);
     setActionError('');
     try {
-      const changed = await changePickup(offer.id, status);
+      const changed = await changePickup(offer.id, status, code);
       if (accountId.current !== userId) return;
       setRecentPickup({ userId, offer: changed });
       setSelectedId(changed.id);
@@ -222,7 +232,7 @@ function Marketplace() {
           <Text weight="medium" style={styles.muted}>Plastic · Cans · Glass Collection</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 4 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" style={appStyles.iconButton} onPress={openInbox}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" style={appStyles.iconButton} onPress={() => openInbox()}>
             <Bell size={16} color={colors.lightBlue} />
             {notifications.some((item) => !item.read) && <View style={appStyles.unread} />}
           </Pressable>
@@ -230,8 +240,9 @@ function Marketplace() {
             onPress={session ? () => setTab('profile') : openAccount}><User size={16} color={colors.lightBlue} /></Pressable>
         </View>
       </View>
-      <Segmented options={primaryTabs} value={tab} onChange={setTab} />
+      <Segmented options={primaryTabs.filter(canSeeTab)} value={tab} onChange={setTab} />
     </View>
+    {maintenance && <View style={appStyles.alert}><ErrorText message="BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly." /></View>}
     {actionError ? <View style={appStyles.alert}><ErrorText message={actionError} /></View> : null}
     {toast ? <View style={appStyles.toast} accessibilityLiveRegion="polite">
       <Check size={16} color={colors.green} />
@@ -253,7 +264,7 @@ function Marketplace() {
       </View>}
       {tab === 'handover' && <HandoverScreen key={userId ?? 'guest'} userId={userId} revision={revision} offers={offers} loading={handovers.loading}
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
-        onRefresh={refresh} onChange={(offer, status) => void updatePickup(offer, status)} />}
+        onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
       {tab === 'profile' && (authReady
         ? <ProfileScreen key={userId ?? 'guest'} profile={currentProfile} signedIn={!!session} loading={profileLoading}
           error={profileError} offers={offers} pickupsLoading={handovers.loading} onSignIn={openAccount}
@@ -262,7 +273,7 @@ function Marketplace() {
         : <View style={styles.scroll}><Loading label="Restoring your account…" /></View>)}
     </KeyboardAvoidingView>
     <View accessibilityRole="tablist" style={appStyles.footer}>
-      {tabs.map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
+      {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: tab === value }} onPress={() => setTab(value)} style={appStyles.tab}>
         <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{label}</Text>
@@ -281,12 +292,13 @@ function Marketplace() {
           setNotifications((items) => items.map((item) => ({ ...item, read: true })));
           void inbox.markRead();
         }} />}
-      {notifications.length ? notifications.map((item) => <View key={item.id}
+      {notifications.length ? notifications.map((item) => <Pressable key={item.id} disabled={!item.pickupId}
+        accessibilityRole={item.pickupId ? 'button' : undefined} onPress={() => openInbox(item.pickupId)}
         style={[styles.inset, !item.read && { backgroundColor: '#102242' }]}>
         <Text weight="bold" style={styles.small}>{item.title}</Text>
         <Text style={styles.small}>{item.message}</Text>
         <Text style={styles.muted}>{item.timestamp}</Text>
-      </View>) : <Text style={styles.small}>No activity yet.</Text>}
+      </Pressable>) : <Text style={styles.small}>No activity yet.</Text>}
     </Dialog>}
   </View>;
 }

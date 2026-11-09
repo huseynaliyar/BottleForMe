@@ -8,6 +8,7 @@ type InboxRow = {
   message: string;
   created_at: string;
   read_at: string | null;
+  pickup_id: string | null;
 };
 
 export function useInbox(client: SupabaseClient | null, userId: string | undefined, open: boolean) {
@@ -22,7 +23,7 @@ export function useInbox(client: SupabaseClient | null, userId: string | undefin
     const request = ++generation.current;
     try {
       const { data, error: queryError } = await client.from('account_notifications')
-        .select('batch_id,title,message,created_at,read_at').eq('user_id', userId)
+        .select('batch_id,title,message,created_at,read_at,pickup_id').eq('user_id', userId)
         .order('created_at', { ascending: false }).order('batch_id', { ascending: false }).limit(50);
       if (queryError) throw queryError;
       if (request !== generation.current) return;
@@ -73,6 +74,7 @@ export function useInbox(client: SupabaseClient | null, userId: string | undefin
     timestamp: new Date(row.created_at).toLocaleString(),
     read: !!row.read_at,
     type: 'system',
+    pickupId: row.pickup_id ?? undefined,
   }));
 
   return { notifications, markRead, error: error?.userId === userId ? error?.message : undefined };

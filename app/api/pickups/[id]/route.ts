@@ -45,9 +45,25 @@ export async function PATCH(request: Request, { params }: Context) {
     if (blocked) return blocked;
   }
 
+  if (status === 'completed') {
+    if (typeof body.code !== 'string' || !/^\d{6}$/.test(body.code)) return failure('Enter the six-digit code shown by the Giver.', 400);
+    const result = await pickupsDb.rpc('complete_handover', { listing_id: id, actor_id: user.id, supplied_code: body.code });
+    if (result.error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
+    if (result.error) return failure('Could not verify the handover. Try again.', 503);
+    if (result.data === 'locked') return failure('Too many incorrect codes. Try again in 30 minutes.', 429);
+    if (result.data === 'incorrect') return failure('The handover code is incorrect.', 400);
+    if (result.data === 'no_code') return failure('Ask the Giver to open and show the handover code first.', 409);
+    if (result.data !== 'completed') return failure('This handover is not available.', 409);
+    after(() => drainPush().catch(() => {}));
+    const updated = await pickupsDb.from('pickups').select(PRIVATE_COLUMNS).eq('id', id).eq('collector_id', user.id).single();
+    return updated.data ? response(participantPickup(updated.data, user.id)) : failure('Could not reload the completed pickup.', 503);
+  }
+
   const { data, error } = await pickupsDb.rpc('transition_pickup', {
     pickup_id: id, actor_id: user.id, next_status: status,
   }).maybeSingle();
+  if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
+  if (error?.code === '23505') return failure('Finish or cancel your current pickup first.', 409);
   if (error?.code === '23514') return failure('Request a pickup time and wait for the owner to accept.', 409);
   if (error) return failure('Could not update the pickup.', 503);
   if (data) {

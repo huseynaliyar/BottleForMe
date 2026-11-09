@@ -1,5 +1,6 @@
 'use client';
 
+import { emailAuthRequest } from './email-auth-request';
 import type { User } from '@supabase/supabase-js';
 import type { AddressSuggestion } from './pickup-address';
 import type { UserProfile, UserRole } from './types';
@@ -35,6 +36,7 @@ export async function registerWithSupabase(data: {
     options: { emailRedirectTo: window.location.origin, data: metadata },
   });
   if (error) throw error;
+  if (result.user?.identities?.length === 0) throw new Error('An account with this email already exists. Sign in or reset your password.');
   if (result.session) {
     await signOutFromSupabase();
     throw new Error('Email verification is unavailable. Try again later.');
@@ -48,7 +50,8 @@ export async function signInWithSupabase(email: string, password: string) {
 }
 
 export async function verifySignupCode(email: string, token: string) {
-  const { data, error } = await authClient().auth.verifyOtp({ email, token, type: 'email' });
+  const session = await emailAuthRequest<{ access_token: string; refresh_token: string }>('', { action: 'otp', email, code: token });
+  const { data, error } = await authClient().auth.setSession(session);
   if (error || !data.user?.email_confirmed_at || !data.session) throw error ?? new Error('Could not confirm your email.');
   return loadProfile(data.user);
 }
@@ -59,10 +62,7 @@ export async function resendSignupCode(email: string) {
 }
 
 export async function requestPasswordReset(email: string) {
-  const { error } = await authClient().auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin,
-  });
-  if (error) throw error;
+  await emailAuthRequest('', { action: 'reset', email });
 }
 
 export async function updatePassword(password: string) {

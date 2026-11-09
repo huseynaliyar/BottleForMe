@@ -6,7 +6,7 @@ module.exports = ({ config }) => {
     // R8-optimized builds crash while Android initializes the WorkManager database.
     ['expo-build-properties', { android: { enableMinifyInReleaseBuilds: false } }],
     ['expo-notifications', { defaultChannel: 'bottleforme-messages' }],
-    ['expo-location', { locationWhenInUsePermission: 'Allow BottleForMe to suggest a nearby pickup locality.' }],
+    ['expo-location', { locationWhenInUsePermission: 'Allow BottleForMe to suggest nearby streets for your pickup address.' }],
     ['expo-image-picker', { photosPermission: 'Allow BottleForMe to select a profile photo.', cameraPermission: false, microphonePermission: false }],
   ];
   if (androidGoogleMapsApiKey) plugins.push(['react-native-maps', { androidGoogleMapsApiKey }]);

@@ -5,12 +5,13 @@ import { Bell, X } from 'lucide-react';
 import { NotificationItem } from '@/lib/types';
 import WebPushControl from './WebPushControl';
 
-export default function NotificationModal({ isOpen, onClose, notifications, error, onMarkAllAsRead, userId }: {
+export default function NotificationModal({ isOpen, onClose, notifications, error, onMarkAllAsRead, userId, onOpenPickup }: {
   isOpen: boolean;
   userId?: string;
   onClose: () => void;
   notifications: NotificationItem[];
   error?: string;
+  onOpenPickup: (pickupId: string) => void;
   onMarkAllAsRead: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -43,6 +44,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
               <strong>{item.title}</strong>
               <p>{item.message}</p>
               <small className="text-blue-200">{item.timestamp}</small>
+              {item.pickupId && <button type="button" className="mt-1 block font-semibold text-blue-300" onClick={() => onOpenPickup(item.pickupId!)}>View pickup</button>}
             </li>
           ))}
         </ul>

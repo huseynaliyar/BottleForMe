@@ -46,7 +46,7 @@ test('migrated database handles scheduling, private notifications and legacy res
       CREATE ROLE authenticated;
       CREATE ROLE service_role BYPASSRLS;
       CREATE SCHEMA auth;
-      CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz);
+      CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz, recovery_token text, recovery_sent_at timestamptz);
       CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
         AS 'SELECT NULLIF(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
       GRANT USAGE ON SCHEMA auth TO authenticated;
@@ -85,12 +85,28 @@ test('migrated database handles scheduling, private notifications and legacy res
       'SELECT public.register_web_push($1,$2,$3,$4)', [owner, endpoint, 'browser-public-key', 'browser-auth'],
     );
     await registerPush(seller);
+    await db.query('SELECT public.register_mobile_push($1,$2,$3)', [randomUUID(), seller, 'ExpoPushToken[fixture-device]']);
     assert.equal((await transition(offer, collector, 'reserved')).rows.length, 0);
     assert.equal((await transition(legacy, collector, 'reserved')).rows.length, 1);
     assert.equal(await act(giver, 'request', request, { at: time('10:15'), kind: 'available' }), false);
     assert.equal(await act(collector, 'request', request, { at: time('11:00'), kind: 'available' }), false);
     assert.equal(await act(collector, 'request', request, { at: '2020-01-01T09:00:00.000Z', kind: 'alternative' }), false);
     const initial = { at: time('10:15'), kind: 'available' };
+    await assert.rejects(act(collector, 'request', request, initial), { code: 'BF003' });
+    await assert.rejects(transition(legacy, collector, 'completed'), { code: 'BF002' });
+    const reveal = async (actor: string) => (await db.query<{ code: string | null }>(
+      'SELECT public.get_handover_code($1,$2) AS code', [legacy, actor])).rows[0].code;
+    const complete = async (actor: string, code: string) => (await db.query<{ result: string }>(
+      'SELECT public.complete_handover($1,$2,$3) AS result', [legacy, actor, code])).rows[0].result;
+    assert.equal(await reveal(collector), null);
+    const code = await reveal(seller);
+    assert.ok(code && /^\d{6}$/.test(code));
+    assert.equal(await complete(rival, code), 'unavailable');
+    assert.equal(await complete(collector, code === '000000' ? '999999' : '000000'), 'incorrect');
+    await db.exec('UPDATE public.marketplace_settings SET maintenance=true');
+    await assert.rejects(complete(collector, code), { code: 'BF001' });
+    await db.exec('UPDATE public.marketplace_settings SET maintenance=false');
+    assert.equal(await complete(collector, code), 'completed');
     assert.equal(await act(collector, 'request', request, initial), true);
     assert.equal(await act(collector, 'request', request, initial), true);
     assert.equal(await act(collector, 'request', invalidRequest, initial), false);
@@ -123,14 +139,25 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(await act(seller, 'availability', null, { version: 1, availability: windows }), false);
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
 
+    const mobile = await db.query<{ title: string; message: string; pickup_id: string }>('SELECT * FROM public.claim_mobile_push()');
+    assert.ok(mobile.rows.some((job) => job.title === 'Pickup completed' && job.pickup_id === legacy && /verified your handover code/.test(job.message)));
+    assert.ok(mobile.rows.some((job) => job.title === 'Pickup time requested' && job.pickup_id === offer));
     const claimed = await db.query<{ endpoint: string; lease_id: string; title: string; message: string }>('SELECT * FROM public.claim_web_push()');
     assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup time requested'));
-    assert.ok(claimed.rows.every((job) => job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'));
+    assert.ok(claimed.rows.some((job) => job.title === 'Pickup completed' && /verified your handover code/.test(job.message)));
+    assert.ok(claimed.rows.filter((job) => job.title !== 'Pickup completed')
+      .every((job) => job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'));
     assert.ok(claimed.rows.every((job) => job.title !== 'Another pickup time proposed'), 'other recipients titles are private');
     assert.equal((await db.query('SELECT * FROM public.claim_web_push()')).rows.length, 0, 'leased jobs are not claimed twice');
     await registerPush(collector);
     assert.equal((await db.query('SELECT * FROM public.web_push_jobs')).rows.length, 0, 'a new browser owner does not inherit pending jobs');
+    const claimAttempt = async (action: string) => (await db.query<{ seconds: number }>(
+      'SELECT public.claim_auth_attempt($1,$2) AS seconds', [action, 'email-key'])).rows[0].seconds;
+    for (let i = 0; i < 5; i++) assert.equal(await claimAttempt('otp'), 0);
+    assert.ok(await claimAttempt('otp') > 1700, 'OTP is locked for 30 minutes after five attempts');
+    assert.equal(await claimAttempt('reset'), 0);
+    assert.ok(await claimAttempt('reset') > 110, 'reset requests are separated by two minutes');
     await db.exec('RESET ROLE');
     const notices = (await db.query<{ title: string; user_id: string }>('SELECT title, user_id FROM public.account_notifications')).rows;
     assert.equal(notices.filter((notice) => notice.title === 'Pickup time requested' && notice.user_id === seller).length, 2);

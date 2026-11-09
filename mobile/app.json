@@ -15,7 +15,7 @@
     },
     "android": {
       "package": "com.bottleforme.app",
-      "versionCode": 2
+      "versionCode": 3
     },
     "extra": {
       "eas": {

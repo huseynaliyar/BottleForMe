@@ -26,6 +26,7 @@ export type AdminProfile = {
 };
 
 export type AdminPage = {
+  maintenance: boolean;
   total: number;
   pageSize: number;
 } & ({ view: 'pickups'; rows: AdminPickup[] } | { view: 'profiles'; rows: AdminProfile[] });

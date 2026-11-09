@@ -25,13 +25,13 @@ function Calendar({ date, onChange, disabled }: {
   const days = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
   const changeMonth = (offset: number) => setMonth(new Date(Date.UTC(year, monthNumber - 1 + offset, 1)).toISOString().slice(0, 7));
 
-  return <View style={{ gap: 6 }}>
+  return <View style={{ gap: 6, minWidth: 0, width: '100%' }}>
     <Button label={date ? 'Date · ' + date : 'Choose a pickup date'} kind="secondary" disabled={disabled}
       onPress={() => { setMonth((date || today).slice(0, 7)); setOpen(!open); }} />
     {open && <View style={styles.inset}>
       <View style={styles.between}>
         <Button label="‹" kind="quiet" disabled={disabled || month <= today.slice(0, 7)} onPress={() => changeMonth(-1)} />
-        <Text weight="bold" style={styles.body}>{calendarMonth.format(firstDay)}</Text>
+        <Text weight="bold" style={[styles.small, { flexShrink: 1, textAlign: 'center' }]}>{calendarMonth.format(firstDay)}</Text>
         <Button label="›" kind="quiet" disabled={disabled} onPress={() => changeMonth(1)} />
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -139,10 +139,11 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
   const { submit, busy, notice, error, setError } = useSubmit(offer.id, onSaved);
   const slots = pickupTimeOptions(offer.availability ?? []);
   const days = [...new Set(slots.map(formatPickupDate))];
-  const day = availableDate || days[0] || '';
+  const day = days.includes(availableDate) ? availableDate : days[0] || '';
 
+  const daySlots = slots.filter((value) => formatPickupDate(value) === day);
   function requestTime() {
-    const at = mode === 'available' ? slot : maltaDateTime(date, time);
+    const at = mode === 'available' ? (daySlots.includes(slot) ? slot : '') : maltaDateTime(date, time);
     if (!at || Date.parse(at) <= Date.now()) { setError('Choose a valid future pickup time in Malta.'); return; }
     const selection = mode + ':' + at;
     if (key.current?.selection !== selection) key.current = { selection, id: randomUUID() };
@@ -158,8 +159,8 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
       {mode === 'available' ? days.length ? <>
         <Select label="Available date" options={days.map((value) => ({ value, label: value }))}
           value={day} onChange={(value) => { setAvailableDate(value); setSlot(''); }} disabled={busy} />
-        <Select label="Available time" options={slots.filter((value) => formatPickupDate(value) === day)
-          .map((value) => ({ value, label: formatPickupTime(value) }))} value={slot} onChange={setSlot} disabled={busy} />
+        <Select label="Available time" options={daySlots
+          .map((value) => ({ value, label: formatPickupTime(value) }))} value={daySlots.includes(slot) ? slot : ''} onChange={setSlot} disabled={busy} />
       </> : <Text style={styles.small}>No upcoming windows. You can propose another time.</Text> : <>
         <Calendar date={date} onChange={setDate} disabled={busy} />
         <TimeField label="Pickup time · Malta" value={time} onChange={setTime} disabled={busy} />
@@ -231,24 +232,28 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </View>;
 }
 
-export function PickupArrangements({ userId, revision, onSaved }: {
-  userId: string; revision: number; onSaved: () => void;
+export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen }: {
+  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
 }) {
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
   useEffect(() => {
     const controller = new AbortController();
-    listScheduleRequests(controller.signal).then(({ requests: result }) => {
+    listScheduleRequests(controller.signal, listingId).then(({ requests: result }) => {
       if (!controller.signal.aborted) { setRequests(result); setError(''); }
     }).catch(() => {
       if (!controller.signal.aborted) setError('Could not load your pickup arrangements.');
     });
     return () => controller.abort();
-  }, [revision, userId]);
+  }, [revision, userId, listingId]);
   return <View style={{ gap: 8 }}>
     <Text accessibilityRole="header" weight="bold" style={styles.body}>Pickup arrangements</Text>
     <ErrorText message={error} />
-    {requests?.length ? requests.map((item) => <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)
+    {requests?.length ? requests.map((item) => onOpen ? <Pressable accessibilityRole="button" key={item.id} style={styles.inset}
+      onPress={() => onOpen(item.pickup_id)}>
+      <Text weight="bold" style={styles.body}>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</Text>
+      <Text style={styles.small}>{formatAppointment(item.proposed_at)}</Text>
+    </Pressable> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)
       : !error && <Text style={styles.small}>{requests ? 'No requests yet.' : 'Loading arrangements…'}</Text>}
   </View>;
 }

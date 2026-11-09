@@ -1,4 +1,5 @@
 import 'react-native-url-polyfill/auto';
+import { emailAuthRequest } from '../../lib/email-auth-request';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type User } from '@supabase/supabase-js';
 import { loadProfile as readProfile, saveProfile as writeProfile } from '../../lib/profile';
@@ -42,6 +43,7 @@ export async function register(email: string, password: string, metadata: Pick<U
     },
   });
   if (error) throw error;
+  if (data.user?.identities?.length === 0) throw new Error('An account with this email already exists. Sign in or reset your password.');
   if (data.session) {
     await signOut();
     throw new Error('Email verification is unavailable. Try again later.');
@@ -49,7 +51,8 @@ export async function register(email: string, password: string, metadata: Pick<U
 }
 
 export async function verifySignupCode(email: string, token: string) {
-  const { data, error } = await client().auth.verifyOtp({ email, token, type: 'email' });
+  const session = await emailAuthRequest<{ access_token: string; refresh_token: string }>(apiOrigin, { action: 'otp', email, code: token });
+  const { data, error } = await client().auth.setSession(session);
   if (error || !data.user?.email_confirmed_at || !data.session) throw error ?? new Error('Could not confirm your email.');
 }
 
@@ -59,8 +62,7 @@ export async function resendSignupCode(email: string) {
 }
 
 export async function resetPassword(email: string) {
-  const { error } = await client().auth.resetPasswordForEmail(email, { redirectTo: apiOrigin });
-  if (error) throw error;
+  await emailAuthRequest(apiOrigin, { action: 'reset', email });
 }
 
 export async function signOut() {
@@ -127,8 +129,8 @@ export function searchPickupAddresses(input: string, signal: AbortSignal) {
   }, true);
 }
 
-export function listScheduleRequests(signal: AbortSignal) {
-  return request<{ requests: ScheduleRequest[] }>('/api/pickups/schedule', { signal }, true);
+export function listScheduleRequests(signal: AbortSignal, listingId?: string) {
+  return request<{ requests: ScheduleRequest[] }>('/api/pickups/schedule' + (listingId ? '?listing=' + encodeURIComponent(listingId) : ''), { signal }, true);
 }
 
 export function saveSchedule(listingId: string, action: ScheduleAction) {
@@ -147,10 +149,14 @@ export function publishPickup(values: NonNullable<ReturnType<typeof validatePick
   }, true);
 }
 
-export function changePickup(id: string, status: Exclude<PickupStatus, 'open'>) {
+export function changePickup(id: string, status: Exclude<PickupStatus, 'open'>, code?: string) {
   return request<PickupOffer>('/api/pickups/' + encodeURIComponent(id), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, code }),
   }, true);
+}
+
+export function getHandoverCode(id: string) {
+  return request<{ code: string }>('/api/pickups/' + encodeURIComponent(id) + '/code', { method: 'POST' }, true);
 }

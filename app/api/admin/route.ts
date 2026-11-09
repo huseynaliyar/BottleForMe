@@ -33,6 +33,9 @@ export async function GET(request: Request) {
   }
   if (status && !adminPickupStatuses.some((value) => value === status)) return failure('Invalid pickup status.', 400);
 
+  const settings = await db.from('marketplace_settings').select('maintenance').eq('singleton', true).single();
+  if (settings.error) return failure('Could not load maintenance settings.', 503);
+  const maintenance = settings.data.maintenance;
   const first = (page - 1) * pageSize;
   const last = first + pageSize - 1;
   if (view === 'profiles') {
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
       for (const row of lookup.data ?? []) emails.set(row.id, row.email);
     }
     const rows = data.map((row) => ({ ...row, email: emails.get(row.id) ?? null }));
-    return response({ view, rows, total: count ?? 0, pageSize });
+    return response({ maintenance, view, rows, total: count ?? 0, pageSize });
   }
 
   let query = db.from('pickups')
@@ -57,7 +60,7 @@ export async function GET(request: Request) {
   const { data, count, error } = await query.order('created_at', { ascending: false, nullsFirst: false })
     .order('id', { ascending: false }).range(first, last);
   if (error) return failure('Could not load pickups. Try again.', 503);
-  return response({ view, rows: data, total: count ?? 0, pageSize });
+  return response({ maintenance, view, rows: data, total: count ?? 0, pageSize });
 }
 
 export async function POST(request: Request) {
@@ -91,4 +94,14 @@ export async function POST(request: Request) {
     }
   });
   return response({ sent: data });
+}
+
+export async function PATCH(request: Request) {
+  const access = await authorize(request);
+  if (access instanceof Response) return access;
+  const body = await request.json().catch(() => null);
+  if (typeof body?.maintenance !== 'boolean') return failure('Choose whether to enable maintenance mode.', 400);
+  const { data, error } = await access.db.from('marketplace_settings').update({ maintenance: body.maintenance })
+    .eq('singleton', true).select('maintenance').single();
+  return error ? failure('Could not change maintenance mode.', 503) : response(data);
 }

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en">
+  <body>
+    <h2>Reset your BottleForMe password</h2>
+    <p>This link can be used only once. If it expires or has already been used, request a new link in BottleForMe.</p>
+    <p><a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}">Choose a new password</a></p>
+    <p>If you did not request a reset, ignore this email.</p>
+  </body>
+</html>

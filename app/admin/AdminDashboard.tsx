@@ -72,6 +72,8 @@ export default function AdminDashboard() {
   const [recipient, setRecipient] = useState<{ id: string; label: string } | null>(null);
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
+  const [maintenanceBusy, setMaintenanceBusy] = useState(false);
+  const [maintenanceError, setMaintenanceError] = useState('');
   const [authError, setAuthError] = useState('');
   const [result, setResult] = useState<{ key: string; payload?: AdminPage; error?: string; forbidden?: boolean }>();
   const previousUserId = useRef<string | undefined>(undefined);
@@ -120,6 +122,27 @@ export default function AdminDashboard() {
     });
     return () => controller.abort();
   }, [key, query, userId]);
+
+  async function toggleMaintenance(next: boolean) {
+    if (!supabase || maintenanceBusy) return;
+    if (next && !window.confirm('Pause new listings, pickup requests and handovers for all users?')) return;
+    setMaintenanceBusy(true);
+    setMaintenanceError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || session.user.id !== userId) throw new Error('Sign in again to change maintenance mode.');
+      const res = await fetch('/api/admin', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({ maintenance: next }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? 'Could not change maintenance mode.');
+      setResult((current) => current?.payload ? { ...current, payload: { ...current.payload, maintenance: body.maintenance } } : current);
+    } catch (cause) {
+      setMaintenanceError(cause instanceof Error ? cause.message : 'Could not change maintenance mode.');
+    } finally { setMaintenanceBusy(false); }
+  }
 
   async function logout() {
     if (!supabase) return;
@@ -196,6 +219,17 @@ export default function AdminDashboard() {
       {!active && <p role="status" className="p-5 text-sm text-blue-100/75">Loading dashboard…</p>}
       {active?.error && <p role="alert" className="p-5 text-sm text-red-200">{active.error}</p>}
       {data && <>
+        <section className="glass-navy mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[24px] p-5">
+          <div>
+            <h2 className="font-bold">Maintenance mode · {data.maintenance ? 'On' : 'Off'}</h2>
+            <p className="mt-1 text-sm text-blue-200">Pauses listing, scheduling and handover changes on web and mobile.</p>
+            {maintenanceError && <p role="alert" className="mt-1 text-sm text-red-300">{maintenanceError}</p>}
+          </div>
+          <button type="button" disabled={maintenanceBusy} onClick={() => void toggleMaintenance(!data.maintenance)}
+            className="blue-btn rounded-xl px-4 py-2 font-bold disabled:opacity-50">
+            {data.maintenance ? 'Disable maintenance mode' : 'Enable maintenance mode'}
+          </button>
+        </section>
         {data.rows.length === 0 ? <p className="flex items-center gap-2 p-5 text-sm text-blue-100/75">
           <ClipboardList className="size-4" /> No records on this page.
         </p> : <div className="overflow-x-auto">

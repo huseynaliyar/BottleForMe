@@ -5,6 +5,7 @@ import { Camera, LogOut } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
 import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
 import { useSignupCode } from '../../lib/use-signup-code';
+import { formatPhone, phoneCountries } from '../../lib/phone';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import type { PickupOffer, UserProfile } from '../../lib/types';
 import { errorMessage, register, resendSignupCode, resetPassword, signIn, supabase, verifySignupCode } from './backend';
@@ -23,6 +24,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneCountry, setPhoneCountry] = useState('MT');
   const [tag, setTag] = useState('');
   const [locality, setLocality] = useState(localityOptions[0].value);
   const [role, setRole] = useState<'giver' | 'taker'>('giver');
@@ -55,7 +57,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     setAttempted(true);
     setError('');
     setNotice('');
-    if (mode === 'verify' && !otp.canVerify()) return;
+    if ((mode === 'verify' && !otp.canVerify()) || (mode === 'reset' && otp.resetSeconds > 0)) return;
     if (emailError || nameError || passwordError || tagError || codeError) return;
     pending.current = true;
     setBusy(true);
@@ -69,7 +71,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         onSignedIn(true);
       } else if (mode === 'register') {
         await register(email.trim(), password, {
-          full_name: name.trim(), role, phone: phone.trim(), revolut_tag: tag.trim(), locality,
+          full_name: name.trim(), role, phone: formatPhone(phoneCountry, phone), revolut_tag: tag.trim(), locality,
         });
         otp.sent();
         setMode('verify');
@@ -79,9 +81,11 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         setNotice('Enter the six-digit code from your email. If your email has a confirmation link, open it, then sign in.');
       } else {
         await resetPassword(email.trim());
+        otp.resetRequested();
         setNotice('If an account exists, a password reset link will be sent. Open it in your browser.');
       }
     } catch (cause) {
+      if (mode === 'reset' && authErrorCode(cause) === 'over_request_rate_limit') otp.resetRequested(cause);
       if (mode === 'signin' && cause && typeof cause === 'object' && 'code' in cause && cause.code === 'email_not_confirmed') {
         setMode('verify');
         setPassword('');
@@ -136,6 +140,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         <Text style={styles.small}>Starting role</Text>
         <Segmented options={roles} value={role} onChange={(value) => { if (!busy) setRole(value); }} />
       </View>
+      <Select label="Country calling code" value={phoneCountry} options={phoneCountries} onChange={setPhoneCountry} disabled={busy} />
       <Field label="Phone (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={40} editable={!busy} />
       <Field label="Revolut tag (optional)" value={tag} onChangeText={setTag} autoCapitalize="none" autoCorrect={false}
         maxLength={51} editable={!busy} error={attempted ? tagError : ''} />
@@ -152,8 +157,8 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     </>}
     {notice ? <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text> : null}
     <ErrorText message={error || (supabase ? '' : 'Account service is unavailable in this build.')} />
-    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : 'Send reset link'}
-      disabled={busy || !supabase || (mode === 'verify' && otp.verifySeconds > 0)} onPress={submit} />
+    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link'}
+      disabled={busy || !supabase || (mode === 'verify' && otp.verifySeconds > 0) || (mode === 'reset' && otp.resetSeconds > 0)} onPress={submit} />
   </Dialog>;
 }
 

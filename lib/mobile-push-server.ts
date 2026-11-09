@@ -9,6 +9,9 @@ type Job = {
   attempts: number;
   ticket_id: string | null;
   lease_id: string;
+  title: string;
+  message: string;
+  pickup_id: string | null;
 };
 type ExpoResult = { status: 'ok' | 'error'; id?: string; details?: { error?: string } };
 
@@ -72,9 +75,9 @@ async function send(jobs: Job[]) {
   try {
     results = await expoRequest<ExpoResult[]>('send', jobs.map((job) => ({
       to: job.token,
-      title: 'BottleForMe',
-      body: 'You have a new message. Open BottleForMe to read it.',
-      data: { type: 'admin_message' },
+      title: job.title,
+      body: job.message,
+      data: { type: 'admin_message', pickupId: job.pickup_id },
       channelId: 'bottleforme-messages',
       sound: 'default',
       ttl: 86_400,

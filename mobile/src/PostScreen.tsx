@@ -3,10 +3,11 @@ import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
 import Slider from '@react-native-community/slider';
 import { ArrowRight, MapPin } from 'lucide-react-native';
-import { Keyboard, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Keyboard, Linking, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '../../lib/pickup-validation';
 import { calculateDepositSplit, MALTA_LOCALITIES, type PickupOffer, type UserProfile } from '../../lib/types';
 import { apiOrigin, errorMessage, publishPickup } from './backend';
+import { nearbyStreets } from '../../lib/nearby-streets';
 import { pickupAddressText, type AddressSuggestion } from '../../lib/pickup-address';
 import { newWindow, parseWindowDrafts } from '../../lib/pickup-schedule';
 import { AvailabilityEditor } from './PickupSchedule';
@@ -113,7 +114,12 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
+  const [streets, setStreets] = useState<string[]>([]);
+  const [gpsStreet, setGpsStreet] = useState('');
+
   async function useGps() {
+    setStreets([]);
+    setGpsStreet('');
     setLocationError('');
     setLocationMessage('');
     setLocating(true);
@@ -125,7 +131,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
         Math.hypot(lat - coords.latitude, (lng - coords.longitude) * Math.cos(coords.latitude * Math.PI / 180));
       const nearest = MALTA_LOCALITIES.reduce((best, item) => distance(item) < distance(best) ? item : best);
       setLocality(nearest.name);
-      setLocationMessage('Nearest listed locality: ' + nearest.name + '. Check it before publishing.');
+      const names = await nearbyStreets(apiOrigin, coords.latitude, coords.longitude);
+      setStreets(names);
+      setLocationMessage(names.length ? 'Choose a nearby street, then edit the address below.' : 'No nearby streets found. Enter your street manually.');
     } catch {
       setLocationError('Could not use your location. Choose your locality manually.');
     } finally {
@@ -242,6 +250,11 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       {locationMessage ? <Text style={styles.muted}>{locationMessage}</Text> : null}
       {needsTag && <Field label="Revolut tag" showLabel={false} value={tag} onChangeText={setTag} maxLength={51}
         placeholder="@your_revolut_tag" autoCapitalize="none" autoCorrect={false} editable={!busy} error={attempted ? tagError : ''} />}
+      {streets.length > 0 && <View style={{ gap: 4 }}>
+        <Select label="Nearby street" value={gpsStreet} options={streets.map((name) => ({ label: name, value: name }))}
+          disabled={busy} onChange={(name) => { setGpsStreet(name); setPickupAddress(name); setAddressSelection(null); }} />
+        <Text accessibilityRole="link" style={styles.muted} onPress={() => void Linking.openURL('https://www.openstreetmap.org/copyright').catch(() => {})}>© OpenStreetMap contributors</Text>
+      </View>}
       <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={signedIn} busy={busy}
         onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
         onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />

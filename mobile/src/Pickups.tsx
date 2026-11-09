@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Alert, Linking, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
-import { errorMessage, listPickups } from './backend';
-import { Badge, Button, Card, colors, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text } from './ui';
+import { errorMessage, getHandoverCode, listPickups } from './backend';
+import { Badge, Button, Card, colors, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
 
@@ -121,10 +121,12 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
 
 export function HandoverScreen({ userId, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
   userId?: string; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
-  onSelect: (id: string) => void; onSignIn: () => void; onRefresh: () => void; onChange: (offer: PickupOffer, status: NextStatus) => void;
+  onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const [linkError, setLinkError] = useState('');
-  const selected = offers.find((offer) => offer.id === selectedId) ?? offers[0];
+  const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
+  const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
+  const selected = offers.find((offer) => offer.id === selectedId);
   const active = selected?.status === 'reserved' || selected?.status === 'en_route' || selected?.status === 'arrived';
   const collector = !!selected && selected.collector_id === userId;
 
@@ -141,17 +143,19 @@ export function HandoverScreen({ userId, revision, offers, loading, error, busy,
     <Card style={{ borderRadius: 24 }}>
       <Text accessibilityRole="header" weight="heavy" style={styles.body}>Your pickups</Text>
       {!userId ? <Button label="Sign in to view pickups" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
-        <PickupArrangements userId={userId} revision={revision} onSaved={onRefresh} />
+        {selectedId ? <Button label="← All pickups" kind="secondary" onPress={() => {
+          setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
+        }} /> : null}
         {loading && <Loading label="Loading your pickups…" />}
-        {!loading && !error && !offers.length && <Text style={styles.body}>You have no pickups yet.</Text>}
         <ErrorText message={error} />
-        <Button label="Refresh pickups" kind="secondary" onPress={onRefresh} disabled={busy || loading} style={{ alignSelf: 'flex-start' }} />
+        {!selectedId && offers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
+          onPress={() => { setLinkError(''); onSelect(offer.id); }}>
+          <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
+          <Text style={styles.small}>{statusNames[offer.status]}</Text>
+        </Pressable>)}
+        <PickupArrangements key={selectedId ?? 'list'} userId={userId} listingId={selectedId} revision={revision}
+          onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />
         {selected && <>
-          <Text style={styles.small}>Select pickup</Text>
-          <Select label="Select pickup" value={selected.id} onChange={(id) => { setLinkError(''); onSelect(id); }} disabled={busy}
-            options={offers.map((offer) => ({
-              value: offer.id, label: offer.locality + ' · ' + offer.estimated_bottles + ' items · ' + statusNames[offer.status],
-            }))} />
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
           <Text style={styles.small}>Status · {statusNames[selected.status]}</Text>
           <PickupAvailability offer={selected} />
@@ -169,12 +173,25 @@ export function HandoverScreen({ userId, revision, offers, loading, error, busy,
                   .catch(() => setLinkError('Could not open Revolut.'));
               }} style={{ alignSelf: 'flex-start' }} />}
           <ErrorText message={linkError} />
+          {active && (collector ? <>
+            <Field label="Six-digit code shown by the Giver" keyboardType="number-pad" maxLength={6}
+              value={typedCode?.id === selected.id ? typedCode.value : ''}
+              onChangeText={(value) => setTypedCode({ id: selected.id, value: value.replace(/\D/g, '').slice(0, 6) })} />
+            <Button label="Complete handover" disabled={busy || typedCode?.id !== selected.id || typedCode.value.length !== 6}
+              onPress={() => onChange(selected, 'completed', typedCode?.value)} />
+          </> : <>
+            <Button label="Show handover code" onPress={() => {
+              setLinkError('');
+              getHandoverCode(selected.id).then(({ code }) => setHandoverCode({ id: selected.id, value: code }))
+                .catch((cause) => setLinkError(cause instanceof Error ? cause.message : 'Could not show the code.'));
+            }} />
+            {handoverCode?.id === selected.id && <Text weight="heavy" style={styles.title}>Show the Taker: {handoverCode.value}</Text>}
+          </>)}
           <View style={styles.row}>
             {collector && selected.status === 'reserved' && <Button label="Mark on the way" kind="secondary" disabled={busy}
               onPress={() => onChange(selected, 'en_route')} />}
             {collector && selected.status === 'en_route' && <Button label="Mark arrived" kind="secondary" disabled={busy}
               onPress={() => onChange(selected, 'arrived')} />}
-            {collector && active && <Button label="Record handover" disabled={busy} onPress={() => confirm(selected, 'completed')} />}
             {(active || selected.status === 'open') && <Button label="Cancel pickup" kind="quiet" disabled={busy}
               onPress={() => confirm(selected, 'cancelled')} />}
           </View>
