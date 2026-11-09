@@ -246,7 +246,10 @@ export default function HomePage() {
   const availability = parseWindowDrafts(availabilityDraft);
   const publishErrors = [countError, localityError, addressError, revolutError,
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
-  const selectedOffer = handovers.find((offer) => offer.id === selectedId);
+  const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
+  const rolePickups = handovers.filter((offer) => offer[pickupParticipant] === accountId);
+  const selectedOffer = rolePickups.find((offer) => offer.id === selectedId);
+  const selectedInOtherRole = !selectedOffer && handovers.some((offer) => offer.id === selectedId);
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
 
@@ -391,14 +394,18 @@ export default function HomePage() {
     }
   }
 
-  async function handleToggleRole() {
+  async function handleToggleRole(keepPickupOpen = false) {
     if (!currentUser) { setIsAuthOpen(true); return; }
     const role = currentUser.role === 'giver' ? 'taker' : 'giver';
     try {
       await saveProfile(currentUser, { role });
       if (sessionId.current !== accountId) return;
       setCurrentUser((user) => user ? { ...user, role } : user);
-      setActiveTab(role === 'giver' ? 'resident' : 'driver');
+      if (!keepPickupOpen) {
+        setSelectedId(null);
+        setChatPickupId(null);
+        setActiveTab(role === 'giver' ? 'resident' : 'driver');
+      }
     } catch {
       setActionError('Could not change your role.');
     }
@@ -451,7 +458,7 @@ export default function HomePage() {
                   </h1>
                   <button
                     type="button"
-                    onClick={handleToggleRole}
+                    onClick={() => void handleToggleRole()}
                     className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border cursor-pointer transition ${
                       currentUser?.role === 'taker'
                         ? 'bg-emerald-500/15 text-[#00e599] border-emerald-500/30'
@@ -793,7 +800,7 @@ export default function HomePage() {
             <section className="glass-navy space-y-3 rounded-[28px] p-4">
               <h2 className="font-extrabold text-white">Radar is for Takers</h2>
               <p className="text-sm text-blue-200">Switch to Taker to see and reserve pickups from other accounts.</p>
-              <button type="button" className="blue-btn rounded-xl px-3 py-2 text-sm font-bold text-white" onClick={handleToggleRole}>
+              <button type="button" className="blue-btn rounded-xl px-3 py-2 text-sm font-bold text-white" onClick={() => void handleToggleRole()}>
                 {currentUser ? 'Switch to Taker' : 'Sign in to use Radar'}
               </button>
             </section>
@@ -917,7 +924,7 @@ export default function HomePage() {
 
           {activeTab === 'chat' && (
             <section className="glass-navy space-y-3 rounded-[24px] p-4 text-sm">
-              <h2 className="font-extrabold text-white">Your pickups</h2>
+              <h2 className="font-extrabold text-white">{currentUser ? (canUseRadar ? 'Your pickups as Taker' : 'Your pickups as Giver') : 'Your pickups'}</h2>
               {!currentUser ? (
                 <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>Sign in to view pickups</button>
               ) : (
@@ -928,7 +935,14 @@ export default function HomePage() {
                       setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError('');
                     }}>{chatPickupId === selectedId ? '← Pickup details' : '← All pickups'}</button>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
-                    {chatPickupId === selectedId ? (
+                    {selectedInOtherRole ? (
+                      <p className="text-blue-200">
+                        This pickup belongs to your {canUseRadar ? 'Giver' : 'Taker'} role.{' '}
+                        <button type="button" onClick={() => void handleToggleRole(true)} className="font-bold text-blue-300 underline">
+                          Switch to {canUseRadar ? 'Giver' : 'Taker'}
+                        </button>
+                      </p>
+                    ) : chatPickupId === selectedId && selectedOffer ? (
                       <PickupChat key={currentUser.id + ':' + selectedId} pickupId={selectedId} onRead={refreshUnread} />
                     ) : <>
                       {selectedOffer && <>
@@ -997,12 +1011,13 @@ export default function HomePage() {
                       <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
                         <summary className="cursor-pointer font-semibold text-white">Time requests</summary>
                         <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId}
-                          revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                          participantKey={pickupParticipant} onSwitchRole={() => void handleToggleRole(true)} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                       </details>
                     </>}
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
-                    {handovers.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
+                    {!handoverStatus && !rolePickups.length && <p className="text-blue-200">No listings or assigned pickups in this role yet.</p>}
+                    {rolePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
                       <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
                         <strong className="block text-white">{offer.locality}</strong>
                         <span className="block text-blue-200">{pickupStatus[offer.status]}</span>
@@ -1015,7 +1030,7 @@ export default function HomePage() {
                       </button>}
                     </div>)}
                     <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
-                      excludeAcceptedFor={new Set(handovers.map((offer) => offer.id))} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                      participantKey={pickupParticipant} excludeAcceptedFor={new Set(rolePickups.map((offer) => offer.id))} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                   </>}
                 </>
               )}
@@ -1090,7 +1105,7 @@ export default function HomePage() {
                     </p>
                   </div>
                   <button
-                    onClick={handleToggleRole}
+                    onClick={() => void handleToggleRole()}
                     className="px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 text-xs font-bold transition flex items-center gap-1"
                   >
                     <span>Switch to {currentUser?.role === 'taker' ? 'Giver' : 'Taker'}</span>

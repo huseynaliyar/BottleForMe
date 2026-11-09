@@ -205,8 +205,9 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </li>;
 }
 
-export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeAcceptedFor }: {
-  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void; excludeAcceptedFor?: ReadonlySet<string>;
+export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeAcceptedFor, participantKey, onSwitchRole }: {
+  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
+  excludeAcceptedFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
 }) {
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
@@ -219,7 +220,9 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
     });
     return () => controller.abort();
   }, [revision, userId, listingId]);
-  const visible = requests?.filter((item) => item.status !== 'accepted' || !excludeAcceptedFor?.has(item.pickup_id));
+  const inRole = requests?.filter((item) => item[participantKey] === userId);
+  const visible = inRole?.filter((item) => item.status !== 'accepted' || !excludeAcceptedFor?.has(item.pickup_id));
+  const belongsToOtherRole = Boolean(listingId && requests?.length && !inRole?.length);
   return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
     <div className="flex items-center justify-between gap-2">
       <h3 className="font-bold text-white">Pickup arrangements</h3>
@@ -231,6 +234,9 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
         <strong>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</strong>
         <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
       </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
-      : !error && <p className="text-sm">{requests ? 'No requests yet.' : 'Loading arrangements…'}</p>}
+      : !error && (belongsToOtherRole ? <p className="text-sm">
+        This time request belongs to your other role.{' '}
+        <button type="button" onClick={onSwitchRole} className="font-bold text-blue-300 underline">Switch role</button>
+      </p> : <p className="text-sm">{requests ? 'No requests yet in this role.' : 'Loading arrangements…'}</p>)}
   </section>;
 }
