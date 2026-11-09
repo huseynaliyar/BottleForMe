@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
+import { pickupStatusColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
@@ -119,14 +120,16 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
   </ScrollView>;
 }
 
-export function HandoverScreen({ userId, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
-  userId?: string; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
+export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
+  userId?: string; taker: boolean; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
   onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const [linkError, setLinkError] = useState('');
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
-  const selected = offers.find((offer) => offer.id === selectedId);
+  const participantKey = taker ? 'collector_id' : 'seller_id';
+  const roleOffers = offers.filter((offer) => offer[participantKey] === userId);
+  const selected = roleOffers.find((offer) => offer.id === selectedId);
   const active = selected?.status === 'reserved' || selected?.status === 'en_route' || selected?.status === 'arrived';
   const collector = !!selected && selected.collector_id === userId;
 
@@ -141,23 +144,23 @@ export function HandoverScreen({ userId, revision, offers, loading, error, busy,
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={userId
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>
     <Card style={{ borderRadius: 24 }}>
-      <Text accessibilityRole="header" weight="heavy" style={styles.body}>Your pickups</Text>
+      <Text accessibilityRole="header" weight="heavy" style={styles.body}>{userId ? (taker ? 'Your pickups as Taker' : 'Your pickups as Giver') : 'Your pickups'}</Text>
       {!userId ? <Button label="Sign in to view pickups" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
         {selectedId ? <Button label="← All pickups" kind="secondary" onPress={() => {
           setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
         }} /> : null}
         {loading && <Loading label="Loading your pickups…" />}
         <ErrorText message={error} />
-        {!selectedId && offers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
+        {!selectedId && roleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
           onPress={() => { setLinkError(''); onSelect(offer.id); }}>
           <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
-          <Text style={styles.small}>{statusNames[offer.status]}</Text>
+          <Text style={[styles.small, { color: pickupStatusColor[offer.status] }]}>{statusNames[offer.status]}</Text>
         </Pressable>)}
-        <PickupArrangements key={selectedId ?? 'list'} userId={userId} listingId={selectedId} revision={revision}
+        <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
           onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />
         {selected && <>
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
-          <Text style={styles.small}>Status · {statusNames[selected.status]}</Text>
+          <Text style={[styles.small, { color: pickupStatusColor[selected.status] }]}>Status · {statusNames[selected.status]}</Text>
           <PickupAvailability offer={selected} />
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}

@@ -33,7 +33,7 @@ export async function signIn(email: string, password: string) {
   if (error) throw error;
 }
 
-export async function register(email: string, password: string, metadata: Pick<UserProfile, 'full_name' | 'role' | 'phone' | 'revolut_tag' | 'locality'>) {
+export async function register(email: string, password: string, metadata: Pick<UserProfile, 'full_name' | 'role' | 'phone' | 'revolut_tag' | 'locality'> & { terms_version: string }) {
   const { data, error } = await client().auth.signUp({
     email,
     password,

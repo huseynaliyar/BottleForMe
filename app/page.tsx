@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
   Check, Bell, LogOut,
@@ -20,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
+import { pickupStatusColor } from '@/lib/pickup-status';
 import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
@@ -57,7 +59,7 @@ export default function HomePage() {
   const [plasticCount, setPlasticCount] = useState('0');
   const [canCount, setCanCount] = useState('0');
   const [glassCount, setGlassCount] = useState('0');
-  const [bags, setBags] = useState(1);
+  const [bags, setBags] = useState(0);
   const [splitPercent, setSplitPercent] = useState(50);
   const [locality, setLocality] = useState('');
   const [revolutTag, setRevolutTag] = useState('');
@@ -71,6 +73,12 @@ export default function HomePage() {
   const canUseRadar = currentUser?.role === 'taker';
   const activeTab = requestedTab === 'resident' && canUseRadar ? 'driver'
     : requestedTab === 'driver' && !canUseRadar ? 'resident' : requestedTab;
+  const radarDetails = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = radarDetails.current;
+    if (dialog && mapOfferId && !dialog.open) dialog.showModal();
+    if (dialog?.open && !mapOfferId) dialog.close();
+  }, [mapOfferId, radarView, activeTab]);
   const fullscreenRadar = activeTab === 'driver' && canUseRadar && radarView === 'map';
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
@@ -158,7 +166,7 @@ export default function HomePage() {
           setPlasticCount('0');
           setCanCount('0');
           setGlassCount('0');
-          setBags(1);
+          setBags(0);
           setSplitPercent(50);
           setPayoutMethod('cash');
           setTriedToPublish(false);
@@ -244,7 +252,7 @@ export default function HomePage() {
       : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const publishErrors = [countError, localityError, addressError, revolutError,
+  const publishErrors = [countError, localityError, addressError, revolutError, bags < 1 ? 'Specify the number of bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
   const rolePickups = handovers.filter((offer) => offer[pickupParticipant] === accountId);
@@ -320,7 +328,7 @@ export default function HomePage() {
       setPlasticCount('0');
       setCanCount('0');
       setGlassCount('0');
-      setBags(1);
+      setBags(0);
       setAddressNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -421,6 +429,7 @@ export default function HomePage() {
     }
   }
 
+  const RadarResults = fullscreenRadar ? 'dialog' : 'div';
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   return (
@@ -590,9 +599,9 @@ export default function HomePage() {
                   </p>
                   {!countsValid && <p className="text-xs text-red-300">{countError}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <span className="text-xs text-blue-200/70">Pickup bags (packing only) · {bags}</span>
+                    <span className="text-xs text-blue-200/70">Pickup bags · {bags || 'Choose a quantity'}</span>
                     <div className="flex gap-1.5">
-                      <button type="button" disabled={bags === 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">−1 Bag</button>
+                      <button type="button" disabled={bags <= 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">−1 Bag</button>
                       <button type="button" disabled={bags === MAX_BAGS} onClick={() => setBags((count) => count + 1)} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">+1 Bag</button>
                     </div>
                   </div>
@@ -860,9 +869,13 @@ export default function HomePage() {
               )}
 
               {/* List view or the pickup selected on the map. */}
-              <div className={fullscreenRadar
-                ? 'pointer-events-none absolute inset-x-3 bottom-8 z-[1000] mx-auto max-h-[55%] max-w-md overflow-y-auto'
-                : 'space-y-2.5'}>
+              <RadarResults
+                ref={(node: HTMLDivElement | HTMLDialogElement | null) => { radarDetails.current = node instanceof HTMLDialogElement ? node : null; }}
+                aria-label={fullscreenRadar ? 'Pickup details' : undefined}
+                onCancel={(event) => { event.preventDefault(); setMapOfferId(null); }}
+                className={fullscreenRadar
+                  ? 'm-auto max-h-[85dvh] w-[calc(100%-1.5rem)] max-w-md overflow-y-auto rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
+                  : 'space-y-2.5'}>
                 {offers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
@@ -918,7 +931,7 @@ export default function HomePage() {
                     {offer.availability?.length ? <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
                 ))}
-              </div>
+              </RadarResults>
             </section>
           )}
 
@@ -947,7 +960,7 @@ export default function HomePage() {
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
-                          <span className="text-xs font-semibold text-blue-300">{pickupStatus[selectedOffer.status]}</span>
+                          <span className="text-xs font-semibold text-blue-300" style={{ color: pickupStatusColor[selectedOffer.status] }}>{pickupStatus[selectedOffer.status]}</span>
                           <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
                           {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
                         </header>
@@ -1020,7 +1033,7 @@ export default function HomePage() {
                     {rolePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
                       <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
                         <strong className="block text-white">{offer.locality}</strong>
-                        <span className="block text-blue-200">{pickupStatus[offer.status]}</span>
+                        <span className="block text-blue-200" style={{ color: pickupStatusColor[offer.status] }}>{pickupStatus[offer.status]}</span>
                         {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
                       </button>
                       {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
@@ -1218,6 +1231,7 @@ export default function HomePage() {
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">Profile</span>
           </button>
+          <Link href="/help" className="flex items-center px-2 text-[10px] hover:text-white">Help &amp; FAQ</Link>
         </footer>
 
         {/* Authentication Modal */}

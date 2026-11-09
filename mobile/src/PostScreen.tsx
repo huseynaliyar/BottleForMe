@@ -58,7 +58,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   profile: UserProfile | null; signedIn: boolean; authReady: boolean; onSignIn: () => void; onPublished: (offer: PickupOffer) => void;
 }) {
   const [counts, setCounts] = useState(zeroCounts);
-  const [bags, setBags] = useState(1);
+  const [bags, setBags] = useState(0);
   const [availabilityDraft, setAvailabilityDraft] = useState(() => [newWindow()]);
   const [split, setSplit] = useState(50);
   const [locality, setLocality] = useState('');
@@ -110,7 +110,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const needsTag = method === 'revolut' && totals.sellerPayout > 0;
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const errors = [countsError, localityError, addressError, tagError,
+  const errors = [countsError, localityError, addressError, tagError, bags < 1 ? 'Specify the number of bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
@@ -166,7 +166,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       requestKeys.current.clear();
       setAvailabilityDraft([newWindow()]);
       setCounts(zeroCounts);
-      setBags(1);
+      setBags(0);
       setNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -202,7 +202,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
         <Text style={styles.small}>Total: <Text weight="bold">{countsValid ? totals.totalContainers : '—'} eligible items</Text></Text>
         <ErrorText message={attempted || !countsValid ? countsError : ''} />
         <View style={styles.between}>
-          <Text style={styles.muted}>Pickup bags (packing only) · {bags}</Text>
+          <Text style={styles.muted}>Pickup bags · {bags || 'Choose a quantity'}</Text>
           <View style={styles.row}>
             <Button label="−1 Bag" kind="quiet" disabled={busy || bags <= 1} onPress={() => setBags((value) => Math.max(1, value - 1))} />
             <Button label="+1 Bag" kind="secondary" disabled={busy || bags >= MAX_BAGS} onPress={() => setBags((value) => Math.min(MAX_BAGS, value + 1))} />

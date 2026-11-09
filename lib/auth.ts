@@ -28,6 +28,7 @@ export async function registerWithSupabase(data: {
   phone: string;
   revolut_tag: string;
   locality: string;
+  terms_version?: string;
 }) {
   const { email, password, ...metadata } = data;
   const { data: result, error } = await authClient().auth.signUp({

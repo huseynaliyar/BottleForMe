@@ -262,7 +262,7 @@ function Marketplace() {
           <Button label={session ? 'Switch to Taker' : 'Sign in to use Radar'} onPress={toggleRole} />
         </Card>
       </View>}
-      {tab === 'handover' && <HandoverScreen key={userId ?? 'guest'} userId={userId} revision={revision} offers={offers} loading={handovers.loading}
+      {tab === 'handover' && <HandoverScreen key={(userId ?? 'guest') + ':' + taker} userId={userId} taker={taker} revision={revision} offers={offers} loading={handovers.loading}
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
       {tab === 'profile' && (authReady

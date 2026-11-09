@@ -1,5 +1,7 @@
 'use client';
 
+import { pickupStatusColor } from '@/lib/pickup-status';
+
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { pickupRequest } from '@/lib/auth';
@@ -231,7 +233,7 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
     <Feedback error={error} notice="" />
     {visible?.length ? <ul className="space-y-2">{visible.map((item) =>
       onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="block w-full rounded-lg bg-white/5 p-2 text-left hover:bg-white/10">
-        <strong>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</strong>
+        <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusColor[item.status] }}>{item.status}</span></strong>
         <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
       </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
       : !error && (belongsToOtherRole ? <p className="text-sm">

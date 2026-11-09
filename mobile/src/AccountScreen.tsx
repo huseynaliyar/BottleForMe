@@ -3,6 +3,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, LogOut } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
+import { supportFaq } from '../../lib/support-faq';
+import { draftTerms, draftTermsVersion } from '../../lib/draft-terms';
 import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
 import { useSignupCode } from '../../lib/use-signup-code';
 import { formatPhone, phoneCountries } from '../../lib/phone';
@@ -28,6 +30,8 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const [tag, setTag] = useState('');
   const [locality, setLocality] = useState(localityOptions[0].value);
   const [role, setRole] = useState<'giver' | 'taker'>('giver');
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [showTerms, setShowTerms] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +49,8 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   function switchMode(next: Mode) {
     if (pending.current) return;
     setMode(next);
+    setTermsAccepted(false);
+    setShowTerms(false);
     setPassword('');
     setCode('');
     setError('');
@@ -70,7 +76,9 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         await verifySignupCode(email.trim(), code);
         onSignedIn(true);
       } else if (mode === 'register') {
+        if (!termsAccepted) { setError('Accept the draft Terms & Conditions to register.'); return; }
         await register(email.trim(), password, {
+          terms_version: draftTermsVersion,
           full_name: name.trim(), role, phone: formatPhone(phoneCountry, phone), revolut_tag: tag.trim(), locality,
         });
         otp.sent();
@@ -157,6 +165,14 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     </>}
     {notice ? <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text> : null}
     <ErrorText message={error || (supabase ? '' : 'Account service is unavailable in this build.')} />
+    {mode === 'register' && <>
+      <Button label={showTerms ? 'Hide draft terms' : 'Read the draft Terms & Conditions'} kind="quiet" onPress={() => setShowTerms(!showTerms)} />
+      {showTerms && draftTerms.map((term) => <Text key={term} style={styles.small}>{term}</Text>)}
+      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsAccepted }} disabled={busy}
+        onPress={() => setTermsAccepted(!termsAccepted)} style={styles.inset}>
+        <Text style={styles.small}>{termsAccepted ? '☑' : '☐'} I accept the draft Terms &amp; Conditions.</Text>
+      </Pressable>
+    </>}
     <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link'}
       disabled={busy || !supabase || (mode === 'verify' && otp.verifySeconds > 0) || (mode === 'reset' && otp.resetSeconds > 0)} onPress={submit} />
   </Dialog>;
@@ -165,6 +181,23 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
 export function Avatar({ uri, size = 40 }: { uri?: string; size?: number }) {
   return <Image source={uri && /^data:image\/(jpeg|png|webp);base64,/i.test(uri) ? { uri } : require('../assets/logo.jpg')}
     style={{ width: size, height: size, borderRadius: size * 0.38, borderWidth: 2, borderColor: '#315b94', backgroundColor: colors.panel }} />;
+}
+
+function HelpFaq() {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string>();
+  return <>
+    <Button label="Help & FAQ" kind="secondary" onPress={() => setOpen(true)} />
+    {open && <Dialog title="Help & FAQ" onClose={() => setOpen(false)}>
+      {supportFaq.map(({ question, answer }) => <View key={question} style={styles.inset}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: expanded === question }}
+          onPress={() => setExpanded(expanded === question ? undefined : question)}>
+          <Text weight="bold" style={styles.small}>{question}</Text>
+        </Pressable>
+        {expanded === question && <Text style={styles.small}>{answer}</Text>}
+      </View>)}
+    </Dialog>}
+  </>;
 }
 
 export function ProfileScreen({ profile, signedIn, loading, error, offers, pickupsLoading, onSignIn, onRefresh, onSwitch, onAvatar, onSignOut }: {
@@ -251,6 +284,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
           <Text weight="semibold" style={styles.small}>{value || '—'}</Text>
         </View>)}
       </Card>
+      <HelpFaq />
       <Button label="Log out" kind="quiet" onPress={onSignOut} disabled={uploading}>
         <LogOut size={13} color={colors.muted} />
       </Button>

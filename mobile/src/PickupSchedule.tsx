@@ -1,3 +1,4 @@
+import { pickupStatusColor } from '../../lib/pickup-status';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { randomUUID } from 'expo-crypto';
@@ -232,8 +233,8 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </View>;
 }
 
-export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen }: {
-  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
+export function PickupArrangements({ userId, participantKey, listingId, revision, onSaved, onOpen }: {
+  userId: string; participantKey: 'seller_id' | 'collector_id'; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
 }) {
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
@@ -246,12 +247,13 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
     });
     return () => controller.abort();
   }, [revision, userId, listingId]);
+  const visible = requests?.filter((item) => item[participantKey] === userId);
   return <View style={{ gap: 8 }}>
     <Text accessibilityRole="header" weight="bold" style={styles.body}>Pickup arrangements</Text>
     <ErrorText message={error} />
-    {requests?.length ? requests.map((item) => onOpen ? <Pressable accessibilityRole="button" key={item.id} style={styles.inset}
+    {visible?.length ? visible.map((item) => onOpen ? <Pressable accessibilityRole="button" key={item.id} style={styles.inset}
       onPress={() => onOpen(item.pickup_id)}>
-      <Text weight="bold" style={styles.body}>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</Text>
+      <Text weight="bold" style={styles.body}>{item.pickup?.locality ?? 'Pickup request'} · <Text style={{ color: pickupStatusColor[item.status] }}>{item.status}</Text></Text>
       <Text style={styles.small}>{formatAppointment(item.proposed_at)}</Text>
     </Pressable> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)
       : !error && <Text style={styles.small}>{requests ? 'No requests yet.' : 'Loading arrangements…'}</Text>}
