@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
-  Check, Bell, LogOut,
+  Check, Bell, LogOut, Wallet, CircleHelp,
 } from 'lucide-react';
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
@@ -1082,6 +1082,7 @@ export default function HomePage() {
           {activeTab === 'profile' && !currentUser && (
             <section className="glass-navy rounded-3xl p-4 text-sm">
               <h2 className="mb-2 font-bold text-white">Your profile</h2>
+              <Link href="/help" className="mb-3 flex items-center gap-2 text-blue-200"><CircleHelp className="size-4" aria-hidden="true" /> Help &amp; FAQ</Link>
               <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>Sign in or register</button>
             </section>
           )}
@@ -1209,6 +1210,12 @@ export default function HomePage() {
 
               {/* Account management */}
               <div className="space-y-2 pt-1">
+                <Link href="/balance" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
+                  <Wallet className="size-4 text-blue-300" aria-hidden="true" /> Balance
+                </Link>
+                <Link href="/help" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
+                  <CircleHelp className="size-4 text-blue-300" aria-hidden="true" /> Help &amp; FAQ
+                </Link>
                 <button
                   onClick={handleSignOut}
                   className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-red-400 text-xs font-semibold transition flex items-center justify-center gap-1"
@@ -1259,8 +1266,6 @@ export default function HomePage() {
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">Profile</span>
           </button>
-          <Link href="/balance" className="flex items-center px-2 text-[10px] hover:text-white">Balance</Link>
-          <Link href="/help" className="flex items-center px-2 text-[10px] hover:text-white">Help &amp; FAQ</Link>
         </footer>
 
         <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"

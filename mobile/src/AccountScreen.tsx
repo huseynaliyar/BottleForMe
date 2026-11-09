@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { Camera, LogOut } from 'lucide-react-native';
+import { Camera, CircleHelp, LogOut, Wallet } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
 import { balanceNote, formatEuro, pickupBalance } from '../../lib/pickup-balance';
 import { supportFaq } from '../../lib/support-faq';
@@ -188,7 +188,7 @@ function Balance({ userId, offers, loading }: { userId: string; offers: PickupOf
   const [open, setOpen] = useState(false);
   const balance = pickupBalance(offers, userId);
   return <>
-    <Button label="Balance" kind="secondary" onPress={() => setOpen(true)} />
+    <Button label="Balance" kind="secondary" onPress={() => setOpen(true)}><Wallet size={16} color={colors.sky} /></Button>
     {open && <Dialog title="Balance" onClose={() => setOpen(false)}>
       {loading ? <Loading label="Loading pickup estimates…" /> : <>
         <Text style={styles.body}>Estimated earnings {formatEuro(balance.earnings)}</Text>
@@ -210,7 +210,7 @@ function HelpFaq() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string>();
   return <>
-    <Button label="Help & FAQ" kind="secondary" onPress={() => setOpen(true)} />
+    <Button label="Help & FAQ" kind="secondary" onPress={() => setOpen(true)}><CircleHelp size={16} color={colors.sky} /></Button>
     {open && <Dialog title="Help & FAQ" onClose={() => setOpen(false)}>
       {supportFaq.map(({ question, answer }) => <View key={question} style={styles.inset}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: expanded === question }}
@@ -257,6 +257,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
       <Text accessibilityRole="header" weight="bold" style={styles.title}>Your profile</Text>
       {loading && <Loading label="Loading your profile…" />}
       <ErrorText message={error} />
+      {!signedIn && <HelpFaq />}
       {!signedIn && <Button label="Sign in or register" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} />}
       {signedIn && !loading && <Button label="Reload profile" onPress={onRefresh} style={{ alignSelf: 'flex-start' }} />}
       {signedIn && <Button label="Log out" kind="quiet" onPress={onSignOut} />}
