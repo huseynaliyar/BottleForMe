@@ -1245,6 +1245,7 @@ export default function HomePage() {
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">Profile</span>
           </button>
+          <Link href="/balance" className="flex items-center px-2 text-[10px] hover:text-white">Balance</Link>
           <Link href="/help" className="flex items-center px-2 text-[10px] hover:text-white">Help &amp; FAQ</Link>
         </footer>
 

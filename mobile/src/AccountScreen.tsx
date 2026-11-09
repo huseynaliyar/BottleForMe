@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, LogOut } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
+import { balanceNote, formatEuro, pickupBalance } from '../../lib/pickup-balance';
 import { supportFaq } from '../../lib/support-faq';
 import { draftTerms, draftTermsVersion } from '../../lib/draft-terms';
 import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
@@ -183,6 +184,28 @@ export function Avatar({ uri, size = 40 }: { uri?: string; size?: number }) {
     style={{ width: size, height: size, borderRadius: size * 0.38, borderWidth: 2, borderColor: '#315b94', backgroundColor: colors.panel }} />;
 }
 
+function Balance({ userId, offers, loading }: { userId: string; offers: PickupOffer[]; loading: boolean }) {
+  const [open, setOpen] = useState(false);
+  const balance = pickupBalance(offers, userId);
+  return <>
+    <Button label="Balance" kind="secondary" onPress={() => setOpen(true)} />
+    {open && <Dialog title="Balance" onClose={() => setOpen(false)}>
+      {loading ? <Loading label="Loading pickup estimates…" /> : <>
+        <Text style={styles.body}>Estimated earnings {formatEuro(balance.earnings)}</Text>
+        <Text style={styles.body}>Total deposit value {formatEuro(balance.deposit)}</Text>
+        <Text style={styles.small}>{balanceNote}</Text>
+        <Text weight="bold" style={styles.body}>Completed pickup history</Text>
+        {!balance.entries.length && <Text style={styles.small}>No completed pickups yet.</Text>}
+        {balance.entries.map((entry) => <View key={entry.id} style={styles.inset}>
+          <Text weight="bold" style={styles.small}>{entry.locality} · {entry.role}</Text>
+          <Text style={styles.small}>{new Date(entry.date).toLocaleDateString('en-MT', { timeZone: 'Europe/Malta' })}</Text>
+          <Text style={styles.small}>Estimated earnings {formatEuro(entry.earnings)} · Deposit {formatEuro(entry.deposit)}</Text>
+        </View>)}
+      </>}
+    </Dialog>}
+  </>;
+}
+
 function HelpFaq() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string>();
@@ -284,6 +307,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
           <Text weight="semibold" style={styles.small}>{value || '—'}</Text>
         </View>)}
       </Card>
+      <Balance userId={profile.id} offers={offers} loading={pickupsLoading} />
       <HelpFaq />
       <Button label="Log out" kind="quiet" onPress={onSignOut} disabled={uploading}>
         <LogOut size={13} color={colors.muted} />
