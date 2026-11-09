@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
   const pickupId = typeof payload?.pickupId === 'string' && /^[0-9a-f-]{36}$/i.test(payload.pickupId) ? payload.pickupId : null;
   event.waitUntil(self.registration.showNotification(title, {
     body,
-    data: { pickupId },
+    data: { pickupId, pickupChat: payload?.pickupChat === true },
     icon: '/logo.jpg',
     tag: id ? 'bottleforme-inbox-' + id : 'bottleforme-inbox',
   }));
@@ -20,13 +20,14 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const pickupId = event.notification.data?.pickupId ?? null;
+    const pickupChat = event.notification.data?.pickupChat === true;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const home = windows.find((client) => new URL(client.url).pathname === '/');
     if (home) {
       await home.focus();
-      home.postMessage({ type: 'bottleforme-open-inbox', pickupId });
+      home.postMessage({ type: 'bottleforme-open-inbox', pickupId, pickupChat });
     } else {
-      await self.clients.openWindow(pickupId ? '/?pickup=' + encodeURIComponent(pickupId) : '/?inbox=1');
+      await self.clients.openWindow(pickupId ? '/?pickup=' + encodeURIComponent(pickupId) + (pickupChat ? '&chat=1' : '') : '/?inbox=1');
     }
   })());
 });

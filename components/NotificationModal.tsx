@@ -9,9 +9,9 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
   isOpen: boolean;
   userId?: string;
   onClose: () => void;
-  notifications: NotificationItem[];
+  notifications: (NotificationItem & { pickupChat?: boolean })[];
   error?: string;
-  onOpenPickup: (pickupId: string) => void;
+  onOpenPickup: (pickupId: string, chat?: boolean) => void;
   onMarkAllAsRead: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -34,7 +34,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
       </header>
       {error && <p role="alert" className="mb-3 text-xs text-red-300">{error}</p>}
       {isOpen && userId && <WebPushControl key={userId} userId={userId} />}
-      {notifications.some((item) => !item.read) && (
+      {notifications.some((item) => !item.read && !item.pickupChat) && (
         <button type="button" onClick={onMarkAllAsRead} className="mb-2 text-xs font-semibold text-blue-300">Mark all as read</button>
       )}
       {notifications.length ? (
@@ -44,7 +44,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
               <strong>{item.title}</strong>
               <p>{item.message}</p>
               <small className="text-blue-200">{item.timestamp}</small>
-              {item.pickupId && <button type="button" className="mt-1 block font-semibold text-blue-300" onClick={() => onOpenPickup(item.pickupId!)}>View pickup</button>}
+              {item.pickupId && <button type="button" className="mt-1 block font-semibold text-blue-300" onClick={() => onOpenPickup(item.pickupId!, item.pickupChat)}>{item.pickupChat ? 'Open chat' : 'View pickup'}</button>}
             </li>
           ))}
         </ul>

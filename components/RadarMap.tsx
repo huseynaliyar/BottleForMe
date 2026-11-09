@@ -34,7 +34,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
     };
   }, []);
 
-  const canReserve = Boolean(onSelectOffer);
+  const canSelect = Boolean(onSelectOffer);
   useEffect(() => {
     const map = mapRef.current;
     const layer = layerRef.current;
@@ -66,11 +66,11 @@ export default function RadarMap({ offers, onSelectOffer }: {
         const details = document.createElement('span');
         details.textContent = `${offer.estimated_bottles} items · €${offer.seller_payout.toFixed(2)} to seller`;
         entry.append(details);
-        if (canReserve) {
+        if (canSelect) {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'mt-1 block rounded-lg bg-blue-600 px-2 py-1 text-white';
-          button.textContent = 'Reserve pickup';
+          button.textContent = 'View pickup';
           button.onclick = () => {
             selectRef.current?.(offer);
             marker.closePopup();
@@ -83,7 +83,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
     }
 
     if (bounds.isValid()) map.fitBounds(bounds, { maxZoom: 13, padding: [24, 24], animate: false });
-  }, [offers, canReserve]);
+  }, [offers, canSelect]);
 
   return (
     <div className="relative h-72 w-full overflow-hidden rounded-2xl border border-blue-500/25">

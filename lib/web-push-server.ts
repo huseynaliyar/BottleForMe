@@ -13,6 +13,7 @@ type Job = {
   title: string;
   message: string;
   pickup_id: string | null;
+  pickup_chat?: boolean;
 };
 
 export function webPushKeys() {
@@ -43,7 +44,9 @@ async function deliver(job: Job, vapidDetails: NonNullable<ReturnType<typeof web
   try {
     const endpoint = pushEndpoint(job.endpoint);
     if (!endpoint) throw new Error('Invalid push endpoint');
-    const payload = JSON.stringify({ title: job.title, body: job.message, id: job.batch_id, pickupId: job.pickup_id });
+    const body = job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'
+      ? 'Open Pickups in BottleForMe to see the pickup arrangement.' : job.message;
+    const payload = JSON.stringify({ title: job.title, body, id: job.batch_id, pickupId: job.pickup_id, pickupChat: job.pickup_chat === true });
     await sendNotification({ endpoint, keys: { p256dh: job.p256dh, auth: job.auth } },
       payload, { vapidDetails, TTL: 86_400, timeout: 5_000 });
   } catch (error) {

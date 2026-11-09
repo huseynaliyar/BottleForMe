@@ -11,7 +11,7 @@ import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, Use
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
 import { loadProfile, pickupRequest, saveProfile, signOutFromSupabase } from '@/lib/auth';
 import { AvailabilityEditor, EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from '@/components/PickupSchedule';
-import { newWindow, parseWindowDrafts } from '@/lib/pickup-schedule';
+import { formatAppointment, newWindow, parseWindowDrafts } from '@/lib/pickup-schedule';
 import PickupAddressField from '@/components/PickupAddressField';
 import { nearbyStreets } from '@/lib/nearby-streets';
 import { pickupAddressText, type AddressSuggestion } from '@/lib/pickup-address';
@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
+import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
 import { disableBrowserPush } from '@/lib/browser-push';
@@ -28,6 +29,18 @@ const RadarMap = dynamic(() => import('@/components/RadarMap'), {
   ssr: false,
   loading: () => <p role="status" className="p-4 text-sm text-blue-300">Loading Radar map…</p>,
 });
+
+const pickupStatus: Record<PickupStatus, string> = {
+  open: 'Awaiting a Taker', reserved: 'Confirmed', en_route: 'Taker on the way',
+  arrived: 'Taker arrived', completed: 'Completed', cancelled: 'Cancelled',
+};
+
+function UnreadBadge({ count }: { count?: number }) {
+  if (!count) return null;
+  return <span aria-label={count + ' unread messages'} className="ml-1 inline-grid min-w-5 place-items-center rounded-full bg-blue-600 px-1 text-xs text-white">
+    {count > 99 ? '99+' : count}
+  </span>;
+}
 
 export default function HomePage() {
   const maintenance = useMarketplaceStatus();
@@ -38,7 +51,9 @@ export default function HomePage() {
   const [recovery, setRecovery] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [sessionNotifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [radarView, setRadarView] = useState<'list' | 'map'>('list');
+  const [radarView, setRadarView] = useState<'list' | 'map'>('map');
+  const [mapOfferId, setMapOfferId] = useState<string | null>(null);
+  const mapOfferCard = useRef<HTMLDivElement>(null);
   const [radarLocality, setRadarLocality] = useState('');
   const [plasticCount, setPlasticCount] = useState('0');
   const [canCount, setCanCount] = useState('0');
@@ -62,6 +77,7 @@ export default function HomePage() {
   const [handovers, setHandovers] = useState<PickupOffer[]>([]);
   const [handoverStatus, setHandoverStatus] = useState('Loading your pickups…');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [chatPickupId, setChatPickupId] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [isPublishing, setIsPublishing] = useState(false);
   const [triedToPublish, setTriedToPublish] = useState(false);
@@ -75,11 +91,22 @@ export default function HomePage() {
   const accountId = currentUser?.id;
   const sessionId = useRef<string | null>(null);
   const inbox = useInbox(supabase, sessionUser?.id, isNotifOpen);
-  const notifications = [...inbox.notifications, ...sessionNotifications];
+  const { unread, refresh: refreshUnread } = usePickupUnread(accountId);
+  const unreadCounts = new Map(unread.map((item) => [item.pickup_id, item.unread]));
+  const chatNotifications: (NotificationItem & { pickupChat: boolean })[] = unread.map((item) => ({
+    id: 'chat:' + item.pickup_id, pickupId: item.pickup_id, pickupChat: true,
+    title: 'New pickup message', message: item.unread + (item.unread === 1 ? ' unread message' : ' unread messages'),
+    timestamp: new Date(item.last_message).toLocaleString(), read: false, type: 'system',
+  }));
+  const notifications = [...chatNotifications, ...inbox.notifications.map((item) => ({
+    ...item, message: item.message === 'Open Handover in BottleForMe to see the pickup arrangement.'
+      ? 'Open Pickups in BottleForMe to see the pickup arrangement.' : item.message,
+  })), ...sessionNotifications];
 
-  const openActivity = useCallback((pickupId?: string) => {
+  const openActivity = useCallback((pickupId?: string, chat = false) => {
     if (pickupId && /^[0-9a-f-]{36}$/i.test(pickupId)) {
       setSelectedId(pickupId);
+      setChatPickupId(chat ? pickupId : null);
       setActiveTab('chat');
       setIsNotifOpen(false);
       setRevision((value) => value + 1);
@@ -88,17 +115,19 @@ export default function HomePage() {
 
   useEffect(() => {
     const openInbox = (event: MessageEvent) => {
-      if (event.data?.type === 'bottleforme-open-inbox') openActivity(event.data.pickupId);
+      if (event.data?.type === 'bottleforme-open-inbox') openActivity(event.data.pickupId, event.data.pickupChat === true);
     };
     const serviceWorker = navigator.serviceWorker;
     serviceWorker?.addEventListener('message', openInbox);
     const url = new URL(window.location.href);
     const pickup = url.searchParams.get('pickup');
+    const chat = url.searchParams.get('chat') === '1';
     if (pickup || url.searchParams.get('inbox') === '1') {
       url.searchParams.delete('pickup');
       url.searchParams.delete('inbox');
+      url.searchParams.delete('chat');
       window.history.replaceState(window.history.state, '', url);
-      queueMicrotask(() => openActivity(pickup ?? undefined));
+      queueMicrotask(() => openActivity(pickup ?? undefined, chat));
     }
     return () => serviceWorker?.removeEventListener('message', openInbox);
   }, [openActivity]);
@@ -115,7 +144,7 @@ export default function HomePage() {
         setCurrentUser(null);
         setHandovers([]);
         setOffers([]);
-        if (previousId) setSelectedId(null);
+        if (previousId) { setSelectedId(null); setChatPickupId(null); }
         setHandoverCode(undefined);
         setTypedCode(undefined);
         setNotifications([]);
@@ -217,6 +246,10 @@ export default function HomePage() {
   const availability = parseWindowDrafts(availabilityDraft);
   const publishErrors = [countError, localityError, addressError, revolutError,
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
+  useEffect(() => {
+    if (radarView === 'map' && mapOfferId) mapOfferCard.current?.scrollIntoView({ block: 'nearest' });
+  }, [radarView, mapOfferId]);
+
   const selectedOffer = handovers.find((offer) => offer.id === selectedId);
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
@@ -491,7 +524,7 @@ export default function HomePage() {
                   : 'text-blue-200/70 hover:text-white'
               }`}
             >
-              Handover
+              Pickups
 
             </button>
           </div>
@@ -784,30 +817,30 @@ export default function HomePage() {
                   {/* List vs Map Switcher */}
                   <div className="bg-[#0b1220] p-0.5 rounded-xl border border-blue-500/25 flex">
                     <button
-                      onClick={() => setRadarView('list')}
+                      aria-pressed={radarView === 'list'} onClick={() => setRadarView('list')}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                         radarView === 'list'
                           ? 'bg-blue-600 text-white'
                           : 'text-blue-200/60 hover:text-white'
                       }`}
                     >
-                      Feed
+                      List
                     </button>
                     <button
-                      onClick={() => setRadarView('map')}
+                      aria-pressed={radarView === 'map'} onClick={() => setRadarView('map')}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
                         radarView === 'map'
                           ? 'bg-blue-600 text-white'
                           : 'text-blue-200/60 hover:text-white'
                       }`}
                     >
-                      🗺️ Map
+                      Map
                     </button>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <select aria-label="Filter Radar by locality" value={radarLocality} onChange={(event) => { setOffers([]); setRadarStatus('Loading Radar…'); setRadarLocality(event.target.value); }} className="min-w-0 flex-1 rounded-xl border border-blue-500/25 bg-[#0b1220] p-2 text-xs text-white">
+                  <select aria-label="Filter Radar by locality" value={radarLocality} onChange={(event) => { setOffers([]); setMapOfferId(null); setRadarStatus('Loading Radar…'); setRadarLocality(event.target.value); }} className="min-w-0 flex-1 rounded-xl border border-blue-500/25 bg-[#0b1220] p-2 text-xs text-white">
                     <option value="">All localities</option>
                     {MALTA_LOCALITIES.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
                   </select>
@@ -816,15 +849,16 @@ export default function HomePage() {
 
                 {radarStatus && <p role="status" className="text-xs text-blue-200">{radarStatus}</p>}
                 {radarView === 'map' && (
-                  <RadarMap offers={offers} onSelectOffer={(offer) => changePickup(offer, 'reserved')} />
+                  <RadarMap offers={offers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
                 )}
               </div>
 
-              {/* Offer Feed List */}
+              {/* List view or the pickup selected on the map. */}
               <div className="space-y-2.5">
-                {offers.map((offer) => (
+                {offers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
+                    ref={radarView === 'map' ? mapOfferCard : undefined}
                     className="glass-navy rounded-[24px] p-3.5 space-y-2.5 hover:border-blue-400/50 transition"
                   >
                     <div className="flex flex-wrap justify-between gap-2">
@@ -872,10 +906,7 @@ export default function HomePage() {
                         Reserve pickup →
                       </button>}
                     </div>
-                    {offer.availability?.length ? <>
-                      <PickupAvailability offer={offer} />
-                      <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} />
-                    </> : null}
+                    {offer.availability?.length ? <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
                 ))}
               </div>
@@ -890,61 +921,99 @@ export default function HomePage() {
               ) : (
                 <>
                   {selectedId ? <>
-                    <button type="button" className="text-xs font-bold text-blue-300" onClick={() => { setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError(''); }}>← All pickups</button>
+                    <button type="button" className="text-sm font-bold text-blue-300" onClick={() => {
+                      if (chatPickupId === selectedId) { setChatPickupId(null); return; }
+                      setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError('');
+                    }}>{chatPickupId === selectedId ? '← Pickup details' : '← All pickups'}</button>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
-                    <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                    {chatPickupId === selectedId ? (
+                      <PickupChat key={currentUser.id + ':' + selectedId} pickupId={selectedId} onRead={refreshUnread} />
+                    ) : <>
+                      {selectedOffer && <>
+                        <header className="space-y-1">
+                          <span className="text-xs font-semibold text-blue-300">{pickupStatus[selectedOffer.status]}</span>
+                          <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
+                          {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
+                        </header>
+
+                        {handoverActive && selectedOffer.address_notes && <div className="rounded-xl bg-white/5 p-3">
+                          <h4 className="font-semibold text-white">Pickup address</h4>
+                          <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>
+                        </div>}
+
+                        {handoverActive && <div className="space-y-2">
+                          {isCollector && selectedOffer.status === 'reserved' && <button type="button" disabled={isUpdating}
+                            onClick={() => changePickup(selectedOffer, 'en_route')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Mark on the way</button>}
+                          {isCollector && selectedOffer.status === 'en_route' && <button type="button" disabled={isUpdating}
+                            onClick={() => changePickup(selectedOffer, 'arrived')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Mark arrived</button>}
+                          {isCollector && selectedOffer.status === 'arrived' && <form className="space-y-2" onSubmit={(event) => {
+                            event.preventDefault();
+                            if (typedCode?.id === selectedOffer.id && typedCode.value.length === 6) void changePickup(selectedOffer, 'completed', typedCode.value);
+                          }}>
+                            <label className="block text-blue-200">Enter the six-digit code from the Giver
+                              <input className="mt-1 block w-full min-w-0 rounded-lg bg-[#0b1220] p-2 text-base text-white"
+                                inputMode="numeric" maxLength={6} value={typedCode?.id === selectedOffer.id ? typedCode.value : ''}
+                                onChange={(event) => setTypedCode({ id: selectedOffer.id, value: event.target.value.replace(/\D/g, '').slice(0, 6) })} />
+                            </label>
+                            <button type="submit" disabled={isUpdating || typedCode?.id !== selectedOffer.id || typedCode.value.length !== 6}
+                              className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Confirm handover</button>
+                          </form>}
+                          {!isCollector && <>
+                            <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => revealHandoverCode(selectedOffer.id)}>Show code</button>
+                            {handoverCode?.id === selectedOffer.id && <p className="text-lg font-bold text-white">Show the Taker: {handoverCode.value}</p>}
+                          </>}
+                        </div>}
+
+                        {selectedOffer.collector_id && <button type="button" onClick={() => setChatPickupId(selectedOffer.id)}
+                          className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
+                          Chat <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
+                        </button>}
+
+                        <details className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-200">
+                          <summary className="cursor-pointer font-semibold text-white">Details</summary>
+                          <p>{selectedOffer.estimated_bottles} containers · {selectedOffer.bag_count} bags</p>
+                          {!handoverActive && !isCollector && selectedOffer.address_notes && <p className="whitespace-pre-line break-words">{selectedOffer.address_notes}</p>}
+                          {handoverActive && selectedOffer.seller_phone && <p className="break-words">Giver phone · {selectedOffer.seller_phone}</p>}
+                          <p>{selectedOffer.seller_payout === 0 ? 'Free pickup' :
+                            'Pay the Giver €' + selectedOffer.seller_payout.toFixed(2) +
+                            (selectedOffer.payout_method === 'cash' ? ' in cash' : selectedOffer.payout_method === 'revolut' ? ' via Revolut' : ' as agreed')}</p>
+                          {isCollector && handoverActive && selectedOffer.seller_payout > 0 && selectedOffer.payout_method === 'revolut' &&
+                            selectedOffer.seller_revolut_tag && REVOLUT_TAG.test(selectedOffer.seller_revolut_tag) && (
+                            <a target="_blank" rel="noopener noreferrer" className="inline-block rounded-xl bg-blue-600 px-3 py-2 text-white"
+                              href={'https://revolut.me/' + encodeURIComponent(selectedOffer.seller_revolut_tag.replace(/^@/, '')) + '?amount=' + selectedOffer.seller_payout.toFixed(2)}>
+                              Open Revolut
+                            </a>
+                          )}
+                          {!selectedOffer.confirmed_at && <PickupAvailability offer={selectedOffer} />}
+                          {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
+                            key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
+                          {(handoverActive || selectedOffer.status === 'open') && <button type="button" disabled={isUpdating}
+                            onClick={() => { if (window.confirm('Cancel this pickup?')) void changePickup(selectedOffer, 'cancelled'); }}
+                            className="block rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">Cancel pickup</button>}
+                        </details>
+                      </>}
+                      <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
+                        <summary className="cursor-pointer font-semibold text-white">Time requests</summary>
+                        <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId}
+                          revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                      </details>
+                    </>}
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
-                    {handovers.map((offer) => <button key={offer.id} type="button" onClick={() => setSelectedId(offer.id)}
-                      className="block w-full rounded-xl border border-blue-400/25 p-3 text-left hover:bg-blue-950">
-                      <strong className="block text-white">{offer.locality} · {offer.estimated_bottles} items</strong>
-                      <span className="capitalize text-blue-200">{offer.status.replace('_', ' ')}</span>
-                    </button>)}
-                    <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={setSelectedId} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                    {handovers.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
+                      <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
+                        <strong className="block text-white">{offer.locality}</strong>
+                        <span className="block text-blue-200">{pickupStatus[offer.status]}</span>
+                        {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
+                      </button>
+                      {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
+                        className="shrink-0 rounded-lg bg-blue-950 px-2 py-1 font-semibold text-blue-100">
+                        Chat <UnreadBadge count={unreadCounts.get(offer.id)} />
+                      </button>}
+                    </div>)}
+                    <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
+                      excludeAcceptedFor={new Set(handovers.map((offer) => offer.id))} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                   </>}
-                  {selectedOffer && (
-                    <>
-                      <p className="break-words text-white">{selectedOffer.seller_name} · {selectedOffer.locality}</p>
-                      <p className="text-blue-200">Status · {selectedOffer.status.replace('_', ' ')}</p>
-                      <PickupAvailability offer={selectedOffer} />
-                      {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
-                        key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
-                      {(handoverActive || !isCollector) && <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>}
-                      {handoverActive && selectedOffer.seller_phone && (
-                        <p className="break-words text-blue-200">Seller phone · {selectedOffer.seller_phone}</p>
-                      )}
-                      {selectedOffer.seller_payout === 0 ? <p>Free pickup</p> : (
-                        <p>Pay the seller €{selectedOffer.seller_payout.toFixed(2)} {selectedOffer.payout_method === 'cash' ? 'in cash' : selectedOffer.payout_method === 'revolut' ? 'via Revolut' : 'as agreed'}.</p>
-                      )}
-                      {isCollector && handoverActive && selectedOffer.seller_payout > 0 &&
-                        selectedOffer.payout_method === 'revolut' && selectedOffer.seller_revolut_tag && REVOLUT_TAG.test(selectedOffer.seller_revolut_tag) && (
-                        <a target="_blank" rel="noopener noreferrer" className="inline-block rounded-xl bg-blue-600 px-3 py-2 text-white"
-                          href={`https://revolut.me/${encodeURIComponent(selectedOffer.seller_revolut_tag.replace(/^@/, ''))}?amount=${selectedOffer.seller_payout.toFixed(2)}`}>
-                          Open Revolut
-                        </a>
-                      )}
-                      {handoverActive && (isCollector ? <div className="space-y-2">
-                        <label className="block text-blue-200">Six-digit code shown by the Giver
-                          <input className="mt-1 block w-full min-w-0 rounded-lg bg-[#0b1220] p-2 text-base text-white"
-                            inputMode="numeric" maxLength={6} value={typedCode?.id === selectedOffer.id ? typedCode.value : ''}
-                            onChange={(event) => setTypedCode({ id: selectedOffer.id, value: event.target.value.replace(/\D/g, '').slice(0, 6) })} />
-                        </label>
-                        <button type="button" disabled={isUpdating || typedCode?.id !== selectedOffer.id || typedCode.value.length !== 6}
-                          onClick={() => changePickup(selectedOffer, 'completed', typedCode?.value)} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Complete handover</button>
-                      </div> : <div>
-                        <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => revealHandoverCode(selectedOffer.id)}>Show handover code</button>
-                        {handoverCode?.id === selectedOffer.id && <p className="mt-2 text-lg font-bold text-white">Show the Taker: {handoverCode.value}</p>}
-                      </div>)}
-                      <div className="flex flex-wrap gap-2">
-                        {isCollector && selectedOffer.status === 'reserved' && <button type="button" disabled={isUpdating} onClick={() => changePickup(selectedOffer, 'en_route')} className="rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">Mark on the way</button>}
-                        {isCollector && selectedOffer.status === 'en_route' && <button type="button" disabled={isUpdating} onClick={() => changePickup(selectedOffer, 'arrived')} className="rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">Mark arrived</button>}
-                        {(handoverActive || selectedOffer.status === 'open') && (
-                          <button type="button" disabled={isUpdating} onClick={() => changePickup(selectedOffer, 'cancelled')} className="rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">Cancel pickup</button>
-                        )}
-                      </div>
-                      <p className="text-xs text-blue-200/75">Users arrange and verify payment directly.</p>
-                    </>
-                  )}
                 </>
               )}
             </section>
@@ -1120,7 +1189,7 @@ export default function HomePage() {
             }`}
           >
             <MessageSquare className={`w-4 h-4 ${activeTab === 'chat' ? 'text-[#0066ff]' : ''}`} />
-            <span className="text-[10px]">Handover</span>
+            <span className="text-[10px]">Pickups</span>
           </button>
           <button
             onClick={() => setActiveTab('profile')}

@@ -118,7 +118,7 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
   }
 
   return <details className="w-full rounded-xl border border-blue-400/25 p-3 text-blue-100">
-    <summary className="cursor-pointer font-bold text-white">Request a pickup time</summary>
+    <summary className="cursor-pointer font-bold text-white">Request pickup</summary>
     <fieldset disabled={busy} className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
         <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>Available time</ScheduleButton>
@@ -205,8 +205,8 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </li>;
 }
 
-export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen }: {
-  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
+export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeAcceptedFor }: {
+  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void; excludeAcceptedFor?: ReadonlySet<string>;
 }) {
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
@@ -219,13 +219,14 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
     });
     return () => controller.abort();
   }, [revision, userId, listingId]);
+  const visible = requests?.filter((item) => item.status !== 'accepted' || !excludeAcceptedFor?.has(item.pickup_id));
   return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
     <div className="flex items-center justify-between gap-2">
       <h3 className="font-bold text-white">Pickup arrangements</h3>
       <ScheduleButton onClick={onSaved}>Refresh</ScheduleButton>
     </div>
     <Feedback error={error} notice="" />
-    {requests?.length ? <ul className="space-y-2">{requests.map((item) =>
+    {visible?.length ? <ul className="space-y-2">{visible.map((item) =>
       onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="block w-full rounded-lg bg-white/5 p-2 text-left hover:bg-white/10">
         <strong>{item.pickup?.locality ?? 'Pickup request'} · {item.status}</strong>
         <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>

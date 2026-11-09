@@ -137,16 +137,37 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(participantPickup(after, assigned).address_notes, 'Private door');
     assert.equal(participantPickup(after, confirmed ? collector : rival).address_notes, '');
     assert.equal(await act(seller, 'availability', null, { version: 1, availability: windows }), false);
+    const chatId = randomUUID();
+    const send = (actor: string, id: string) => db.query<{ result: string }>(
+      'select public.send_pickup_chat($1,$2,$3,$4) as result', [offer, actor, id, 'I am at the entrance.']);
+    const chat = (actor: string) => db.query<{ thread: { canSend: boolean; messages: { seq: number; mine: boolean }[] } | null }>(
+      'select public.read_pickup_chat($1,$2) as thread', [offer, actor]);
+    assert.equal((await send(giver, chatId)).rows[0].result, 'unavailable');
+    assert.equal((await chat(giver)).rows[0].thread, null);
+    assert.equal((await send(assigned, chatId)).rows[0].result, 'sent');
+    assert.equal((await send(assigned, chatId)).rows[0].result, 'sent', 'retry does not duplicate the message');
+    const thread = (await chat(seller)).rows[0].thread!;
+    assert.equal(thread.messages.length, 1);
+    assert.equal(thread.messages[0].mine, false);
+    const unread = () => db.query<{ unread: number }>('select unread from public.pickup_chat_unread($1)', [seller]);
+    assert.equal((await unread()).rows[0].unread, 1);
+    await db.query('select public.mark_pickup_chat_read($1,$2,$3)', [offer, giver, thread.messages[0].seq]);
+    assert.equal((await unread()).rows[0].unread, 1, 'an outsider cannot clear unread messages');
+    await db.query('select public.mark_pickup_chat_read($1,$2,$3)', [offer, seller, thread.messages[0].seq]);
+    assert.equal((await unread()).rows.length, 0);
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
+    assert.equal((await send(assigned, randomUUID())).rows[0].result, 'unavailable');
 
     const mobile = await db.query<{ title: string; message: string; pickup_id: string }>('SELECT * FROM public.claim_mobile_push()');
     assert.ok(mobile.rows.some((job) => job.title === 'Pickup completed' && job.pickup_id === legacy && /verified your handover code/.test(job.message)));
     assert.ok(mobile.rows.some((job) => job.title === 'Pickup time requested' && job.pickup_id === offer));
-    const claimed = await db.query<{ endpoint: string; lease_id: string; title: string; message: string }>('SELECT * FROM public.claim_web_push()');
+    assert.ok(mobile.rows.every((job) => job.title !== 'New pickup message'));
+    const claimed = await db.query<{ endpoint: string; lease_id: string; title: string; message: string; pickup_chat: boolean }>('SELECT * FROM public.claim_web_push()');
+    assert.equal(claimed.rows.filter((job) => job.pickup_chat).length, 1, 'only Web Push is queued for a chat message');
     assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup time requested'));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup completed' && /verified your handover code/.test(job.message)));
-    assert.ok(claimed.rows.filter((job) => job.title !== 'Pickup completed')
+    assert.ok(claimed.rows.filter((job) => !job.pickup_chat && job.title !== 'Pickup completed')
       .every((job) => job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'));
     assert.ok(claimed.rows.every((job) => job.title !== 'Another pickup time proposed'), 'other recipients titles are private');
     assert.equal((await db.query('SELECT * FROM public.claim_web_push()')).rows.length, 0, 'leased jobs are not claimed twice');
@@ -169,6 +190,11 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.ok(notices.some((notice) => notice.title === 'Pickup arrangement cancelled' && notice.user_id === seller));
 
     await db.exec('SET ROLE authenticated');
+    await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [seller]);
+    const inbox = await db.query<{ title: string }>('SELECT title FROM public.account_notifications');
+    assert.ok(inbox.rows.some((item) => item.title === 'Pickup time requested'));
+    assert.ok(inbox.rows.every((item) => item.title !== 'New pickup message'), 'shared mobile inbox does not show PWA chat alerts');
+    await assert.rejects(chat(seller), /permission denied/);
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [giver]);
     assert.equal((await db.query('SELECT * FROM public.pickup_requests')).rows.length, 0);
     await assert.rejects(act(giver, 'accept', request, { version: 0 }), /permission denied/);
