@@ -26,8 +26,11 @@ export default function RadarMap({ offers, onSelectOffer }: {
     L.control.zoom({ position: 'topright' }).addTo(map);
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
+    const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    resize.observe(container.current);
 
     return () => {
+      resize.disconnect();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;
@@ -86,7 +89,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
   }, [offers, canSelect]);
 
   return (
-    <div className="relative h-72 w-full overflow-hidden rounded-2xl border border-blue-500/25">
+    <div className="relative h-full w-full overflow-hidden">
       <div ref={container} className="h-full w-full" role="region" aria-label="Radar map by locality" />
       <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">
         Pins show locality centers.

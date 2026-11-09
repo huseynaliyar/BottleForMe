@@ -53,7 +53,6 @@ export default function HomePage() {
   const [sessionNotifications, setNotifications] = useState<NotificationItem[]>([]);
   const [radarView, setRadarView] = useState<'list' | 'map'>('map');
   const [mapOfferId, setMapOfferId] = useState<string | null>(null);
-  const mapOfferCard = useRef<HTMLDivElement>(null);
   const [radarLocality, setRadarLocality] = useState('');
   const [plasticCount, setPlasticCount] = useState('0');
   const [canCount, setCanCount] = useState('0');
@@ -72,6 +71,7 @@ export default function HomePage() {
   const canUseRadar = currentUser?.role === 'taker';
   const activeTab = requestedTab === 'resident' && canUseRadar ? 'driver'
     : requestedTab === 'driver' && !canUseRadar ? 'resident' : requestedTab;
+  const fullscreenRadar = activeTab === 'driver' && canUseRadar && radarView === 'map';
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
   const [handovers, setHandovers] = useState<PickupOffer[]>([]);
@@ -246,10 +246,6 @@ export default function HomePage() {
   const availability = parseWindowDrafts(availabilityDraft);
   const publishErrors = [countError, localityError, addressError, revolutError,
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
-  useEffect(() => {
-    if (radarView === 'map' && mapOfferId) mapOfferCard.current?.scrollIntoView({ block: 'nearest' });
-  }, [radarView, mapOfferId]);
-
   const selectedOffer = handovers.find((offer) => offer.id === selectedId);
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
@@ -421,16 +417,18 @@ export default function HomePage() {
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <div className="flex justify-center min-h-screen p-2 sm:p-6 bg-[#05070c]">
+    <div className={fullscreenRadar ? 'bg-[#05070c]' : 'flex min-h-screen justify-center bg-[#05070c] p-2 sm:p-6'}>
       {/* Mobile Frame Container */}
-      <div className="w-full max-w-[420px] bg-[#080b12] rounded-[36px] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] border border-white/[0.08] overflow-hidden flex flex-col relative min-h-[780px]">
+      <div className={fullscreenRadar
+        ? 'relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
+        : 'relative flex min-h-[780px] w-full max-w-[420px] flex-col overflow-hidden rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)]'}>
         {/* Ambient Lighting */}
         <div className="absolute top-0 left-1/4 -translate-x-1/2 w-64 h-40 bg-blue-600/20 blur-[70px] pointer-events-none" />
         <div className="absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
 
         {/* Header */}
-        <header className="p-4 pt-5 pb-3 relative z-10">
-          <div className="flex items-center justify-between mb-3">
+        <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
+          <div className={fullscreenRadar ? 'flex items-center justify-between' : 'mb-3 flex items-center justify-between'}>
             {/* Logo & Brand Title */}
             <div className="flex items-center space-x-2.5">
               <button type="button" aria-label="Open profile" className="relative cursor-pointer" onClick={() => setActiveTab('profile')}>
@@ -495,7 +493,7 @@ export default function HomePage() {
           </div>
 
           {/* Top Segmented Switcher */}
-          <div className="bg-[#0e1626] p-1 rounded-2xl flex text-xs font-semibold border border-blue-500/20 shadow-inner">
+          {!fullscreenRadar && <div className="bg-[#0e1626] p-1 rounded-2xl flex text-xs font-semibold border border-blue-500/20 shadow-inner">
             {!canUseRadar && (<button
               onClick={() => setActiveTab('resident')}
               className={`flex-1 py-2 rounded-xl transition-all duration-200 font-bold ${
@@ -527,7 +525,7 @@ export default function HomePage() {
               Pickups
 
             </button>
-          </div>
+          </div>}
         </header>
 
         {/* Toast Notification Banner */}
@@ -541,7 +539,7 @@ export default function HomePage() {
         )}
 
         {/* Scrollable Content Viewport */}
-        <main className="flex-1 px-4 pb-4 space-y-4 relative z-10">
+        <main className={fullscreenRadar ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
             <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
@@ -801,9 +799,8 @@ export default function HomePage() {
             </section>
           )}
           {activeTab === 'driver' && canUseRadar && (
-            <section className="space-y-3.5">
-              {/* Radar HUD Card with Map/List Toggle */}
-              <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
+            <section className={fullscreenRadar ? 'relative flex min-h-0 flex-1 flex-col' : 'space-y-3.5'}>
+              <div className={fullscreenRadar ? 'shrink-0 space-y-1 border-t border-blue-500/20 bg-[#0e1626] px-3 py-2' : 'glass-navy relative overflow-hidden rounded-[28px] p-4'}>
                 <div className="flex justify-between items-center mb-2.5">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
@@ -848,19 +845,24 @@ export default function HomePage() {
                 </div>
 
                 {radarStatus && <p role="status" className="text-xs text-blue-200">{radarStatus}</p>}
-                {radarView === 'map' && (
-                  <RadarMap offers={offers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
-                )}
               </div>
+              {fullscreenRadar && (
+                <div className="relative min-h-0 flex-1">
+                  <RadarMap offers={offers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
+                </div>
+              )}
 
               {/* List view or the pickup selected on the map. */}
-              <div className="space-y-2.5">
+              <div className={fullscreenRadar
+                ? 'pointer-events-none absolute inset-x-3 bottom-8 z-[1000] mx-auto max-h-[55%] max-w-md overflow-y-auto'
+                : 'space-y-2.5'}>
                 {offers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
-                    ref={radarView === 'map' ? mapOfferCard : undefined}
-                    className="glass-navy rounded-[24px] p-3.5 space-y-2.5 hover:border-blue-400/50 transition"
+                    className="glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50"
                   >
+                    {fullscreenRadar && <button type="button" onClick={() => setMapOfferId(null)}
+                      className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">Close</button>}
                     <div className="flex flex-wrap justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -966,7 +968,7 @@ export default function HomePage() {
 
                         {selectedOffer.collector_id && <button type="button" onClick={() => setChatPickupId(selectedOffer.id)}
                           className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
-                          Chat <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
+                          {handoverActive ? 'Chat' : 'Chat history'} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
                         </button>}
 
                         <details className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-200">
@@ -1008,7 +1010,8 @@ export default function HomePage() {
                       </button>
                       {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
                         className="shrink-0 rounded-lg bg-blue-950 px-2 py-1 font-semibold text-blue-100">
-                        Chat <UnreadBadge count={unreadCounts.get(offer.id)} />
+                        {offer.status === 'completed' || offer.status === 'cancelled' ? 'Chat history' : 'Chat'}
+                        <UnreadBadge count={unreadCounts.get(offer.id)} />
                       </button>}
                     </div>)}
                     <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
@@ -1163,7 +1166,7 @@ export default function HomePage() {
         </main>
 
         {/* Bottom Navigation Bar */}
-        <footer className="p-2.5 px-5 bg-[#090e1a] border-t border-blue-500/15 flex justify-around text-xs font-semibold text-blue-200/60 relative z-10">
+        <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
           {!canUseRadar && (<button
             onClick={() => setActiveTab('resident')}
             className={`flex flex-col items-center gap-1 transition ${

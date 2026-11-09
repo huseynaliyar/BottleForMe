@@ -155,7 +155,7 @@ export default function PickupChat({ pickupId, onRead }: { pickupId: string; onR
           <button type="submit" disabled={sending || !draft.trim()}
             className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{sending ? 'Sending…' : 'Send message'}</button>
           {sendError && <p role="alert" className="text-red-300">{sendError}</p>}
-        </form> : <p className="text-blue-200">This pickup has ended. You can still read its messages.</p>}
+        </form> : <p className="text-blue-200">This pickup has ended. Messages can be read here. You can send messages while a pickup is active.</p>}
       </>}
     </section>
   );
