@@ -95,6 +95,6 @@ export async function accountRequest(path: string, init: RequestInit, authentica
   }
   const result = await fetch(path, { ...init, headers, cache: 'no-store' });
   const payload = await result.json();
-  if (!result.ok) throw new Error(payload.error || 'Pickup request failed.');
+  if (!result.ok) throw Object.assign(new Error(payload.error || 'Pickup request failed.'), { code: payload.code, pickupId: payload.pickupId });
   return payload;
 }

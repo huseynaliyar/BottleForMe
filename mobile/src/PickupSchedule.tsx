@@ -1,3 +1,4 @@
+import { pickupRestriction, type PickupRestriction } from '../../lib/pickup-restriction';
 import { pickupStatusColor } from '../../lib/pickup-status';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
@@ -97,7 +98,7 @@ export function PickupAvailability({ offer }: { offer: PickupOffer }) {
   </View>;
 }
 
-function useSubmit(listingId: string, onSaved: () => void) {
+function useSubmit(listingId: string, onSaved: () => void, onRestriction?: (value: PickupRestriction) => void) {
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -116,9 +117,8 @@ function useSubmit(listingId: string, onSaved: () => void) {
     } catch (cause) {
       const message = errorMessage(cause);
       setError(message);
-      if (message === 'Finish or cancel your current pickup first.') {
-        Alert.alert('You already have an active pickup', 'Open Pickups to finish or cancel it before requesting another.');
-      }
+      const restriction = pickupRestriction(cause);
+      if (restriction) onRestriction?.(restriction);
       return false;
     } finally {
       pending.current = false;
@@ -133,7 +133,9 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
     {!!notice && <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text>}</>;
 }
 
-export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSaved: () => void }) {
+export function RequestPickupTime({ offer, onSaved, onRestriction }: {
+  offer: PickupOffer; onSaved: () => void; onRestriction?: (value: PickupRestriction) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<'available' | 'alternative'>('available');
   const [availableDate, setAvailableDate] = useState('');
@@ -141,7 +143,7 @@ export function RequestPickupTime({ offer, onSaved }: { offer: PickupOffer; onSa
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const key = useRef<{ selection: string; id: string } | null>(null);
-  const { submit, busy, notice, error, setError } = useSubmit(offer.id, onSaved);
+  const { submit, busy, notice, error, setError } = useSubmit(offer.id, onSaved, onRestriction);
   const slots = pickupTimeOptions(offer.availability ?? []);
   const days = [...new Set(slots.map(formatPickupDate))];
   const day = days.includes(availableDate) ? availableDate : days[0] || '';

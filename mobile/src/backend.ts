@@ -95,7 +95,7 @@ async function request<T>(path: string, init: RequestInit = {}, authenticated = 
   const response = await fetch(apiOrigin + path, { ...init, headers });
   const payload = await response.json().catch(() => null);
   if (!response.ok || payload === null) {
-    throw new Error(payload?.error || 'Could not load a response from the pickup service.');
+    throw Object.assign(new Error(payload?.error || 'Could not load a response from the pickup service.'), { code: payload?.code, pickupId: payload?.pickupId });
   }
   return payload as T;
 }

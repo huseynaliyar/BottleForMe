@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
+import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
@@ -39,14 +40,16 @@ export function usePickupFeed({ locality = '', userId, mine = false, revision }:
     if (mine && !userId) return;
     const controller = new AbortController();
     setLoading(true);
-    listPickups(locality, mine, controller.signal).then((offers) => {
+    const refreshPickups = () => listPickups(locality, mine, controller.signal).then((offers) => {
       if (!controller.signal.aborted) setResult({ scope, offers, error: '' });
     }).catch((cause) => {
       if (!controller.signal.aborted) setResult({ scope, offers: [], error: errorMessage(cause) });
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
-    return () => controller.abort();
+    void refreshPickups();
+    const timer = mine ? setInterval(refreshPickups, 30_000) : undefined;
+    return () => { clearInterval(timer); controller.abort(); };
   }, [locality, mine, revision, scope, userId]);
 
   return {
@@ -56,8 +59,9 @@ export function usePickupFeed({ locality = '', userId, mine = false, revision }:
   };
 }
 
-export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
+export function RadarScreen({ revision, busy, onReserve, onRefresh, onRestriction }: {
   revision: number; busy: boolean; onReserve: (offer: PickupOffer) => void; onRefresh: () => void;
+  onRestriction: (restriction: PickupRestriction) => void;
 }) {
   const [locality, setLocality] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -116,15 +120,15 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
       <Text style={styles.small}>{bagPolicyLabel(offer.bag_policy)}</Text>
       {offer.availability?.length ? <>
         <PickupAvailability offer={offer} />
-        <RequestPickupTime offer={offer} onSaved={onRefresh} />
+        <RequestPickupTime offer={offer} onSaved={onRefresh} onRestriction={onRestriction} />
       </> : null}
     </Card>)}
   </ScrollView>;
 }
 
-export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onChange }: {
+export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onSwitchRole, onChange }: {
   userId?: string; taker: boolean; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
-  onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
+  onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onSwitchRole: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const [linkError, setLinkError] = useState('');
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
@@ -132,6 +136,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
   const participantKey = taker ? 'collector_id' : 'seller_id';
   const roleOffers = offers.filter((offer) => offer[participantKey] === userId);
   const selected = roleOffers.find((offer) => offer.id === selectedId);
+  const selectedInOtherRole = !selected && !!selectedId && offers.some((offer) => offer.id === selectedId);
   const active = selected?.status === 'reserved' || selected?.status === 'en_route' || selected?.status === 'arrived';
   const collector = !!selected && selected.collector_id === userId;
 
@@ -156,13 +161,14 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
         {!selectedId && roleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
           onPress={() => { setLinkError(''); onSelect(offer.id); }}>
           <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
-          <Text style={[styles.small, { color: pickupStatusColor[offer.status] }]}>{statusNames[offer.status]}</Text>
+          <Text style={[styles.small, { color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }]}>{offer.overdue ? 'Overdue' : statusNames[offer.status]}</Text>
         </Pressable>)}
+        {selectedInOtherRole ? <Button label={taker ? 'Switch to Giver to view pickup' : 'Switch to Taker to view pickup'} onPress={onSwitchRole} /> :
         <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
-          onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />
+          onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />}
         {selected && <>
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
-          <Text style={[styles.small, { color: pickupStatusColor[selected.status] }]}>Status · {statusNames[selected.status]}</Text>
+          <Text style={[styles.small, { color: selected.overdue ? '#fca5a5' : pickupStatusColor[selected.status] }]}>Status · {selected.overdue ? 'Overdue' : statusNames[selected.status]}</Text>
           <PickupAvailability offer={selected} />
           <Text style={styles.small}>{bagPolicyLabel(selected.bag_policy)}</Text>
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}

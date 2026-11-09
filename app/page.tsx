@@ -22,6 +22,7 @@ import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
 import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
+import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
 import { pickupStatusColor } from '@/lib/pickup-status';
 import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
@@ -95,6 +96,13 @@ export default function HomePage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPinningLocation, setIsPinningLocation] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [restriction, setRestriction] = useState<PickupRestriction>();
+  const restrictionDialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = restrictionDialog.current;
+    if (restriction && !dialog?.open) dialog?.showModal();
+    if (!restriction && dialog?.open) dialog.close();
+  }, [restriction]);
   const [actionError, setActionError] = useState('');
   const actionInProgress = useRef(false);
   const publishRequest = useRef<{ id: string; body: string } | null>(null);
@@ -220,14 +228,16 @@ export default function HomePage() {
   useEffect(() => {
     if (!accountId || (activeTab !== 'chat' && activeTab !== 'profile')) return;
     const controller = new AbortController();
-    pickupRequest('?mine=true', { signal: controller.signal }).then((payload) => {
+    const refreshPickups = () => pickupRequest('?mine=true', { signal: controller.signal }).then((payload) => {
       if (controller.signal.aborted || sessionId.current !== accountId) return;
       setHandovers(payload.offers);
       setHandoverStatus('');
     }).catch(() => {
       if (!controller.signal.aborted) setHandoverStatus('Could not load your pickups.');
     });
-    return () => controller.abort();
+    void refreshPickups();
+    const timer = activeTab === 'chat' ? window.setInterval(refreshPickups, 30_000) : undefined;
+    return () => { window.clearInterval(timer); controller.abort(); };
   }, [accountId, activeTab, revision]);
 
   useEffect(() => {
@@ -384,7 +394,11 @@ export default function HomePage() {
       setActiveTab('chat');
       setToastMessage(status === 'completed' ? 'Handover recorded.' : status === 'reserved' ? 'Pickup reserved.' : 'Pickup updated.');
     } catch (error) {
-      if (sessionId.current === accountId) setActionError(error instanceof Error ? error.message : 'Could not update the pickup.');
+      if (sessionId.current === accountId) {
+        const blocked = pickupRestriction(error);
+        if (blocked) setRestriction(blocked);
+        else setActionError(error instanceof Error ? error.message : 'Could not update the pickup.');
+      }
     } finally {
       actionInProgress.current = false;
       setIsUpdating(false);
@@ -941,7 +955,7 @@ export default function HomePage() {
                       </button>}
                     </div>
                     <p className="text-xs text-blue-200">{bagPolicyLabel(offer.bag_policy)}</p>
-                    {offer.availability?.length ? <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} /> : null}
+                    {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
                 ))}
               </RadarResults>
@@ -973,7 +987,7 @@ export default function HomePage() {
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
-                          <span className="text-xs font-semibold text-blue-300" style={{ color: pickupStatusColor[selectedOffer.status] }}>{pickupStatus[selectedOffer.status]}</span>
+                          <span className="text-xs font-semibold text-blue-300" style={{ color: selectedOffer.overdue ? '#fca5a5' : pickupStatusColor[selectedOffer.status] }}>{selectedOffer.overdue ? 'Overdue' : pickupStatus[selectedOffer.status]}</span>
                           <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
                           {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
                         </header>
@@ -1047,7 +1061,7 @@ export default function HomePage() {
                     {rolePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
                       <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
                         <strong className="block text-white">{offer.locality}</strong>
-                        <span className="block text-blue-200" style={{ color: pickupStatusColor[offer.status] }}>{pickupStatus[offer.status]}</span>
+                        <span className="block text-blue-200" style={{ color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }}>{offer.overdue ? 'Overdue' : pickupStatus[offer.status]}</span>
                         {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
                       </button>
                       {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
@@ -1248,6 +1262,22 @@ export default function HomePage() {
           <Link href="/balance" className="flex items-center px-2 text-[10px] hover:text-white">Balance</Link>
           <Link href="/help" className="flex items-center px-2 text-[10px] hover:text-white">Help &amp; FAQ</Link>
         </footer>
+
+        <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"
+          onCancel={(event) => { event.preventDefault(); setRestriction(undefined); }}
+          className="m-auto max-w-sm space-y-3 rounded-2xl bg-[#0e1626] p-5 text-white backdrop:bg-black/70">
+          <h2 id="pickup-restriction-title" className="font-bold">Pickup request blocked</h2>
+          <p>{restriction?.message}</p>
+          <div className="flex gap-3">
+            <button type="button" className="rounded-lg border border-blue-400/30 px-3 py-2" onClick={() => setRestriction(undefined)}>Close</button>
+            <button type="button" className="blue-btn rounded-lg px-3 py-2" onClick={() => {
+              setMapOfferId(null);
+              setRestriction(undefined);
+              if (restriction?.pickupId) openActivity(restriction.pickupId);
+              else { setSelectedId(null); setActiveTab('chat'); }
+            }}>{restriction?.pickupId ? 'Go to Pickup' : 'Go to Pickups'}</button>
+          </div>
+        </dialog>
 
         {/* Authentication Modal */}
         <AuthModal

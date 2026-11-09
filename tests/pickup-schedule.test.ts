@@ -92,7 +92,6 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(await act(collector, 'request', request, { at: time('11:00'), kind: 'available' }), false);
     assert.equal(await act(collector, 'request', request, { at: '2020-01-01T09:00:00.000Z', kind: 'alternative' }), false);
     const initial = { at: time('10:15'), kind: 'available' };
-    await assert.rejects(act(collector, 'request', request, initial), { code: 'BF003' });
     await assert.rejects(transition(legacy, collector, 'completed'), { code: 'BF002' });
     const reveal = async (actor: string) => (await db.query<{ code: string | null }>(
       'SELECT public.get_handover_code($1,$2) AS code', [legacy, actor])).rows[0].code;
@@ -180,6 +179,24 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal(await claimAttempt('reset'), 0);
     assert.ok(await claimAttempt('reset') > 110, 'reset requests are separated by two minutes');
     await db.exec('RESET ROLE');
+
+    const [first, second, third, fourth] = Array.from({ length: 4 }, randomUUID);
+    for (const id of [first, second, third, fourth]) await create(id, null);
+    await db.query("UPDATE public.pickups SET status='reserved', collector_id=$2, confirmed_at=now() WHERE id=$1", [first, collector]);
+    const requestExtra = (id: string) => db.query<{ manage_pickup_schedule: boolean }>(
+      "SELECT public.manage_pickup_schedule($1,$2,'request',$3,$4,'alternative')", [id, collector, randomUUID(), time('12:15')]);
+    await requestExtra(second);
+    await requestExtra(third);
+    await assert.rejects(requestExtra(fourth), { code: 'BF005' });
+    await db.query("UPDATE public.pickups SET confirmed_at=now()-interval '61 minutes' WHERE id=$1", [first]);
+    await assert.rejects(requestExtra(fourth), { code: 'BF004', detail: first });
+    await db.query('SELECT public.notify_overdue_pickups()');
+    await db.query('SELECT public.notify_overdue_pickups()');
+    const overdueNotices = await db.query("SELECT 1 FROM public.account_notifications WHERE pickup_id=$1 AND user_id=$2 AND title='Pickup overdue'", [first, collector]);
+    assert.equal(overdueNotices.rows.length, 1);
+    await transition(first, collector, 'cancelled');
+    assert.equal((await requestExtra(fourth)).rows[0].manage_pickup_schedule, true);
+
     const notices = (await db.query<{ title: string; user_id: string }>('SELECT title, user_id FROM public.account_notifications')).rows;
     assert.equal(notices.filter((notice) => notice.title === 'Pickup time requested' && notice.user_id === seller).length, 2);
     assert.ok(notices.some((notice) => notice.title === 'Alternative pickup time proposed' && notice.user_id === seller));

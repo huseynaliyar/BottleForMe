@@ -1,7 +1,7 @@
 import { after } from 'next/server';
 import { drainPush } from '@/lib/push-server';
 import type { PickupOffer } from '@/lib/types';
-import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
+import { failure, pickupRestrictionResponse, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
 export const dynamic = 'force-dynamic';
@@ -63,7 +63,8 @@ export async function PATCH(request: Request, { params }: Context) {
     pickup_id: id, actor_id: user.id, next_status: status,
   }).maybeSingle();
   if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
-  if (error?.code === '23505') return failure('Finish or cancel your current pickup first.', 409);
+  const restriction = pickupRestrictionResponse(error);
+  if (restriction) return restriction;
   if (error?.code === '23514') return failure('Request a pickup time and wait for the owner to accept.', 409);
   if (error) return failure('Could not update the pickup.', 503);
   if (data) {

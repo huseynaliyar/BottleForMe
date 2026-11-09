@@ -19,6 +19,19 @@ export function failure(error: string, status: number) {
   return response({ error }, status);
 }
 
+export function pickupRestrictionResponse(error: { code?: string; details?: string } | null) {
+  if (error?.code === 'BF004') {
+    return response({
+      code: 'pickup_overdue',
+      error: 'Complete or cancel your overdue pickup before requesting another.',
+      pickupId: error.details && UUID.test(error.details) ? error.details : undefined,
+    }, 409);
+  }
+  if (error?.code === 'BF005') {
+    return response({ code: 'pickup_limit', error: 'You already have three active pickup requests. Complete or cancel one before requesting another.' }, 409);
+  }
+}
+
 export async function requestUser(request: Request) {
   const token = request.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
   if (!token || !pickupsDb) return null;

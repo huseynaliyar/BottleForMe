@@ -7,8 +7,9 @@ import {
   PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold, useFonts,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react-native';
-import { AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { pickupRestriction, type PickupRestriction } from '../../lib/pickup-restriction';
 import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
 import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
@@ -158,6 +159,16 @@ function Marketplace() {
     refresh();
   }
 
+  function showPickupRestriction(restriction: PickupRestriction) {
+    Alert.alert('Pickup request blocked', restriction.message, [
+      { text: 'Close', style: 'cancel' },
+      { text: restriction.pickupId ? 'Go to Pickup' : 'Go to Pickups', onPress: () => {
+        if (restriction.pickupId) openInbox(restriction.pickupId);
+        else { setSelectedId(undefined); setTab('handover'); refresh(); }
+      } },
+    ]);
+  }
+
   async function updatePickup(offer: PickupOffer, status: Exclude<PickupStatus, 'open'>, code?: string) {
     if (!userId) { openAccount(); return; }
     if (status === 'reserved' && !taker) { setActionError('Switch to Taker to reserve pickups.'); return; }
@@ -173,7 +184,11 @@ function Marketplace() {
       setTab('handover');
       setToast(status === 'completed' ? 'Handover recorded.' : status === 'reserved' ? 'Pickup reserved.' : 'Pickup updated.');
     } catch (cause) {
-      if (accountId.current === userId) setActionError(errorMessage(cause));
+      if (accountId.current === userId) {
+        const restriction = pickupRestriction(cause);
+        if (restriction) showPickupRestriction(restriction);
+        else setActionError(errorMessage(cause));
+      }
     } finally {
       updating.current = false;
       setBusy(false);
@@ -181,7 +196,7 @@ function Marketplace() {
     }
   }
 
-  async function updateProfile(change: { avatar_url: string } | { role: 'giver' | 'taker' }) {
+  async function updateProfile(change: { avatar_url: string } | { role: 'giver' | 'taker' }, keepPickupOpen = false) {
     if (!currentProfile || !userId || accountId.current !== userId) throw new Error('Sign in to update your profile.');
     if (savingProfile.current) throw new Error('A profile update is already in progress.');
     savingProfile.current = true;
@@ -189,8 +204,9 @@ function Marketplace() {
       await saveProfile(currentProfile, change);
       if (accountId.current !== userId) return;
       setProfile((previous) => previous?.id === userId ? { ...previous, ...change } : previous);
-      if ('role' in change) setTab(change.role === 'taker' ? 'radar' : 'give');
-      else setToast('Profile photo updated.');
+      if ('role' in change) {
+        if (!keepPickupOpen) setTab(change.role === 'taker' ? 'radar' : 'give');
+      } else setToast('Profile photo updated.');
     } finally {
       savingProfile.current = false;
     }
@@ -254,7 +270,7 @@ function Marketplace() {
           onSignIn={openAccount} onPublished={afterPublish} />
       </View>
       {tab === 'radar' && taker && <RadarScreen key={radarReset} revision={revision} busy={busy} onRefresh={refresh}
-        onReserve={(offer) => void updatePickup(offer, 'reserved')} />}
+        onRestriction={showPickupRestriction} onReserve={(offer) => void updatePickup(offer, 'reserved')} />}
       {tab === 'radar' && !taker && <View style={styles.scroll}>
         <Card>
           <Text weight="heavy" style={styles.title}>Radar is for Takers</Text>
@@ -264,6 +280,7 @@ function Marketplace() {
       </View>}
       {tab === 'handover' && <HandoverScreen key={(userId ?? 'guest') + ':' + taker} userId={userId} taker={taker} revision={revision} offers={offers} loading={handovers.loading}
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
+        onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
       {tab === 'profile' && (authReady
         ? <ProfileScreen key={userId ?? 'guest'} profile={currentProfile} signedIn={!!session} loading={profileLoading}
