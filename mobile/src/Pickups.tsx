@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
+import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
@@ -112,6 +113,7 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh }: {
         <Text style={styles.muted}>Pay Giver: <Text weight="bold">€{offer.seller_payout.toFixed(2)}</Text></Text>
         {!offer.availability?.length && <Button label="Reserve pickup →" kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
       </View>
+      <Text style={styles.small}>{bagPolicyLabel(offer.bag_policy)}</Text>
       {offer.availability?.length ? <>
         <PickupAvailability offer={offer} />
         <RequestPickupTime offer={offer} onSaved={onRefresh} />
@@ -162,6 +164,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
           <Text style={[styles.small, { color: pickupStatusColor[selected.status] }]}>Status · {statusNames[selected.status]}</Text>
           <PickupAvailability offer={selected} />
+          <Text style={styles.small}>{bagPolicyLabel(selected.bag_policy)}</Text>
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
           {active && selected.seller_phone && <Text style={styles.small}>Seller phone · {selected.seller_phone}</Text>}

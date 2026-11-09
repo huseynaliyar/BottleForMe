@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import Slider from '@react-native-community/slider';
 import { ArrowRight, MapPin } from 'lucide-react-native';
 import { Keyboard, Linking, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { bagPolicies, isBagPolicy } from '../../lib/bag-policy';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '../../lib/pickup-validation';
 import { calculateDepositSplit, MALTA_LOCALITIES, type PickupOffer, type UserProfile } from '../../lib/types';
 import { apiOrigin, errorMessage, publishPickup } from './backend';
@@ -59,6 +60,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
 }) {
   const [counts, setCounts] = useState(zeroCounts);
   const [bags, setBags] = useState(0);
+  const [bagPolicy, setBagPolicy] = useState('');
   const [availabilityDraft, setAvailabilityDraft] = useState(() => [newWindow()]);
   const [split, setSplit] = useState(50);
   const [locality, setLocality] = useState('');
@@ -111,6 +113,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
   const errors = [countsError, localityError, addressError, tagError, bags < 1 ? 'Specify the number of bags.' : '',
+    !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
@@ -151,14 +154,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values || addressError || !availability) {
+    if (!values || !isBagPolicy(bagPolicy) || addressError || !availability) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const request = { ...values, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability };
+      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability };
       const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
@@ -167,6 +170,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       setAvailabilityDraft([newWindow()]);
       setCounts(zeroCounts);
       setBags(0);
+      setBagPolicy('');
       setNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -268,6 +272,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
           style={{ flex: 1 }} onPress={() => setMethod('cash')} disabled={busy} />
       </View>
     </Card>
+    <Select label="Bag arrangements" value={bagPolicy} onChange={setBagPolicy} options={bagPolicies} placeholder="Choose an option" disabled={busy} />
     {attempted && errors.length > 0 && <View style={[styles.inset, { backgroundColor: '#350f1a', borderColor: '#763147' }]}>
       {errors.map((message) => <ErrorText key={message} message={'• ' + message} />)}
     </View>}

@@ -1,6 +1,6 @@
 import { MALTA_LOCALITIES, PickupOffer } from './types';
 
-export const PUBLIC_COLUMNS = 'id,locality,bag_count,containers,estimated_bottles,total_bcrs_value,split_percentage,seller_payout,collector_profit,payout_method,status,created_at,updated_at,availability';
+export const PUBLIC_COLUMNS = 'id,locality,bag_count,bag_policy,containers,estimated_bottles,total_bcrs_value,split_percentage,seller_payout,collector_profit,payout_method,status,created_at,updated_at,availability';
 
 export function publicPickup(row: Partial<PickupOffer>) {
   const locality = MALTA_LOCALITIES.find((item) => item.name === row.locality);

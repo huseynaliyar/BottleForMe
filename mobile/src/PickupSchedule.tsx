@@ -114,7 +114,11 @@ function useSubmit(listingId: string, onSaved: () => void) {
       onSaved();
       return true;
     } catch (cause) {
-      setError(errorMessage(cause));
+      const message = errorMessage(cause);
+      setError(message);
+      if (message === 'Finish or cancel your current pickup first.') {
+        Alert.alert('You already have an active pickup', 'Open Pickups to finish or cancel it before requesting another.');
+      }
       return false;
     } finally {
       pending.current = false;

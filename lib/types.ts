@@ -19,6 +19,7 @@ export interface ContainerBreakdown {
 }
 
 export interface PickupOffer {
+  bag_policy?: import('./bag-policy').BagPolicy | null;
   id: string;
   seller_id?: string | null;
   collector_id?: string | null;

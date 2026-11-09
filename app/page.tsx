@@ -21,6 +21,7 @@ import { supabase } from '@/lib/supabase';
 import AuthModal from '@/components/AuthModal';
 import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
+import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
 import { pickupStatusColor } from '@/lib/pickup-status';
 import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
@@ -60,6 +61,7 @@ export default function HomePage() {
   const [canCount, setCanCount] = useState('0');
   const [glassCount, setGlassCount] = useState('0');
   const [bags, setBags] = useState(0);
+  const [bagPolicy, setBagPolicy] = useState('');
   const [splitPercent, setSplitPercent] = useState(50);
   const [locality, setLocality] = useState('');
   const [revolutTag, setRevolutTag] = useState('');
@@ -166,6 +168,7 @@ export default function HomePage() {
           setPlasticCount('0');
           setCanCount('0');
           setGlassCount('0');
+          setBagPolicy('');
           setBags(0);
           setSplitPercent(50);
           setPayoutMethod('cash');
@@ -253,6 +256,7 @@ export default function HomePage() {
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
   const publishErrors = [countError, localityError, addressError, revolutError, bags < 1 ? 'Specify the number of bags.' : '',
+    !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
   const rolePickups = handovers.filter((offer) => offer[pickupParticipant] === accountId);
@@ -301,7 +305,7 @@ export default function HomePage() {
     setTriedToPublish(true);
     if (publishErrors.length || !availability) return;
     const input = {
-      locality, address_notes: fullAddress, bag_count: bags, split_percentage: splitPercent,
+      locality, address_notes: fullAddress, bag_count: bags, bag_policy: bagPolicy, split_percentage: splitPercent,
       pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability,
       payout_method: payoutMethod, seller_revolut_tag: revolutTag,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
@@ -329,6 +333,7 @@ export default function HomePage() {
       setCanCount('0');
       setGlassCount('0');
       setBags(0);
+      setBagPolicy('');
       setAddressNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -786,6 +791,13 @@ export default function HomePage() {
 
               <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
               {/* Publish Request Button */}
+              <label className="block rounded-xl bg-[#0e1626] p-3 text-sm text-blue-200">
+                Bag arrangements
+                <select value={bagPolicy} onChange={(event) => setBagPolicy(event.target.value)} className="mt-1 block w-full rounded-lg bg-[#080b12] p-2 text-white">
+                  <option value="">Choose an option</option>
+                  {bagPolicies.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
               {triedToPublish && publishErrors.length > 0 && (
                 <div id="publish-errors" role="alert" className="rounded-xl bg-red-950 p-3 text-sm text-red-200">
                   <ul className="list-disc space-y-1 pl-5">
@@ -928,6 +940,7 @@ export default function HomePage() {
                         Reserve pickup →
                       </button>}
                     </div>
+                    <p className="text-xs text-blue-200">{bagPolicyLabel(offer.bag_policy)}</p>
                     {offer.availability?.length ? <RequestPickupTime offer={offer} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
                 ))}
@@ -1001,6 +1014,7 @@ export default function HomePage() {
                         <details className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-200">
                           <summary className="cursor-pointer font-semibold text-white">Details</summary>
                           <p>{selectedOffer.estimated_bottles} containers · {selectedOffer.bag_count} bags</p>
+                          <p>{bagPolicyLabel(selectedOffer.bag_policy)}</p>
                           {!handoverActive && !isCollector && selectedOffer.address_notes && <p className="whitespace-pre-line break-words">{selectedOffer.address_notes}</p>}
                           {handoverActive && selectedOffer.seller_phone && <p className="break-words">Giver phone · {selectedOffer.seller_phone}</p>}
                           <p>{selectedOffer.seller_payout === 0 ? 'Free pickup' :

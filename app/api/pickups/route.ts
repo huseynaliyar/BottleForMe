@@ -1,3 +1,4 @@
+import { isBagPolicy } from '@/lib/bag-policy';
 import { randomUUID } from 'node:crypto';
 import { hasConfirmedAddress } from '@/lib/google-addresses';
 import { MALTA_LOCALITIES } from '@/lib/types';
@@ -61,9 +62,13 @@ export async function POST(request: Request) {
   if (key !== null && !UUID.test(key)) return failure('Invalid idempotency key.', 400);
   const id = key ?? randomUUID();
 
+  const bagPolicy = body.bag_policy ?? null;
+  if (bagPolicy !== null && !isBagPolicy(bagPolicy)) return failure('Choose a valid bag arrangement.', 400);
+
   const metadata = user.user_metadata;
   const { data, error } = await pickupsDb.from('pickups').insert({
     ...values,
+    bag_policy: bagPolicy,
     availability,
     id,
     seller_id: user.id,
@@ -78,7 +83,7 @@ export async function POST(request: Request) {
     if (existing.error) return failure('Could not verify the previous request.', 503);
     if (existing.data) {
       const row = existing.data;
-      const sameRequest = row.locality === values.locality && row.bag_count === values.bag_count &&
+      const sameRequest = row.locality === values.locality && row.bag_count === values.bag_count && row.bag_policy === bagPolicy &&
         row.split_percentage === values.split_percentage && row.payout_method === values.payout_method &&
         row.address_notes === values.address_notes && row.seller_revolut_tag === values.seller_revolut_tag &&
         row.containers?.plastic_bottles === values.containers.plastic_bottles &&

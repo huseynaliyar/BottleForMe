@@ -80,7 +80,11 @@ function useScheduleSubmit(listingId: string, onSaved: () => void) {
       onSaved();
       return true;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save the arrangement.');
+      const message = cause instanceof Error ? cause.message : 'Could not save the arrangement.';
+      setError(message);
+      if (message === 'Finish or cancel your current pickup first.') {
+        window.alert('You already have an active pickup. Open Pickups to finish or cancel it before requesting another.');
+      }
       return false;
     } finally {
       pending.current = false;
