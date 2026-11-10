@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import ReportPickup from '@/components/ReportPickup';
+import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
@@ -45,6 +47,16 @@ function UnreadBadge({ count }: { count?: number }) {
   return <span aria-label={count + ' unread messages'} className="ml-1 inline-grid min-w-5 place-items-center rounded-full bg-blue-600 px-1 text-xs text-white">
     {count > 99 ? '99+' : count}
   </span>;
+}
+
+function loadFavorites(signal: AbortSignal) {
+  return pickupRequest('/favorites', { signal });
+}
+
+function saveFavorite(pickupId: string, saved: boolean) {
+  return pickupRequest('/favorites', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId, saved }),
+  });
 }
 
 export default function HomePage() {
@@ -109,6 +121,12 @@ export default function HomePage() {
   const actionInProgress = useRef(false);
   const publishRequest = useRef<{ id: string; body: string } | null>(null);
   const accountId = currentUser?.id;
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [savedOnly, setSavedOnly] = useState(false);
+  const [report, setReport] = useState<{ pickupId: string; target: 'listing' | 'user' }>();
+  const favorites = usePickupFavorites(canUseRadar && activeTab === 'driver' ? accountId : undefined, loadFavorites, saveFavorite);
+  const radarOffers = savedOnly ? offers.filter((offer) => favorites.ids?.includes(offer.id)) : offers;
   const sessionId = useRef<string | null>(null);
   const inbox = useInbox(supabase, sessionUser?.id, isNotifOpen);
   const { unread, refresh: refreshUnread } = usePickupUnread(accountId);
@@ -164,6 +182,9 @@ export default function HomePage() {
         setCurrentUser(null);
         setHandovers([]);
         setOffers([]);
+        setSavedOnly(false);
+        setShowArchived(false);
+        setReport(undefined);
         if (previousId) { setSelectedId(null); setChatPickupId(null); }
         setHandoverCode(undefined);
         setTypedCode(undefined);
@@ -272,6 +293,7 @@ export default function HomePage() {
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
   const rolePickups = handovers.filter((offer) => offer[pickupParticipant] === accountId);
+  const visiblePickups = canUseRadar ? rolePickups : rolePickups.filter((offer) => !!offer.archived_at === showArchived);
   const selectedOffer = rolePickups.find((offer) => offer.id === selectedId);
   const selectedInOtherRole = !selectedOffer && handovers.some((offer) => offer.id === selectedId);
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
@@ -375,6 +397,24 @@ export default function HomePage() {
     } catch (error) {
       if (sessionId.current === account) setActionError(error instanceof Error ? error.message : 'Could not show the code.');
     }
+  }
+
+  async function toggleArchive(offer: PickupOffer) {
+    if (archiving) return;
+    setArchiving(true);
+    setActionError('');
+    try {
+      const updated = await pickupRequest('/archive', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickupId: offer.id, archived: !offer.archived_at }),
+      });
+      if (sessionId.current === accountId) {
+        setHandovers((items) => items.map((item) => item.id === offer.id ? { ...item, archived_at: updated.archived_at } : item));
+        setRevision((value) => value + 1);
+      }
+    } catch (cause) {
+      if (sessionId.current === accountId) setActionError(cause instanceof Error ? cause.message : 'Could not update the archive.');
+    } finally { setArchiving(false); }
   }
 
   async function changePickup(offer: PickupOffer, status: PickupStatus, code?: string) {
@@ -888,11 +928,17 @@ export default function HomePage() {
                   <button type="button" onClick={() => setRevision((value) => value + 1)} className="rounded-xl bg-blue-950 p-2 text-xs text-blue-200">Refresh</button>
                 </div>
 
+                <button type="button" aria-pressed={savedOnly} disabled={!favorites.ids} onClick={() => {
+                  setMapOfferId(null);
+                  setSavedOnly(!savedOnly);
+                }} className="rounded-lg bg-blue-950 px-3 py-2 text-xs text-blue-100 disabled:opacity-50">{savedOnly ? 'Show all listings' : 'Show saved listings'}</button>
+                {favorites.error && <p role="alert" className="text-xs text-red-300">{favorites.error}</p>}
+                {savedOnly && !radarOffers.length && <p className="text-xs text-blue-200">No saved listings in this area.</p>}
                 {radarStatus && <p role="status" className="text-xs text-blue-200">{radarStatus}</p>}
               </div>
               {fullscreenRadar && (
                 <div className="relative min-h-0 flex-1">
-                  <RadarMap offers={offers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
+                  <RadarMap offers={radarOffers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
                 </div>
               )}
 
@@ -904,7 +950,7 @@ export default function HomePage() {
                 className={fullscreenRadar
                   ? 'm-auto max-h-[85dvh] w-[calc(100%-1.5rem)] max-w-md overflow-y-auto rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
                   : 'space-y-2.5'}>
-                {offers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
+                {radarOffers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
                     className="glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50"
@@ -957,6 +1003,13 @@ export default function HomePage() {
                       </button>}
                     </div>
                     <p className="text-xs text-blue-200">{bagPolicyLabel(offer.bag_policy)}</p>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      <button type="button" aria-pressed={favorites.ids?.includes(offer.id) ?? false}
+                        disabled={!favorites.ids || favorites.busy} onClick={() => void favorites.toggle(offer.id)}
+                        className="rounded-lg bg-blue-950 px-2 py-1 text-blue-100 disabled:opacity-50">{favorites.ids?.includes(offer.id) ? 'Remove favorite' : 'Save favorite'}</button>
+                      <button type="button" onClick={() => setReport({ pickupId: offer.id, target: 'listing' })}
+                        className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">Report listing</button>
+                    </div>
                     {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
                 ))}
@@ -989,11 +1042,15 @@ export default function HomePage() {
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
-                          <span className="text-xs font-semibold text-blue-300" style={{ color: selectedOffer.overdue ? '#fca5a5' : pickupStatusColor[selectedOffer.status] }}>{selectedOffer.overdue ? 'Overdue' : pickupStatus[selectedOffer.status]}</span>
+                          <span className="text-xs font-semibold text-blue-300" style={{ color: selectedOffer.overdue ? '#fca5a5' : pickupStatusColor[selectedOffer.status] }}>{!canUseRadar && selectedOffer.archived_at ? 'Archived' : selectedOffer.overdue ? 'Overdue' : pickupStatus[selectedOffer.status]}</span>
                           <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
                           {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
                         </header>
 
+                        {!canUseRadar && !handoverActive && selectedOffer.seller_id === accountId && <button type="button" disabled={archiving}
+                          onClick={() => void toggleArchive(selectedOffer)} className="rounded-lg bg-white/10 px-3 py-2 text-blue-100 disabled:opacity-50">
+                          {selectedOffer.archived_at ? 'Restore listing' : 'Archive listing'}
+                        </button>}
                         {handoverActive && selectedOffer.address_notes && <div className="rounded-xl bg-white/5 p-3">
                           <h4 className="font-semibold text-white">Pickup address</h4>
                           <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>
@@ -1022,6 +1079,9 @@ export default function HomePage() {
                           </>}
                         </div>}
 
+                        {selectedOffer.collector_id && selectedOffer.seller_id && <button type="button"
+                          onClick={() => setReport({ pickupId: selectedOffer.id, target: 'user' })}
+                          className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">Report pickup partner</button>}
                         {selectedOffer.collector_id && <button type="button" onClick={() => setChatPickupId(selectedOffer.id)}
                           className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
                           {handoverActive ? 'Chat' : 'Chat history'} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
@@ -1059,11 +1119,13 @@ export default function HomePage() {
                     </>}
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
-                    {!handoverStatus && !rolePickups.length && <p className="text-blue-200">No listings or assigned pickups in this role yet.</p>}
-                    {rolePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
+                    {!canUseRadar && <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}
+                      className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? 'Show current listings' : 'Show archived listings'}</button>}
+                    {!handoverStatus && !visiblePickups.length && <p className="text-blue-200">{showArchived && !canUseRadar ? 'No archived listings yet.' : 'No listings or assigned pickups in this role yet.'}</p>}
+                    {visiblePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
                       <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
                         <strong className="block text-white">{offer.locality}</strong>
-                        <span className="block text-blue-200" style={{ color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }}>{offer.overdue ? 'Overdue' : pickupStatus[offer.status]}</span>
+                        <span className="block text-blue-200" style={{ color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }}>{!canUseRadar && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : pickupStatus[offer.status]}</span>
                         {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
                       </button>
                       {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
@@ -1290,6 +1352,7 @@ export default function HomePage() {
         </dialog>
 
         {/* Authentication Modal */}
+        {report && <ReportPickup {...report} onClose={() => setReport(undefined)} />}
         {showGuide && <GettingStarted onClose={() => setShowGuide(false)} />}
         <AuthModal
           isOpen={isAuthOpen}

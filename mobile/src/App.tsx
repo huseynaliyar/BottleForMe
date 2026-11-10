@@ -270,7 +270,7 @@ function Marketplace() {
         <PostScreen key={draftReset} profile={currentProfile} signedIn={!!session} authReady={authReady}
           onSignIn={openAccount} onPublished={afterPublish} />
       </View>
-      {tab === 'radar' && taker && <RadarScreen key={radarReset} revision={revision} busy={busy} onRefresh={refresh}
+      {tab === 'radar' && taker && <RadarScreen key={(userId ?? '') + ':' + radarReset} userId={userId} revision={revision} busy={busy} onRefresh={refresh}
         onRestriction={showPickupRestriction} onReserve={(offer) => void updatePickup(offer, 'reserved')} />}
       {tab === 'radar' && !taker && <View style={styles.scroll}>
         <Card>

@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const blocked = await takerAccess(user.id);
   if (blocked) return blocked;
   let query = client.from('pickups').select(PUBLIC_COLUMNS)
-    .eq('status', 'open').is('collector_id', null).not('seller_id', 'is', null)
+    .eq('status', 'open').is('archived_at', null).is('collector_id', null).not('seller_id', 'is', null)
     .neq('seller_id', user.id).order('created_at', { ascending: false });
   if (locality && locality !== 'all') {
     const canonical = MALTA_LOCALITIES.find((item) => item.name.toLowerCase() === locality.toLowerCase());

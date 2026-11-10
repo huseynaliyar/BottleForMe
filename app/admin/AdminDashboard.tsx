@@ -175,6 +175,7 @@ export default function AdminDashboard() {
       </div>
       {account && <div className="flex flex-wrap items-center gap-3">
         <span className="max-w-56 break-all text-xs text-blue-100/70">{account.email}</span>
+        <Link href="/admin/reports" className={button}>Review reports</Link>
         <button type="button" onClick={logout} className={button}>Log out</button>
       </div>}
     </header>

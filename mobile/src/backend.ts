@@ -117,6 +117,28 @@ export async function setMobilePushDevice(userId: string, installationId: string
   }
 }
 
+export function loadFavorites(signal: AbortSignal) {
+  return request<{ ids: string[] }>('/api/pickups/favorites', { signal }, true);
+}
+
+export function saveFavorite(pickupId: string, saved: boolean) {
+  return request('/api/pickups/favorites', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId, saved }),
+  }, true);
+}
+
+export function setListingArchived(pickupId: string, archived: boolean) {
+  return request('/api/pickups/archive', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId, archived }),
+  }, true);
+}
+
+export function reportPickup(pickupId: string, target: 'listing' | 'user', reason: string) {
+  return request('/api/pickups/report', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId, target, reason }),
+  }, true);
+}
+
 export async function listPickups(locality: string, mine: boolean, signal: AbortSignal) {
   const query = mine ? '?mine=true' : locality ? '?locality=' + encodeURIComponent(locality) : '';
   const { offers } = await request<{ offers: PickupOffer[] }>('/api/pickups' + query, { signal }, true);

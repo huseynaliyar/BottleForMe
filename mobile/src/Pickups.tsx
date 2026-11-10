@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
+import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
-import { errorMessage, getHandoverCode, listPickups } from './backend';
-import { Badge, Button, Card, colors, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
+import { errorMessage, getHandoverCode, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived } from './backend';
+import { Badge, Button, Card, colors, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
 
@@ -59,13 +60,46 @@ export function usePickupFeed({ locality = '', userId, mine = false, revision }:
   };
 }
 
-export function RadarScreen({ revision, busy, onReserve, onRefresh, onRestriction }: {
-  revision: number; busy: boolean; onReserve: (offer: PickupOffer) => void; onRefresh: () => void;
+function ReportButton({ pickupId, target }: { pickupId: string; target: 'listing' | 'user' }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+  const label = target === 'user' ? 'Report pickup partner' : 'Report listing';
+
+  async function submit() {
+    if (busy || sent || reason.trim().length < 10) return;
+    setBusy(true);
+    setError('');
+    try { await reportPickup(pickupId, target, reason); setSent(true); }
+    catch (cause) { setError(errorMessage(cause)); }
+    finally { setBusy(false); }
+  }
+
+  return <>
+    <Button label={label} kind="quiet" onPress={() => { setReason(''); setError(''); setSent(false); setOpen(true); }} />
+    {open && <Dialog title={label} onClose={() => setOpen(false)}>
+      {sent ? <Text style={styles.body}>Report sent to the BottleForMe team.</Text> : <>
+        <Field label="Describe the issue" value={reason} onChangeText={setReason} maxLength={500} multiline />
+        <Text style={styles.small}>Use 10–500 characters. Do not include passwords, handover codes or payment details.</Text>
+        <ErrorText message={error} />
+        <Button label={busy ? 'Sending…' : 'Submit report'} disabled={busy || reason.trim().length < 10} onPress={submit} />
+      </>}
+    </Dialog>}
+  </>;
+}
+
+export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRestriction }: {
+  userId?: string; revision: number; busy: boolean; onReserve: (offer: PickupOffer) => void; onRefresh: () => void;
   onRestriction: (restriction: PickupRestriction) => void;
 }) {
   const [locality, setLocality] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
-  const { offers, loading, error } = usePickupFeed({ locality, revision });
+  const { offers: allOffers, loading, error } = usePickupFeed({ locality, revision });
+  const favorites = usePickupFavorites(userId, loadFavorites, saveFavorite);
+  const [savedOnly, setSavedOnly] = useState(false);
+  const offers = savedOnly ? allOffers.filter((offer) => favorites.ids?.includes(offer.id)) : allOffers;
   const markers = MALTA_LOCALITIES.map((place) => ({
     ...place, count: offers.filter((offer) => offer.locality === place.name).length,
   })).filter((place) => place.count > 0);
@@ -84,9 +118,12 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh, onRestrictio
         <Select label="Filter Radar by locality" value={locality} options={radarLocalities} onChange={setLocality} style={{ flex: 1 }} />
         <Button label="Refresh" kind="secondary" onPress={onRefresh} />
       </View>
+      <Button label={savedOnly ? 'Show all listings' : 'Show saved listings'} kind="secondary"
+        disabled={!favorites.ids} onPress={() => setSavedOnly(!savedOnly)} />
+      <ErrorText message={favorites.error} />
       {loading && <Loading label="Loading Radar…" />}
       <ErrorText message={error} />
-      {!loading && !error && offers.length === 0 && <Text style={styles.muted}>No available pickups in this area.</Text>}
+      {!loading && !error && offers.length === 0 && <Text style={styles.muted}>{savedOnly ? 'No saved listings in this area.' : 'No available pickups in this area.'}</Text>}
       {canShowRadarMap && view === 'map' && <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
         <MapView style={{ height: 270 }} initialRegion={maltaRegion} userInterfaceStyle="dark" customMapStyle={mapStyle}
           accessibilityLabel="Map of pickup localities">
@@ -118,6 +155,9 @@ export function RadarScreen({ revision, busy, onReserve, onRefresh, onRestrictio
         {!offer.availability?.length && <Button label="Reserve pickup →" kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
       </View>
       <Text style={styles.small}>{bagPolicyLabel(offer.bag_policy)}</Text>
+      <Button label={favorites.ids?.includes(offer.id) ? 'Remove favorite' : 'Save favorite'} kind="secondary"
+        disabled={!favorites.ids || favorites.busy} onPress={() => void favorites.toggle(offer.id)} />
+      <ReportButton pickupId={offer.id} target="listing" />
       {offer.availability?.length ? <>
         <PickupAvailability offer={offer} />
         <RequestPickupTime offer={offer} onSaved={onRefresh} onRestriction={onRestriction} />
@@ -135,6 +175,18 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
   const participantKey = taker ? 'collector_id' : 'seller_id';
   const roleOffers = offers.filter((offer) => offer[participantKey] === userId);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const visibleOffers = taker ? roleOffers : roleOffers.filter((offer) => !!offer.archived_at === showArchived);
+
+  async function toggleArchive(offer: PickupOffer) {
+    if (archiving) return;
+    setArchiving(true);
+    setLinkError('');
+    try { await setListingArchived(offer.id, !offer.archived_at); onRefresh(); }
+    catch (cause) { setLinkError(errorMessage(cause)); }
+    finally { setArchiving(false); }
+  }
   const selected = roleOffers.find((offer) => offer.id === selectedId);
   const selectedInOtherRole = !selected && !!selectedId && offers.some((offer) => offer.id === selectedId);
   const active = selected?.status === 'reserved' || selected?.status === 'en_route' || selected?.status === 'arrived';
@@ -158,18 +210,24 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
         }} /> : null}
         {loading && <Loading label="Loading your pickups…" />}
         <ErrorText message={error} />
-        {!selectedId && roleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
+        {!selectedId && !taker && <Button kind="secondary" label={showArchived ? 'Show current listings' : 'Show archived listings'}
+          onPress={() => setShowArchived(!showArchived)} />}
+        {!selectedId && !loading && !visibleOffers.length && <Text style={styles.small}>{showArchived && !taker ? 'No archived listings yet.' : 'No pickups in this role yet.'}</Text>}
+        {!selectedId && visibleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
           onPress={() => { setLinkError(''); onSelect(offer.id); }}>
           <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
-          <Text style={[styles.small, { color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }]}>{offer.overdue ? 'Overdue' : statusNames[offer.status]}</Text>
+          <Text style={[styles.small, { color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }]}>{!taker && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : statusNames[offer.status]}</Text>
         </Pressable>)}
         {selectedInOtherRole ? <Button label={taker ? 'Switch to Giver to view pickup' : 'Switch to Taker to view pickup'} onPress={onSwitchRole} /> :
         <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
           onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />}
         {selected && <>
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
-          <Text style={[styles.small, { color: selected.overdue ? '#fca5a5' : pickupStatusColor[selected.status] }]}>Status · {selected.overdue ? 'Overdue' : statusNames[selected.status]}</Text>
+          <Text style={[styles.small, { color: selected.overdue ? '#fca5a5' : pickupStatusColor[selected.status] }]}>Status · {!taker && selected.archived_at ? 'Archived' : selected.overdue ? 'Overdue' : statusNames[selected.status]}</Text>
+          {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? 'Restore listing' : 'Archive listing'}
+            kind="secondary" disabled={archiving} onPress={() => void toggleArchive(selected)} />}
           <PickupAvailability offer={selected} />
+          {selected.collector_id && selected.seller_id && <ReportButton key={selected.id} pickupId={selected.id} target="user" />}
           <Text style={styles.small}>{bagPolicyLabel(selected.bag_policy)}</Text>
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}

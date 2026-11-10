@@ -61,6 +61,7 @@ export async function POST(request: Request) {
     windows,
   });
   if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
+  if (error?.code === 'BF007') return failure(error.message, 409);
   const restriction = pickupRestrictionResponse(error);
   if (restriction) return restriction;
   if (error?.code === '23514' || error?.code === '22008') return failure('Choose future pickup windows in Malta time.', 400);

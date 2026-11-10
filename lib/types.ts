@@ -20,6 +20,7 @@ export interface ContainerBreakdown {
 
 export interface PickupOffer {
   overdue?: boolean;
+  archived_at?: string | null;
   bag_policy?: import('./bag-policy').BagPolicy | null;
   id: string;
   seller_id?: string | null;
