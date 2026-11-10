@@ -32,11 +32,16 @@ export function pickupRestrictionResponse(error: { code?: string; details?: stri
   }
 }
 
-export async function requestUser(request: Request) {
+export async function requestUser(request: Request, allowPaused = false) {
   const token = request.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
   if (!token || !pickupsDb) return null;
   const { data, error } = await pickupsDb.auth.getUser(token);
-  return error || !data.user?.email_confirmed_at || !UUID.test(data.user.id) ? null : data.user;
+  if (error || !data.user?.email_confirmed_at || !UUID.test(data.user.id)) return null;
+  if (!allowPaused) {
+    const state = await pickupsDb.rpc('account_is_paused', { actor: data.user.id });
+    if (state.error || state.data) return null;
+  }
+  return data.user;
 }
 
 export async function takerAccess(userId: string) {

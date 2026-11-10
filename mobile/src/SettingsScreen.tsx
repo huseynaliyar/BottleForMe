@@ -1,12 +1,30 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Switch, View } from 'react-native';
+import type { AccountLifecycle } from '../../lib/account-lifecycle';
+import AccountLifecycleSettings from './AccountLifecycleSettings';
 import { useBlockedAccounts } from '../../lib/use-blocked-accounts';
 import { pickupPhoneHelp } from '../../lib/pickup-partner';
 import { errorMessage, loadBlockedAccounts, loadSettings, saveSettings, unblockAccount } from './backend';
 import { Button, Card, colors, ErrorText, styles, Text } from './ui';
 import type { useMobilePush } from './useMobilePush';
 
-export default function SettingsScreen({ push, onBack }: { push: ReturnType<typeof useMobilePush>; onBack: () => void }) {
+type Props = {
+  push: ReturnType<typeof useMobilePush>; onBack: () => void;
+  lifecycle?: AccountLifecycle; lifecycleError: string; onUpdate: (value: AccountLifecycle) => void; onDeleted: () => void;
+};
+
+export default function SettingsScreen({ push, onBack, lifecycle, lifecycleError, onUpdate, onDeleted }: Props) {
+  return <ScrollView contentContainerStyle={styles.scroll}>
+    <Button label="‹ Profile" kind="quiet" onPress={onBack} />
+    <Text accessibilityRole="header" weight="bold" style={styles.title}>Settings</Text>
+    {lifecycle ? <>
+      {!lifecycle.paused && <ActiveSettings push={push} />}
+      <AccountLifecycleSettings lifecycle={lifecycle} onUpdate={onUpdate} onDeleted={onDeleted} />
+    </> : <Text style={styles.small}>{lifecycleError || 'Loading account status…'}</Text>}
+  </ScrollView>;
+}
+
+function ActiveSettings({ push }: Pick<Props, 'push'>) {
   const blocks = useBlockedAccounts(loadBlockedAccounts, unblockAccount);
   const [sharePhone, setSharePhone] = useState<boolean>();
   const [saving, setSaving] = useState(false);
@@ -28,9 +46,7 @@ export default function SettingsScreen({ push, onBack }: { push: ReturnType<type
     finally { setSaving(false); }
   }
 
-  return <ScrollView contentContainerStyle={styles.scroll}>
-    <Button label="‹ Profile" kind="quiet" onPress={onBack} />
-    <Text accessibilityRole="header" weight="bold" style={styles.title}>Settings</Text>
+  return <>
     <Card>
       <Text weight="bold" style={styles.body}>Pickup privacy</Text>
       <View style={styles.between}>
@@ -59,5 +75,5 @@ export default function SettingsScreen({ push, onBack }: { push: ReturnType<type
       </View>)}
       <ErrorText message={blocks.error} />
     </Card>
-  </ScrollView>;
+  </>;
 }

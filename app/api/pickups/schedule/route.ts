@@ -60,6 +60,7 @@ export async function POST(request: Request) {
     expected_version: action === 'request' ? null : version,
     windows,
   });
+  if (error?.code === 'BF009') return failure('This pickup is unavailable.', 409);
   if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
   if (error?.code === 'BF008') return failure('This pickup arrangement is unavailable.', 409);
   if (error?.code === 'BF007') return failure(error.message, 409);

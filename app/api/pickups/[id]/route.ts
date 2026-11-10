@@ -61,6 +61,7 @@ export async function PATCH(request: Request, { params }: Context) {
   const { data, error } = await pickupsDb.rpc('transition_pickup', {
     pickup_id: id, actor_id: user.id, next_status: status,
   }).maybeSingle();
+  if (error?.code === 'BF009') return failure('This pickup is unavailable.', 409);
   if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
   if (error?.code === 'BF008') return failure('This pickup is unavailable.', 409);
   if (error?.code === 'BF007') return failure(error.message, 409);

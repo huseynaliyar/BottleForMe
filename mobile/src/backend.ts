@@ -7,6 +7,7 @@ import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib
 import type { validatePickup } from '../../lib/pickup-validation';
 import type { PickupWindow, ScheduleAction, ScheduleRequest } from '../../lib/pickup-schedule';
 import type { ChatAction, ChatPage, UnreadChat } from '../../lib/use-pickup-chat';
+import type { AccountLifecycle } from '../../lib/account-lifecycle';
 import type { BlockedAccount } from '../../lib/marketplace-blocks';
 import type { PickupPartner, Review } from '../../lib/pickup-partner';
 import type { AddressSuggestion } from '../../lib/pickup-address';
@@ -177,6 +178,16 @@ export function loadBlockedAccounts(signal: AbortSignal) {
 export function unblockAccount(id: string) {
   return request('/api/account/blocks', {
     method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
+  }, true);
+}
+
+export function loadAccountLifecycle(signal: AbortSignal) {
+  return request<AccountLifecycle>('/api/account/lifecycle', { signal }, true);
+}
+
+export function changeAccountLifecycle(action: 'pause' | 'reactivate' | 'delete', password?: string) {
+  return request<AccountLifecycle>('/api/account/lifecycle', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action, password }),
   }, true);
 }
 

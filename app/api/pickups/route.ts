@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     status: 'open',
   }).select(PRIVATE_COLUMNS).single();
   if (!error) return response(data, 201);
+  if (error.code === 'BF009') return failure('Reactivate your account before posting a listing.', 409);
   if (error.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
   if (error.code === '23505' && key) {
     const existing = await pickupsDb.from('pickups').select(`${PRIVATE_COLUMNS},photo_jpeg`).eq('id', id).eq('seller_id', user.id).maybeSingle();

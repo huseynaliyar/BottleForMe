@@ -11,12 +11,13 @@ import { Alert, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet,
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { pickupRestriction, type PickupRestriction } from '../../lib/pickup-restriction';
 import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
+import { useAccountLifecycle } from '../../lib/use-account-lifecycle';
 import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
 import { usePickupUnread } from './PickupChat';
 import { AccountDialog, Avatar, GettingStartedDialog, ProfileScreen } from './AccountScreen';
-import { apiOrigin, changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
+import { apiOrigin, changePickup, errorMessage, loadAccountLifecycle, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
 import SettingsScreen from './SettingsScreen';
@@ -74,6 +75,7 @@ function Marketplace() {
   const savingProfile = useRef(false);
   const sessionUser = session?.user;
   const userId = sessionUser?.id;
+  const accountState = useAccountLifecycle(userId, loadAccountLifecycle);
   const openInbox = useCallback((pickupId?: string, chat = false) => {
     if (pickupId) {
       setSelectedId(pickupId);
@@ -274,6 +276,10 @@ function Marketplace() {
       </View>
       <Segmented options={primaryTabs.filter(canSeeTab)} value={tab} onChange={setTab} />
     </View>
+    {accountState.lifecycle?.paused && <View style={appStyles.alert}>
+      <Text style={styles.body}>Your account is {accountState.lifecycle.deleting ? 'pending deletion' : 'deactivated'}.</Text>
+      <Button label="Open Settings" kind="secondary" onPress={() => setTab('settings')} />
+    </View>}
     {maintenance && <View style={appStyles.alert}><ErrorText message="BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly." /></View>}
     {actionError ? <View style={appStyles.alert}><ErrorText message={actionError} /></View> : null}
     {toast ? <View style={appStyles.toast} accessibilityLiveRegion="polite">
@@ -300,7 +306,10 @@ function Marketplace() {
         onSelect={(id) => { setSelectedId(id); setChatPickupId(undefined); }} onSignIn={openAccount}
         onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
-      {tab === 'settings' && userId && <SettingsScreen key={userId} push={push} onBack={() => setTab('profile')} />}
+      {tab === 'settings' && userId && <SettingsScreen key={userId} push={push} onBack={() => setTab('profile')}
+        lifecycle={accountState.lifecycle} lifecycleError={accountState.error}
+        onUpdate={(value) => { accountState.update(value); refresh(); }}
+        onDeleted={() => { void signOut().catch(() => {}); setTab('profile'); }} />}
       {tab === 'profile' && (authReady
         ? <ProfileScreen key={userId ?? 'guest'} profile={currentProfile} signedIn={!!session} loading={profileLoading}
           error={profileError} offers={offers} pickupsLoading={handovers.loading} onSignIn={openAccount}

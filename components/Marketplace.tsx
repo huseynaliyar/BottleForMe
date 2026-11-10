@@ -9,6 +9,8 @@ import ReportPickup from '@/components/ReportPickup';
 import PickupPhoto from '@/components/PickupPhoto';
 import PickupPartner from '@/components/PickupPartner';
 import ImpactAchievement from '@/components/ImpactAchievement';
+import { loadAccountLifecycle } from '@/components/AccountLifecycleSettings';
+import { useAccountLifecycle } from '@/lib/use-account-lifecycle';
 import { readPickupPhoto } from '@/lib/read-pickup-photo';
 import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
@@ -75,6 +77,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     if (initialPickup) router.replace(tab === 'profile' ? '/?view=profile' : tab === 'chat' ? '/?view=pickups' : '/');
   }, [initialPickup, router]);
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const lifecycle = useAccountLifecycle(sessionUser?.id, loadAccountLifecycle).lifecycle;
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -648,6 +651,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </header>
 
         {/* Toast Notification Banner */}
+        {lifecycle?.paused && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">
+          Your account is {lifecycle.deleting ? 'pending deletion' : 'deactivated'}. <Link href="/settings" className="font-semibold underline">Open Settings</Link>
+        </p>}
         {maintenance && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly.</p>}
         {actionError && <p role="alert" className="mx-4 mb-2 break-words rounded-xl bg-red-950 p-3 text-xs text-red-200">{actionError}</p>}
         {toastMessage && (

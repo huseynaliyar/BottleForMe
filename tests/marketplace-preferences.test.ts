@@ -13,12 +13,21 @@ test('archive rules and marketplace preferences keep private data under server c
       create schema auth;
       create table auth.users (id uuid primary key);
       create table public.profiles (id uuid primary key);
-      create table public.pickups (id uuid primary key, status text not null, seller_id uuid, collector_id uuid);
+      create table public.pickups (
+        id uuid primary key, status text not null,
+        seller_id uuid references auth.users(id) on delete set null,
+        collector_id uuid references auth.users(id) on delete set null,
+        seller_name text default 'Giver', seller_phone text, seller_revolut_tag text, address_notes text, photo_jpeg text
+      );
       create table public.pickup_requests (pickup_id uuid not null, status text not null, seller_id uuid, collector_id uuid);
       create table public.pickup_chat_messages (giver_id uuid not null, taker_id uuid not null);
+      create table public.marketplace_settings (singleton boolean not null, maintenance boolean not null);
+      insert into public.marketplace_settings values (true, false);
+      create table public.web_push_subscriptions (user_id uuid);
+      create table public.mobile_push_devices (user_id uuid);
       grant select on public.pickups to service_role;
     `);
-    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks']) {
+    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks', 'account_lifecycle']) {
       const path = new URL('../supabase/migrations/', import.meta.url);
       const filename = readdirSync(path).find((file) => file.endsWith('_' + name + '.sql'));
       assert.ok(filename);
@@ -61,8 +70,32 @@ test('archive rules and marketplace preferences keep private data under server c
     await assert.rejects(db.query('insert into public.pickup_chat_messages values ($1,$2)', [seller, taker]), { code: 'BF008' });
     await db.query('delete from public.marketplace_blocks where blocker_id = $1', [seller]);
     await db.query('insert into public.pickup_chat_messages values ($1,$2)', [seller, taker]);
+    await db.exec(`
+      update public.pickups set status = 'reserved' where id = '${pickup}';
+      update public.pickups set collector_id = '${taker}' where id = '${pickup}';
+      insert into public.web_push_subscriptions values ('${seller}');
+    `);
+    const changeState = async (action: string) => (await db.query<{ state: string }>(
+      'select public.set_account_lifecycle($1,$2) as state', [seller, action],
+    )).rows[0].state;
+    assert.equal(await changeState('pause'), 'active_pickups');
+    await db.exec("update public.pickups set status = 'open', collector_id = null");
+    assert.equal(await changeState('pause'), 'paused');
+    assert.equal((await db.query('select id from public.get_radar_pickups($1)', [taker])).rows.length, 0);
+    assert.equal((await db.query('select user_id from public.web_push_subscriptions')).rows.length, 0);
+    await assert.rejects(db.query("insert into public.pickup_requests values ($1,'pending',$2,$3)", [pickup, seller, taker]), { code: 'BF009' });
+    assert.equal(await changeState('reactivate'), 'active');
+    assert.equal((await db.query('select id from public.get_radar_pickups($1)', [taker])).rows.length, 1);
+    assert.equal(await changeState('delete'), 'deleting');
+    assert.equal(await changeState('reactivate'), 'deleting');
+    await db.exec(`
+      update public.pickups set status = 'completed', seller_name = 'Private', address_notes = 'Street', photo_jpeg = 'photo';
+      delete from auth.users where id = '${seller}';
+    `);
+    const retained = await db.query('select seller_id,seller_name,address_notes,photo_jpeg from public.pickups');
+    assert.deepEqual(retained.rows, [{ seller_id: null, seller_name: 'Deleted account', address_notes: null, photo_jpeg: null }]);
     await db.exec('set role authenticated');
-    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports', 'marketplace_blocks']) {
+    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports', 'marketplace_blocks', 'marketplace_paused_accounts']) {
       await assert.rejects(db.exec('select * from public.' + table), { code: '42501' });
     }
   } finally {

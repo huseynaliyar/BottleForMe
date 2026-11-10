@@ -7,6 +7,8 @@ import { useBlockedAccounts } from '@/lib/use-blocked-accounts';
 import { pickupPhoneHelp } from '@/lib/pickup-partner';
 import { supabase } from '@/lib/supabase';
 import WebPushControl from '@/components/WebPushControl';
+import AccountLifecycleSettings, { loadAccountLifecycle } from '@/components/AccountLifecycleSettings';
+import { useAccountLifecycle } from '@/lib/use-account-lifecycle';
 
 const loadBlocks = (signal: AbortSignal) => accountRequest('/api/account/blocks', { signal });
 const unblock = (id: string) => accountRequest('/api/account/blocks', {
@@ -34,6 +36,16 @@ export default function SettingsPage() {
 }
 
 function Settings({ userId }: { userId: string }) {
+  const status = useAccountLifecycle(userId, loadAccountLifecycle);
+  return <>
+    {status.lifecycle ? <>
+      {!status.lifecycle.paused && <ActiveSettings userId={userId} />}
+      <AccountLifecycleSettings lifecycle={status.lifecycle} onUpdate={status.update} />
+    </> : <p className="text-sm text-blue-200">{status.error || 'Loading account status…'}</p>}
+  </>;
+}
+
+function ActiveSettings({ userId }: { userId: string }) {
   const blocks = useBlockedAccounts(loadBlocks, unblock);
   const [sharePhone, setSharePhone] = useState<boolean>();
   const [saving, setSaving] = useState(false);
