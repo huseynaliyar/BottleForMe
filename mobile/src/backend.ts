@@ -161,8 +161,12 @@ export function saveSchedule(listingId: string, action: ScheduleAction) {
   }, true);
 }
 
+export function getListingPhoto(pickupId: string) {
+  return request<{ photo: string | null }>('/api/pickups/' + encodeURIComponent(pickupId) + '/photo', {}, true);
+}
+
 export function publishPickup(values: NonNullable<ReturnType<typeof validatePickup>> & {
-  pickup_address: string; address_proof?: string; availability?: PickupWindow[];
+  pickup_address: string; address_proof?: string; availability?: PickupWindow[]; photo: string;
 }, key: string) {
   return request<PickupOffer>('/api/pickups', {
     method: 'POST',

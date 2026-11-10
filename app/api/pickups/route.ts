@@ -4,6 +4,7 @@ import { hasConfirmedAddress } from '@/lib/google-addresses';
 import { MALTA_LOCALITIES } from '@/lib/types';
 import { validateWindows } from '@/lib/pickup-schedule';
 import { validatePickup } from '@/lib/pickup-validation';
+import { normalizePickupPhoto } from '@/lib/pickup-photo-server';
 import { failure, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
 import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
@@ -65,10 +66,14 @@ export async function POST(request: Request) {
   const bagPolicy = body.bag_policy ?? null;
   if (bagPolicy !== null && !isBagPolicy(bagPolicy)) return failure('Choose a valid bag arrangement.', 400);
 
+  const photo = await normalizePickupPhoto(body.photo);
+  if (!photo) return failure('Add a photo of the bottles or bags before publishing.', 400);
+
   const metadata = user.user_metadata;
   const { data, error } = await pickupsDb.from('pickups').insert({
     ...values,
     bag_policy: bagPolicy,
+    photo_jpeg: photo,
     availability,
     id,
     seller_id: user.id,
@@ -79,10 +84,10 @@ export async function POST(request: Request) {
   if (!error) return response(data, 201);
   if (error.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
   if (error.code === '23505' && key) {
-    const existing = await pickupsDb.from('pickups').select(PRIVATE_COLUMNS).eq('id', id).eq('seller_id', user.id).maybeSingle();
+    const existing = await pickupsDb.from('pickups').select(`${PRIVATE_COLUMNS},photo_jpeg`).eq('id', id).eq('seller_id', user.id).maybeSingle();
     if (existing.error) return failure('Could not verify the previous request.', 503);
     if (existing.data) {
-      const row = existing.data;
+      const { photo_jpeg: existingPhoto, ...row } = existing.data;
       const sameRequest = row.locality === values.locality && row.bag_count === values.bag_count && row.bag_policy === bagPolicy &&
         row.split_percentage === values.split_percentage && row.payout_method === values.payout_method &&
         row.address_notes === values.address_notes && row.seller_revolut_tag === values.seller_revolut_tag &&
@@ -90,7 +95,7 @@ export async function POST(request: Request) {
         row.containers?.cans === values.containers.cans && row.containers?.glass_bottles === values.containers.glass_bottles;
       const sameWindows = (row.availability ?? []).length === (availability ?? []).length &&
         (availability ?? []).every((window, index) => row.availability?.[index]?.start === window.start && row.availability?.[index]?.end === window.end);
-      if (sameRequest && sameWindows) return response(row);
+      if (sameRequest && sameWindows && existingPhoto === photo) return response(row);
     }
     return failure('That request key is already in use.', 409);
   }

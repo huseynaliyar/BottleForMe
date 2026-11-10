@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Alert, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
+import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
@@ -9,7 +9,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
-import { errorMessage, getHandoverCode, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived } from './backend';
+import { errorMessage, getHandoverCode, getListingPhoto, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived } from './backend';
 import { Badge, Button, Card, colors, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
@@ -58,6 +58,28 @@ export function usePickupFeed({ locality = '', userId, mine = false, revision }:
     error: result.scope === scope && !loading ? result.error : '',
     loading: (!mine || !!userId) && (loading || result.scope !== scope),
   };
+}
+
+function PickupPhoto({ pickupId }: { pickupId: string }) {
+  const [photo, setPhoto] = useState<string | null>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  async function show() {
+    setLoading(true);
+    setError('');
+    try { setPhoto((await getListingPhoto(pickupId)).photo); }
+    catch (cause) { setError(errorMessage(cause)); }
+    finally { setLoading(false); }
+  }
+
+  if (photo === null) return <Text style={styles.small}>This listing has no photo.</Text>;
+  if (photo) return <Image source={{ uri: photo }} accessibilityLabel="Bottles or bags for this pickup"
+    resizeMode="contain" style={{ width: '100%', height: 210 }} />;
+  return <>
+    <Button label={loading ? 'Loading photo…' : 'Show listing photo'} disabled={loading} kind="secondary" onPress={() => void show()} />
+    <ErrorText message={error} />
+  </>;
 }
 
 function ReportButton({ pickupId, target }: { pickupId: string; target: 'listing' | 'user' }) {
@@ -157,6 +179,7 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
       <Text style={styles.small}>{bagPolicyLabel(offer.bag_policy)}</Text>
       <Button label={favorites.ids?.includes(offer.id) ? 'Remove favorite' : 'Save favorite'} kind="secondary"
         disabled={!favorites.ids || favorites.busy} onPress={() => void favorites.toggle(offer.id)} />
+      <PickupPhoto pickupId={offer.id} />
       <ReportButton pickupId={offer.id} target="listing" />
       {offer.availability?.length ? <>
         <PickupAvailability offer={offer} />
@@ -229,6 +252,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
           <PickupAvailability offer={selected} />
           {selected.collector_id && selected.seller_id && <ReportButton key={selected.id} pickupId={selected.id} target="user" />}
           <Text style={styles.small}>{bagPolicyLabel(selected.bag_policy)}</Text>
+          <PickupPhoto key={'photo:' + selected.id} pickupId={selected.id} />
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
           {active && selected.seller_phone && <Text style={styles.small}>Seller phone · {selected.seller_phone}</Text>}

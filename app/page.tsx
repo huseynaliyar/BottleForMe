@@ -5,6 +5,8 @@ import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import ReportPickup from '@/components/ReportPickup';
+import PickupPhoto from '@/components/PickupPhoto';
+import { readPickupPhoto } from '@/lib/read-pickup-photo';
 import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
 import {
@@ -77,6 +79,10 @@ export default function HomePage() {
   const [glassCount, setGlassCount] = useState('0');
   const [bags, setBags] = useState(0);
   const [bagPolicy, setBagPolicy] = useState('');
+  const [listingPhoto, setListingPhoto] = useState('');
+  const [listingPhotoError, setListingPhotoError] = useState('');
+  const [readingListingPhoto, setReadingListingPhoto] = useState(false);
+  const photoSelection = useRef(0);
   const [splitPercent, setSplitPercent] = useState(50);
   const [locality, setLocality] = useState('');
   const [revolutTag, setRevolutTag] = useState('');
@@ -200,6 +206,10 @@ export default function HomePage() {
           setCanCount('0');
           setGlassCount('0');
           setBagPolicy('');
+          photoSelection.current += 1;
+          setListingPhoto('');
+          setListingPhotoError('');
+          setReadingListingPhoto(false);
           setBags(0);
           setSplitPercent(50);
           setPayoutMethod('cash');
@@ -288,7 +298,7 @@ export default function HomePage() {
       : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const publishErrors = [countError, localityError, addressError, revolutError, bags < 1 ? 'Specify the number of bags.' : '',
+  const publishErrors = [countError, localityError, addressError, revolutError, !listingPhoto ? 'Add a photo of the bottles or bags.' : '', bags < 1 ? 'Specify the number of bags.' : '',
     !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
@@ -332,16 +342,30 @@ export default function HomePage() {
     }, { timeout: 7000 });
   }
 
+  async function chooseListingPhoto(file: File) {
+    const selection = ++photoSelection.current;
+    setListingPhotoError('');
+    setReadingListingPhoto(true);
+    try {
+      const photo = await readPickupPhoto(file);
+      if (photoSelection.current === selection) setListingPhoto(photo);
+    } catch (cause) {
+      if (photoSelection.current === selection) setListingPhotoError(cause instanceof Error ? cause.message : 'Could not open that photo.');
+    } finally {
+      if (photoSelection.current === selection) setReadingListingPhoto(false);
+    }
+  }
+
   async function handlePublishOffer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (actionInProgress.current) return;
     setActionError('');
     setTriedToPublish(true);
-    if (publishErrors.length || !availability) return;
+    if (publishErrors.length || readingListingPhoto || !availability) return;
     const input = {
       locality, address_notes: fullAddress, bag_count: bags, bag_policy: bagPolicy, split_percentage: splitPercent,
       pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability,
-      payout_method: payoutMethod, seller_revolut_tag: revolutTag,
+      payout_method: payoutMethod, seller_revolut_tag: revolutTag, photo: listingPhoto,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
     };
     if (!validatePickup(input)) {
@@ -368,6 +392,8 @@ export default function HomePage() {
       setGlassCount('0');
       setBags(0);
       setBagPolicy('');
+      setListingPhoto('');
+      setListingPhotoError('');
       setAddressNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -846,6 +872,24 @@ export default function HomePage() {
               </div>
 
               <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
+              <div className="glass-navy space-y-2 rounded-2xl p-3 text-sm text-white">
+                <label className="block font-semibold" htmlFor="listing-photo">Photo of the bottles or bags (required)</label>
+                <input id="listing-photo" type="file" accept="image/jpeg,image/png,image/webp"
+                  disabled={isPublishing || readingListingPhoto} className="block w-full max-w-full text-blue-100"
+                  onChange={(event) => {
+                    const file = event.currentTarget.files?.[0];
+                    event.currentTarget.value = '';
+                    if (file) void chooseListingPhoto(file);
+                  }} />
+                {readingListingPhoto && <p role="status">Preparing photo…</p>}
+                {listingPhotoError && <p role="alert" className="text-red-300">{listingPhotoError}</p>}
+                {listingPhoto && <>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- preview of a local file */}
+                  <img className="max-h-40 rounded-xl object-contain" src={'data:image/jpeg;base64,' + listingPhoto} alt="Listing photo preview" />
+                  <button type="button" disabled={isPublishing || readingListingPhoto} className="text-blue-200 underline"
+                    onClick={() => { setListingPhoto(''); setListingPhotoError(''); }}>Remove photo</button>
+                </>}
+              </div>
               {/* Publish Request Button */}
               <label className="block rounded-xl bg-[#0e1626] p-3 text-sm text-blue-200">
                 Bag arrangements
@@ -863,7 +907,7 @@ export default function HomePage() {
               )}
               <button
                 type="submit"
-                disabled={isPublishing}
+                disabled={isPublishing || readingListingPhoto}
                 className="w-full py-3.5 rounded-2xl blue-btn text-white font-extrabold text-sm tracking-tight flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
               >
                 <span>{isPublishing ? 'Publishing…' : 'Publish Collection Request'}</span>
@@ -1003,6 +1047,7 @@ export default function HomePage() {
                       </button>}
                     </div>
                     <p className="text-xs text-blue-200">{bagPolicyLabel(offer.bag_policy)}</p>
+                    <PickupPhoto key={offer.id} pickupId={offer.id} />
                     <div className="flex flex-wrap gap-3 text-xs">
                       <button type="button" aria-pressed={favorites.ids?.includes(offer.id) ?? false}
                         disabled={!favorites.ids || favorites.busy} onClick={() => void favorites.toggle(offer.id)}
@@ -1051,6 +1096,7 @@ export default function HomePage() {
                           onClick={() => void toggleArchive(selectedOffer)} className="rounded-lg bg-white/10 px-3 py-2 text-blue-100 disabled:opacity-50">
                           {selectedOffer.archived_at ? 'Restore listing' : 'Archive listing'}
                         </button>}
+                        <PickupPhoto key={selectedOffer.id} pickupId={selectedOffer.id} />
                         {handoverActive && selectedOffer.address_notes && <div className="rounded-xl bg-white/5 p-3">
                           <h4 className="font-semibold text-white">Pickup address</h4>
                           <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>

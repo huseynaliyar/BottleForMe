@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import Slider from '@react-native-community/slider';
 import { ArrowRight, MapPin } from 'lucide-react-native';
-import { Keyboard, Linking, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { Image, Keyboard, Linking, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { bagPolicies, isBagPolicy } from '../../lib/bag-policy';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '../../lib/pickup-validation';
 import { calculateDepositSplit, MALTA_LOCALITIES, type PickupOffer, type UserProfile } from '../../lib/types';
@@ -61,6 +63,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const [counts, setCounts] = useState(zeroCounts);
   const [bags, setBags] = useState(0);
   const [bagPolicy, setBagPolicy] = useState('');
+  const [photo, setPhoto] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  const [choosingPhoto, setChoosingPhoto] = useState(false);
   const [availabilityDraft, setAvailabilityDraft] = useState(() => [newWindow()]);
   const [split, setSplit] = useState(50);
   const [locality, setLocality] = useState('');
@@ -114,6 +119,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const availability = parseWindowDrafts(availabilityDraft);
   const errors = [countsError, localityError, addressError, tagError, bags < 1 ? 'Specify the number of bags.' : '',
     !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
+    !photo ? 'Add a photo of the bottles or bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const money = (amount: number) => '€' + (countsValid ? amount.toFixed(2) : '—');
 
@@ -144,8 +150,28 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     }
   }
 
+  async function choosePhoto() {
+    setChoosingPhoto(true);
+    setPhotoError('');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const edit = ImageManipulator.manipulate(asset.uri);
+      if (Math.max(asset.width, asset.height) > 1024) edit.resize(asset.width >= asset.height ? { width: 1024 } : { height: 1024 });
+      const image = await edit.renderAsync();
+      const saved = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.8, base64: true });
+      if (!saved.base64 || saved.base64.length > 1_400_000) throw new Error('Choose a smaller photo.');
+      setPhoto(saved.base64);
+    } catch (cause) {
+      setPhotoError(errorMessage(cause));
+    } finally {
+      setChoosingPhoto(false);
+    }
+  }
+
   async function submit() {
-    if (publishing.current) return;
+    if (publishing.current || choosingPhoto) return;
     Keyboard.dismiss();
     if (!signedIn) { onSignIn(); return; }
     setAttempted(true);
@@ -154,14 +180,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values || !isBagPolicy(bagPolicy) || addressError || !availability) {
+    if (!values || !photo || !isBagPolicy(bagPolicy) || addressError || !availability) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability };
+      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability, photo };
       const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
@@ -171,6 +197,8 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       setCounts(zeroCounts);
       setBags(0);
       setBagPolicy('');
+      setPhoto('');
+      setPhotoError('');
       setNotes('');
       setPickupAddress('');
       setAddressSelection(null);
@@ -278,7 +306,19 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     </View>}
     <ErrorText message={serverError} />
     <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={busy} />
-    <Button label={busy ? 'Publishing…' : 'Publish Collection Request'} disabled={!authReady || busy || locating} onPress={submit}>
+    <Card>
+      <Text weight="bold" style={styles.body}>Photo of the bottles or bags (required)</Text>
+      {photo ? <>
+        <Image source={{ uri: 'data:image/jpeg;base64,' + photo }} accessibilityLabel="Listing photo preview"
+          style={{ width: '100%', height: 160 }} resizeMode="contain" />
+        <Button label="Remove photo" kind="quiet" disabled={busy || choosingPhoto}
+          onPress={() => { setPhoto(''); setPhotoError(''); }} />
+      </> : null}
+      <Button label={choosingPhoto ? 'Preparing photo…' : photo ? 'Replace photo' : 'Choose photo'}
+        kind="secondary" disabled={busy || choosingPhoto} onPress={() => void choosePhoto()} />
+      <ErrorText message={photoError} />
+    </Card>
+    <Button label={busy ? 'Publishing…' : 'Publish Collection Request'} disabled={!authReady || busy || locating || choosingPhoto} onPress={submit}>
       <ArrowRight size={16} color={colors.white} />
     </Button>
   </ScrollView>;

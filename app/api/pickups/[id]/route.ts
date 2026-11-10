@@ -70,7 +70,9 @@ export async function PATCH(request: Request, { params }: Context) {
   if (error) return failure('Could not update the pickup.', 503);
   if (data) {
     if (status === 'cancelled' || status === 'reserved') after(() => drainPush().catch(() => {}));
-    return response(participantPickup(data as PickupOffer & { status: string }, user.id));
+    const pickup = { ...(data as PickupOffer & { photo_jpeg?: string }) };
+    delete pickup.photo_jpeg;
+    return response(participantPickup(pickup, user.id));
   }
   return failure('Pickup is unavailable or this change is no longer allowed.', 409);
 }
