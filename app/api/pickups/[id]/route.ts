@@ -2,7 +2,7 @@ import { after } from 'next/server';
 import { drainPush } from '@/lib/push-server';
 import type { PickupOffer } from '@/lib/types';
 import { failure, pickupRestrictionResponse, pickupsDb, PRIVATE_COLUMNS, requestUser, response, takerAccess, UUID } from '@/lib/pickups-server';
-import { participantPickup, PUBLIC_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
+import { participantPickup, RADAR_COLUMNS, publicPickup } from '@/lib/pickup-visibility';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: Context) {
   if (!user) return failure('Sign in as a Taker to view Radar.', 401);
   const blocked = await takerAccess(user.id);
   if (blocked) return blocked;
-  const { data, error } = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select(PUBLIC_COLUMNS).eq('id', id).maybeSingle();
+  const { data, error } = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select(RADAR_COLUMNS).eq('id', id).maybeSingle();
   if (error) return failure('Could not load the pickup.', 503);
   return data ? response(publicPickup(data)) : failure('Pickup not found.', 404);
 }

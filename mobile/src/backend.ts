@@ -215,6 +215,10 @@ export function postChat(pickup: string, action: ChatAction, signal?: AbortSigna
   }, true);
 }
 
+export function getPickupAvatar(id: string, signal: AbortSignal) {
+  return request<{ avatar: string | null }>('/api/pickups/' + id + '/partner?avatar=1', { signal }, true);
+}
+
 export function getPickupPartner(id: string, signal: AbortSignal) {
   return request<PickupPartner>('/api/pickups/' + encodeURIComponent(id) + '/partner', { signal }, true);
 }
@@ -230,7 +234,7 @@ export function getListingPhoto(pickupId: string) {
 }
 
 export function publishPickup(values: NonNullable<ReturnType<typeof validatePickup>> & {
-  pickup_address: string; address_proof?: string; availability?: PickupWindow[]; photo: string;
+  pickup_address: string; address_proof?: string; pickup_pin?: { lat: number; lng: number }; share_exact_pin?: boolean; availability?: PickupWindow[]; photo: string;
 }, key: string) {
   return request<PickupOffer>('/api/pickups', {
     method: 'POST',

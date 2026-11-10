@@ -3,7 +3,8 @@
 import { useLanguage } from '@/lib/language-context';
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { MALTA_LOCALITIES, PickupOffer } from '@/lib/types';
+import { radarPins } from '@/lib/pickup-location';
+import { PickupOffer } from '@/lib/types';
 
 export default function RadarMap({ offers, onSelectOffer }: {
   offers: PickupOffer[];
@@ -47,22 +48,23 @@ export default function RadarMap({ offers, onSelectOffer }: {
     layer.clearLayers();
     const bounds = L.latLngBounds([]);
 
-    for (const locality of MALTA_LOCALITIES) {
-      const matching = offers.filter((offer) => offer.locality === locality.name);
-      if (!matching.length) continue;
-
-      const position = L.latLng(locality.lat, locality.lng);
+    for (const [, { pin, name, offers: matching }] of radarPins(offers)) {
+      const position = L.latLng(pin.lat, pin.lng);
       bounds.extend(position);
       const label = document.createElement('span');
       label.className = 'grid size-8 place-items-center rounded-full border-2 border-blue-400 bg-slate-950 font-bold text-white';
       label.textContent = String(matching.length);
       const icon = L.divIcon({ className: 'custom-radar-pin', html: label, iconSize: [32, 32], iconAnchor: [16, 16] });
-      const marker = L.marker(position, { icon, title: locality.name, alt: locality.name }).addTo(layer);
-      marker.getElement()?.setAttribute('aria-label', locality.name);
+      const marker = L.marker(position, { icon, title: name, alt: name }).addTo(layer);
+      marker.getElement()?.setAttribute('aria-label', name);
+      if (matching.length === 1 && canSelect) {
+        marker.on('click', () => selectRef.current?.(matching[0]));
+        continue;
+      }
       const popup = document.createElement('div');
       popup.className = 'max-h-44 min-w-40 overflow-y-auto text-slate-100';
       const heading = document.createElement('strong');
-      heading.textContent = locality.name;
+      heading.textContent = name;
       popup.append(heading);
 
       for (const offer of matching) {
@@ -93,7 +95,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div ref={container} className="h-full w-full" role="region" aria-label="Radar map by locality" />
-      <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">{t("Pins show locality centers.")}</p>
+      <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">{t("Exact pins are shown when shared by the giver.")}</p>
     </div>
   );
 }

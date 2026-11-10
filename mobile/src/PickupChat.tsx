@@ -88,7 +88,7 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
         style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
         <Chevron size={24} color={colors.sky} />
       </Pressable>
-      <PickupAvatar name={title} />
+      <PickupAvatar name={title} pickupId={offer.id} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text accessibilityRole="header" weight="heavy" style={styles.title} numberOfLines={1}>{title}</Text>
         <Text style={styles.muted} numberOfLines={1}>{offer.locality} · {t('Pickup chat')}</Text>

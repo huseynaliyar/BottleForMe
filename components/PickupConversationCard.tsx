@@ -1,14 +1,26 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { pickupRequest } from '@/lib/auth';
 import { ChevronRight, Package, Wine } from 'lucide-react';
 import { useLanguage } from '@/lib/language-context';
 import { pickupCardDate, pickupConversationTitle, pickupInitials, pickupMoney } from '@/lib/pickup-conversation';
 import { pickupStatusCss } from '@/lib/pickup-status';
 import type { PickupOffer } from '@/lib/types';
 
-export function PickupAvatar({ name, listing = false }: { name: string; listing?: boolean }) {
-  return <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full border border-blue-400/25 bg-blue-950 text-sm font-extrabold text-blue-100">
-    {listing ? <Package className="size-5" /> : pickupInitials(name)}
+export function PickupAvatar({ name, listing = false, pickupId }: { name: string; listing?: boolean; pickupId?: string }) {
+  const [photo, setPhoto] = useState<{ id: string; avatar: string | null }>();
+  useEffect(() => {
+    if (!pickupId) return;
+    const controller = new AbortController();
+    pickupRequest('/' + pickupId + '/partner?avatar=1', { signal: controller.signal })
+      .then(({ avatar }: { avatar: string | null }) => { if (!controller.signal.aborted) setPhoto({ id: pickupId, avatar }); }).catch(() => {});
+    return () => controller.abort();
+  }, [pickupId]);
+  const avatar = photo?.id === pickupId ? photo?.avatar : undefined;
+  return <span aria-hidden="true" className="flex size-11 shrink-0 overflow-hidden items-center justify-center rounded-full border border-blue-400/25 bg-blue-950 text-sm font-extrabold text-blue-100">
+    {/* eslint-disable-next-line @next/next/no-img-element -- authenticated thumbnail is an inline image */}
+    {avatar ? <img alt="" src={avatar} className="size-full object-cover" /> : listing ? <Package className="size-5" /> : pickupInitials(name)}
   </span>;
 }
 
@@ -20,7 +32,7 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
   const title = pickupConversationTitle(offer, taker, t);
   return <button type="button" onClick={onOpen}
     className="glass-navy flex w-full items-center gap-3 rounded-[24px] p-3 text-start shadow-sm transition hover:border-blue-400/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:p-4">
-    <PickupAvatar name={title} listing={!assigned} />
+    <PickupAvatar name={title} listing={!assigned} pickupId={assigned ? offer.id : undefined} />
     <span className="min-w-0 flex-1 space-y-1">
       <strong className="block truncate text-base font-extrabold text-white">{title}</strong>
       <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-blue-200">

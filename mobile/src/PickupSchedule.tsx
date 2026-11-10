@@ -140,8 +140,8 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
     {!!notice && <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text>}</>;
 }
 
-export function RequestPickupTime({ offer, onSaved, onRestriction }: {
-  offer: PickupOffer; onSaved: () => void; onRestriction?: (value: PickupRestriction) => void;
+export function RequestPickupTime({ offer, onSaved, onRestriction, triggerLabel }: {
+  offer: PickupOffer; onSaved: () => void; triggerLabel?: string; onRestriction?: (value: PickupRestriction) => void;
 }) {
   const { t } = useLanguage();
   const { styles } = useUi();
@@ -166,7 +166,7 @@ export function RequestPickupTime({ offer, onSaved, onRestriction }: {
     void submit({ action: 'request', id: key.current.id, at, kind: mode }, 'Request sent. The owner needs to respond.');
   }
   return <View style={{ gap: 8 }}>
-    <Button label={open ? 'Close time picker' : 'Request a pickup time'} kind="secondary" disabled={busy} onPress={() => setOpen(!open)} />
+    <Button label={t(open ? 'Close time picker' : triggerLabel ?? 'Request a pickup time')} kind="secondary" disabled={busy} onPress={() => setOpen(!open)} />
     {open && <>
       <View style={styles.row}>
         <Button label={t("Available time")} kind={mode === 'available' ? 'primary' : 'quiet'} disabled={busy} onPress={() => setMode('available')} />
@@ -251,8 +251,8 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </View>;
 }
 
-export function PickupArrangements({ userId, participantKey, listingId, revision, onSaved, onOpen }: {
-  userId: string; participantKey: 'seller_id' | 'collector_id'; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
+export function PickupArrangements({ userId, participantKey, listingId, revision, onSaved, onOpen, excludeFor, emptyListMessage, hideListEntries }: {
+  userId: string; participantKey: 'seller_id' | 'collector_id'; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void; excludeFor?: ReadonlySet<string>; emptyListMessage?: string; hideListEntries?: boolean;
 }) {
   const { t } = useLanguage();
   const { styles, theme } = useUi();
@@ -267,11 +267,13 @@ export function PickupArrangements({ userId, participantKey, listingId, revision
     });
     return () => controller.abort();
   }, [revision, userId, listingId]);
-  const visible = requests?.filter((item) => item[participantKey] === userId);
+  const inRole = requests?.filter((item) => item[participantKey] === userId);
+  const standalone = inRole?.filter((item) => !excludeFor?.has(item.pickup_id));
+  const visible = !onOpen ? inRole : hideListEntries ? [] : standalone?.filter((item, index) => standalone.findIndex((first) => first.pickup_id === item.pickup_id) === index);
+  if (onOpen && !visible?.length && !error) return visible && emptyListMessage ? <Text style={styles.small}>{t(emptyListMessage)}</Text> : null;
   return <View style={{ gap: 8 }}>
-    <Text accessibilityRole="header" weight="bold" style={styles.body}>{t("Pickup arrangements")}</Text>
     <ErrorText message={error} />
-    {visible?.length ? visible.map((item) => onOpen ? <Pressable accessibilityRole="button" key={item.id} style={styles.inset}
+    {visible?.length ? visible.map((item) => onOpen ? <Pressable accessibilityRole="button" key={item.id} style={[styles.inset, { borderRadius: 24 }]}
       onPress={() => onOpen(item.pickup_id)}>
       <Text weight="bold" style={styles.body}>{item.pickup?.locality ?? 'Pickup request'} · <Text style={{ color: (theme === 'light' ? pickupStatusLightColor : pickupStatusColor)[item.status] }}>{t(item.status.charAt(0).toUpperCase() + item.status.slice(1))}</Text></Text>
       <Text style={styles.small}>{formatAppointment(item.proposed_at)}</Text>

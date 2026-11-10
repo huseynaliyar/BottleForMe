@@ -1,7 +1,9 @@
 import { useLanguage } from '../../lib/language-context';
 import { useEffect, useState } from 'react';
-import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View } from 'react-native';
+import { canShowPickupMap } from './map-support';
+import { pickupMapUrl, pickupStep, pickupSteps, radarPins } from '../../lib/pickup-location';
+import { pickupConversationTitle } from '../../lib/pickup-conversation';
+import { Alert, Image, Linking, RefreshControl, ScrollView, useWindowDimensions, View } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { blockPickupExplanation } from '../../lib/marketplace-blocks';
 import { usePickupPartner } from '../../lib/use-pickup-partner';
@@ -9,10 +11,11 @@ import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
+import { formatAppointment } from '../../lib/pickup-schedule';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
-import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
+import { type PickupOffer, type PickupStatus } from '../../lib/types';
 import PickupChat, { PickupChatFallback } from './PickupChat';
-import PickupConversationCard from './PickupConversationCard';
+import PickupConversationCard, { PickupAvatar } from './PickupConversationCard';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { blockPickupPartner, errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
 import { Badge, Button, Card, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, Text, Field, useUi } from './ui';
@@ -23,8 +26,6 @@ const statusNames: Record<PickupStatus, string> = {
   open: 'Open', reserved: 'Reserved', en_route: 'On the way', arrived: 'Arrived', completed: 'Completed', cancelled: 'Cancelled',
 };
 const maltaRegion = { latitude: 35.97, longitude: 14.42, latitudeDelta: 0.23, longitudeDelta: 0.33 };
-const canShowRadarMap = Platform.OS !== 'android' || Constants.executionEnvironment === ExecutionEnvironment.StoreClient
-  || Constants.expoConfig?.extra?.androidRadarMap === true;
 const radarOptions = [{ label: 'Feed', value: 'list' }, { label: '🗺️ Map', value: 'map' }] as const;
 const radarLocalities = [{ label: 'All localities', value: '' }, ...localityOptions];
 const mapStyle = [
@@ -177,14 +178,17 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
   const { t } = useLanguage();
   const { colors, styles, theme } = useUi();
   const [locality, setLocality] = useState('');
-  const [view, setView] = useState<'list' | 'map'>('list');
+  const [view, setView] = useState<'list' | 'map'>(canShowPickupMap ? 'map' : 'list');
+  const [mapOfferId, setMapOfferId] = useState<string>();
+  const [groupId, setGroupId] = useState<string>();
+  const { height } = useWindowDimensions();
   const { offers: allOffers, loading, error } = usePickupFeed({ locality, revision });
   const favorites = usePickupFavorites(userId, loadFavorites, saveFavorite);
   const [savedOnly, setSavedOnly] = useState(false);
   const offers = savedOnly ? allOffers.filter((offer) => favorites.ids?.includes(offer.id)) : allOffers;
-  const markers = MALTA_LOCALITIES.map((place) => ({
-    ...place, count: offers.filter((offer) => offer.locality === place.name).length,
-  })).filter((place) => place.count > 0);
+  const markers = radarPins(offers);
+  const group = markers.find(([key]) => key === groupId)?.[1];
+  const shownOffers = view === 'map' ? offers.filter((offer) => offer.id === mapOfferId) : offers;
 
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh}
     tintColor={colors.sky} colors={[colors.blue]} progressBackgroundColor={colors.panel} />}>
@@ -194,7 +198,7 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
           <Text weight="bold" style={styles.eyebrow}>{t("Malta Collector Radar")}</Text>
           <Text accessibilityRole="header" weight="bold" style={[styles.title, { fontSize: 16 }]}>{offers.length}{' ' + t("Live Pickup Requests")}</Text>
         </View>
-        {canShowRadarMap && <Segmented options={radarOptions} value={view} onChange={setView} compact />}
+        {canShowPickupMap && <Segmented options={radarOptions} value={view} onChange={setView} compact />}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Select label={t("Filter Radar by locality")} value={locality} options={radarLocalities} onChange={setLocality} style={{ flex: 1 }} />
@@ -206,17 +210,21 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
       {loading && <Loading label="Loading Radar…" />}
       <ErrorText message={error} />
       {!loading && !error && offers.length === 0 && <Text style={styles.muted}>{savedOnly ? t("No saved listings in this area.") : t("No available pickups in this area.")}</Text>}
-      {canShowRadarMap && view === 'map' && <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
-        <MapView style={{ height: 270 }} initialRegion={maltaRegion} userInterfaceStyle={theme} customMapStyle={theme === 'dark' ? mapStyle : undefined}
+      {canShowPickupMap && view === 'map' && <View style={{ borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border }}>
+        <MapView style={{ height: Math.max(230, height * 0.38) }} initialRegion={maltaRegion} userInterfaceStyle={theme} customMapStyle={theme === 'dark' ? mapStyle : undefined}
           accessibilityLabel="Map of pickup localities">
-          {markers.map((place) => <Marker key={place.id} title={place.name}
-            description={place.count + (place.count === 1 ? ' available pickup' : ' available pickups')}
-            coordinate={{ latitude: place.lat, longitude: place.lng }} pinColor={colors.blue}
-            onCalloutPress={() => setLocality(place.name)} />)}
+          {markers.map(([key, { pin, name, offers: matching }]) => <Marker key={key} accessibilityLabel={name + ': ' + matching.length + ' pickups'}
+            coordinate={{ latitude: pin.lat, longitude: pin.lng }} pinColor={colors.blue}
+            onPress={() => { setGroupId(matching.length > 1 ? key : undefined); setMapOfferId(matching.length === 1 ? matching[0].id : undefined); }} />)}
         </MapView>
       </View>}
     </Card>
-    {offers.map((offer) => <Card key={offer.id} style={{ borderRadius: 24, padding: 14 }}>
+    {view === 'map' && !mapOfferId && group && <Card>
+      <Text weight="bold" style={styles.body}>{group.name}</Text>
+      {group.offers.map((offer) => <Button key={offer.id} kind="secondary" label={offer.estimated_bottles + ' containers · €' + offer.collector_profit.toFixed(2)} onPress={() => setMapOfferId(offer.id)} />)}
+    </Card>}
+    {shownOffers.map((offer) => <Card key={offer.id} style={{ borderRadius: 24, padding: 14 }}>
+      {view === 'map' && <View style={styles.between}><View><Badge tone="green">{t('Available')}</Badge><Text weight="bold" style={styles.body}>{offer.locality} {t('pickup')}</Text></View><Button label={t('Close')} kind="quiet" onPress={() => { setMapOfferId(undefined); setGroupId(undefined); }} /></View>}
       <View style={styles.between}>
         <View style={{ flexShrink: 1, gap: 5 }}>
           <View style={styles.row}>
@@ -228,7 +236,7 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
           <Text weight="bold" style={styles.body}>{offer.containers ? '' : 'About '}{offer.estimated_bottles} containers · {offer.bag_count} {offer.bag_count === 1 ? 'bag' : 'bags'}</Text>
         </View>
         <View>
-          <Text weight="medium" style={styles.muted}>{t("Collector’s estimated net value")}</Text>
+          <Text weight="medium" style={styles.muted}>{t(view === 'map' ? 'Est. you earn' : 'Collector’s estimated net value')}</Text>
           <Text weight="heavy" style={{ color: colors.green, fontSize: 16 }}>€{offer.collector_profit.toFixed(2)}</Text>
         </View>
       </View>
@@ -236,14 +244,15 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
         <Text style={styles.muted}>{t("Pay Giver:") + ' '}<Text weight="bold">€{offer.seller_payout.toFixed(2)}</Text></Text>
         {!offer.availability?.length && <Button label={t("Reserve pickup →")} kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
       </View>
+      {view === 'map' && <Text style={styles.small}>{t(offer.exact_pin ? 'Exact pin shared · Address after confirmation' : 'Approximate location · Address after confirmation')}</Text>}
       <Text style={styles.small}>{t(bagPolicyLabel(offer.bag_policy))}</Text>
       <Button label={favorites.ids?.includes(offer.id) ? t("Remove favorite") : t("Save favorite")} kind="secondary"
         disabled={!favorites.ids || favorites.busy} onPress={() => void favorites.toggle(offer.id)} />
       <PickupPhoto pickupId={offer.id} />
       <ReportButton pickupId={offer.id} target="listing" />
       {offer.availability?.length ? <>
-        <PickupAvailability offer={offer} />
-        <RequestPickupTime offer={offer} onSaved={onRefresh} onRestriction={onRestriction} />
+        {view === 'list' && <PickupAvailability offer={offer} />}
+        <RequestPickupTime offer={offer} triggerLabel={view === 'map' ? 'Choose pickup time' : undefined} onSaved={onRefresh} onRestriction={onRestriction} />
       </> : null}
     </Card>)}
   </ScrollView>;
@@ -279,16 +288,12 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
   const active = selected?.status === 'reserved' || selected?.status === 'en_route' || selected?.status === 'arrived';
   const collector = !!selected && selected.collector_id === userId;
 
-  function confirm(offer: PickupOffer, status: 'completed' | 'cancelled') {
-    const label = status === 'completed' ? 'Record handover' : 'Cancel pickup';
-    Alert.alert(label, status === 'completed' ? 'Confirm that the handover is complete.' : 'This will close the pickup.', [
-      { text: 'Go back', style: 'cancel' },
-      { text: label, style: status === 'cancelled' ? 'destructive' : 'default', onPress: () => onChange(offer, status) },
-    ]);
-  }
+  const [moreFor, setMoreFor] = useState<string>();
+  const [cancelFor, setCancelFor] = useState<string>();
+  const mapUrl = selected && active ? pickupMapUrl(selected) : null;
 
   function backToPickups() {
-    setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
+    setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); setMoreFor(undefined); setCancelFor(undefined); onSelect();
   }
 
   if (selected && chatOpen && selected.collector_id && selected.seller_id) {
@@ -305,7 +310,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>
     <View style={selectedId ? undefined : { gap: 10 }}>
       <Text accessibilityRole="header" weight="heavy" style={[styles.title, { textAlign: 'center', marginVertical: 6 }]}>
-        {t(selectedId ? 'Pickup details' : 'Pickups')}
+        {t(active ? 'Manage pickup' : selectedId ? 'Pickup details' : 'Pickups')}
       </Text>
       {!userId ? <Button label={t("Sign in to view pickups")} onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
         {selectedId ? <Button label={t('← All pickups')} kind="secondary" onPress={backToPickups} /> : null}
@@ -313,7 +318,6 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
         <ErrorText message={error} />
         {!selectedId && !taker && <Button kind="secondary" label={showArchived ? t("Show current listings") : t("Show archived listings")}
           onPress={() => setShowArchived(!showArchived)} />}
-        {!selectedId && !loading && !visibleOffers.length && <Text style={styles.small}>{showArchived && !taker ? t("No archived listings yet.") : t("No pickups in this role yet.")}</Text>}
         {!selectedId && visibleOffers.map((offer) => <PickupConversationCard key={offer.id} offer={offer} taker={taker}
           status={t(!taker && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : statusNames[offer.status])}
           unread={unread.get(offer.id)} onOpen={() => {
@@ -321,23 +325,59 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
             if (offer.collector_id && offer.seller_id) onChat(offer.id);
           }} />)}
         {selectedInOtherRole ? <Button label={taker ? 'Switch to Giver to view pickup' : 'Switch to Taker to view pickup'} onPress={onSwitchRole} /> :
-        <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
-          onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />}
+        !active && <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
+          onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} excludeFor={new Set(roleOffers.map((offer) => offer.id))} hideListEntries={showArchived && !taker}
+          emptyListMessage={!loading && !visibleOffers.length ? (showArchived && !taker ? 'No archived listings yet.' : 'No pickups in this role yet.') : undefined} />}
         {selected && <Card>
-          <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
+          <View style={styles.row}>
+            {!!selected.collector_id && !!selected.seller_id && <PickupAvatar name={pickupConversationTitle(selected, taker, t)} pickupId={selected.id} />}
+            <Text weight="semibold" style={[styles.body, { flex: 1 }]}>{selected.collector_id ? pickupConversationTitle(selected, taker, t) : selected.locality}</Text>
+          </View>
           <Text style={[styles.small, { color: selected.overdue ? colors.red : theme === 'light' ? pickupStatusLightColor[selected.status] : pickupStatusColor[selected.status] }]}>Status · {!taker && selected.archived_at ? t("Archived") : selected.overdue ? t("Overdue") : t(statusNames[selected.status])}</Text>
           {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? t("Restore listing") : t("Archive listing")}
             kind="secondary" disabled={archiving} onPress={() => void toggleArchive(selected)} />}
+          {!!selected.confirmed_at && <Text style={styles.body}>{formatAppointment(selected.confirmed_at)} · Malta time</Text>}
+          {active && !!selected.address_notes && <Text style={styles.body}>{selected.address_notes}</Text>}
+          {mapUrl && <Button label={t('Open in Maps')} kind="quiet" onPress={() => void Linking.openURL(mapUrl).catch(() => setLinkError('Could not open the map.'))} />}
+          {active && <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+            {pickupSteps.map((label, index) => <View key={label} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+              <Badge tone={index <= pickupStep(selected.status) ? undefined : 'neutral'}>{index + 1}</Badge>
+              <Text style={[styles.small, { textAlign: 'center' }]}>{t(label)}</Text>
+            </View>)}
+          </View>}
+          {active && <Card style={{ gap: 8 }}>
+            <Text weight="bold" style={styles.body}>{t('Next step')}</Text>
+            <Text style={styles.small}>{t(!collector ? 'Show the handover code to the Taker at the pickup.' : selected.status === 'reserved' ? 'Let the Giver know when you leave.' : selected.status === 'en_route' ? 'Let the Giver know when you reach the address.' : 'Ask the Giver for the six-digit code to complete your pickup.')}</Text>
+            {collector && selected.status === 'reserved' && <Button label={t('I’m on my way')} disabled={busy} onPress={() => onChange(selected, 'en_route')} />}
+            {collector && selected.status === 'en_route' && <Button label={t('I’ve arrived')} onPress={() => onChange(selected, 'arrived')} />}
+            {collector && selected.status === 'arrived' && <>
+              <Field label={t('Six-digit code shown by the Giver')} keyboardType="number-pad" maxLength={6} value={typedCode?.id === selected.id ? typedCode.value : ''}
+                onChangeText={(value) => setTypedCode({ id: selected.id, value: value.replace(/\D/g, '').slice(0, 6) })} />
+              <Button label={t('Complete handover')} disabled={busy || typedCode?.id !== selected.id || typedCode.value.length !== 6}
+                onPress={() => onChange(selected, 'completed', typedCode?.value)} />
+            </>}
+            {!collector && <>
+              <Button label={t('Show handover code')} onPress={() => {
+                setLinkError('');
+                getHandoverCode(selected.id).then(({ code }) => setHandoverCode({ id: selected.id, value: code }))
+                  .catch((cause) => setLinkError(errorMessage(cause)));
+              }} />
+              {handoverCode?.id === selected.id && <Text weight="heavy" style={styles.title}>Show the Taker: {handoverCode.value}</Text>}
+            </>}
+          </Card>}
           {selected.collector_id && <Button kind="secondary"
             label={(active ? t("Open chat") : t("Chat history")) + (unread.get(selected.id) ? ' · ' + unread.get(selected.id) + ' unread' : '')}
             onPress={() => onChat(selected.id)} />}
-          <PickupAvailability offer={selected} />
+          <Button label={t(moreFor === selected.id ? 'Hide options' : 'More options')} kind="quiet"
+            onPress={() => { setMoreFor(moreFor === selected.id ? undefined : selected.id); setCancelFor(undefined); }} />
+          {moreFor === selected.id && <>
+          {!active && <PickupAvailability offer={selected} />}
           {selected.collector_id && selected.seller_id && <PickupPartner key={selected.id + ':' + selected.status} pickupId={selected.id} />}
           {selected.collector_id && selected.seller_id && <ReportButton key={selected.id} pickupId={selected.id} target="user" />}
           <Text style={styles.small}>{t(bagPolicyLabel(selected.bag_policy))}</Text>
           <PickupPhoto key={'photo:' + selected.id} pickupId={selected.id} />
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
-          {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
+          {!active && !!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
           <Text style={styles.small}>{selected.seller_payout === 0 ? t("Free pickup") :
             'Pay the seller €' + selected.seller_payout.toFixed(2) + (selected.payout_method === 'revolut' ? ' via Revolut.' :
               selected.payout_method === 'cash' ? ' in cash.' : ' as agreed.')}</Text>
@@ -348,30 +388,15 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
                 Linking.openURL('https://revolut.me/' + tag + '?amount=' + selected.seller_payout.toFixed(2))
                   .catch(() => setLinkError('Could not open Revolut.'));
               }} style={{ alignSelf: 'flex-start' }} />}
-          <ErrorText message={linkError} />
-          {active && (collector ? <>
-            <Field label={t("Six-digit code shown by the Giver")} keyboardType="number-pad" maxLength={6}
-              value={typedCode?.id === selected.id ? typedCode.value : ''}
-              onChangeText={(value) => setTypedCode({ id: selected.id, value: value.replace(/\D/g, '').slice(0, 6) })} />
-            <Button label={t("Complete handover")} disabled={busy || typedCode?.id !== selected.id || typedCode.value.length !== 6}
-              onPress={() => onChange(selected, 'completed', typedCode?.value)} />
-          </> : <>
-            <Button label={t("Show handover code")} onPress={() => {
-              setLinkError('');
-              getHandoverCode(selected.id).then(({ code }) => setHandoverCode({ id: selected.id, value: code }))
-                .catch((cause) => setLinkError(cause instanceof Error ? cause.message : 'Could not show the code.'));
-            }} />
-            {handoverCode?.id === selected.id && <Text weight="heavy" style={styles.title}>Show the Taker: {handoverCode.value}</Text>}
-          </>)}
-          <View style={styles.row}>
-            {collector && selected.status === 'reserved' && <Button label={t("Mark on the way")} kind="secondary" disabled={busy}
-              onPress={() => onChange(selected, 'en_route')} />}
-            {collector && selected.status === 'en_route' && <Button label={t("Mark arrived")} kind="secondary" disabled={busy}
-              onPress={() => onChange(selected, 'arrived')} />}
-            {(active || selected.status === 'open') && <Button label={t("Cancel pickup")} kind="quiet" disabled={busy}
-              onPress={() => confirm(selected, 'cancelled')} />}
-          </View>
+          {(active || selected.status === 'open') && <Button label={t('Cancel pickup')} kind="quiet" disabled={busy}
+            onPress={() => setCancelFor(cancelFor === selected.id ? undefined : selected.id)} />}
+          {cancelFor === selected.id && (active || selected.status === 'open') && <View style={styles.inset}>
+            <Text style={styles.small}>{t('Cancelling closes this pickup for both people.')}</Text>
+            <Button label={t('Confirm cancellation')} kind="secondary" disabled={busy} onPress={() => onChange(selected, 'cancelled')} />
+          </View>}
           <Text style={styles.muted}>Users arrange and verify payment directly.</Text>
+          </>}
+          <ErrorText message={linkError} />
         </Card>}
       </>}
     </View>

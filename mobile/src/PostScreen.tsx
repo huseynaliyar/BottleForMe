@@ -2,6 +2,9 @@ import { useLanguage } from '../../lib/language-context';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
+import MapView, { Marker } from 'react-native-maps';
+import { canShowPickupMap } from './map-support';
+import { isPickupPin, mapCenter, type PickupPin } from '../../lib/pickup-location';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import Slider from '@react-native-community/slider';
@@ -76,6 +79,16 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const [locality, setLocality] = useState('');
   const [notes, setNotes] = useState('');
   const [pickupAddress, setPickupAddress] = useState('');
+  const [pinChoice, setPinChoice] = useState<{ pin: PickupPin; address: string; locality: string }>();
+  const [gpsPin, setGpsPin] = useState<PickupPin>();
+  const [pinOpen, setPinOpen] = useState(false);
+  const [shareExactPin, setShareExactPin] = useState(false);
+  const pickupPin = pinChoice?.address === pickupAddress.trim() && pinChoice.locality === locality ? pinChoice.pin : undefined;
+  const pinCenter = gpsPin ?? mapCenter(locality);
+  const selectPin = (pin: PickupPin) => {
+    if (isPickupPin(pin)) { setPinChoice({ pin, address: pickupAddress.trim(), locality }); setShareExactPin(false); }
+    else setLocationError('Choose a pickup pin in Malta.');
+  };
   const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
   const [addressLookup, setAddressLookup] = useState(false);
   const [method, setMethod] = useState<'cash' | 'revolut'>('cash');
@@ -122,7 +135,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const needsTag = method === 'revolut' && totals.sellerPayout > 0;
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const errors = [countsError, localityError, addressError, tagError, bags < 1 ? 'Specify the number of bags.' : '',
+  const errors = [countsError, localityError, addressError, canShowPickupMap && !pickupPin ? 'Confirm the exact pickup pin on the map.' : '', tagError, bags < 1 ? 'Specify the number of bags.' : '',
     !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     !photo ? 'Add a photo of the bottles or bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
@@ -140,7 +153,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (!permission.granted) throw new Error('Allow location access or choose a locality manually.');
-      const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { coords } = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const point = { lat: coords.latitude, lng: coords.longitude };
+      setGpsPin(isPickupPin(point) ? point : undefined);
       const distance = ({ lat, lng }: typeof MALTA_LOCALITIES[number]) =>
         Math.hypot(lat - coords.latitude, (lng - coords.longitude) * Math.cos(coords.latitude * Math.PI / 180));
       const nearest = MALTA_LOCALITIES.reduce((best, item) => distance(item) < distance(best) ? item : best);
@@ -185,14 +200,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values || !photo || !isBagPolicy(bagPolicy) || addressError || !availability) {
+    if (!values || !photo || !isBagPolicy(bagPolicy) || addressError || !availability || (canShowPickupMap && !pickupPin)) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability, photo };
+      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, pickup_pin: pickupPin, share_exact_pin: !!pickupPin && shareExactPin, availability, photo };
       const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
@@ -207,6 +222,9 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       setNotes('');
       setPickupAddress('');
       setAddressSelection(null);
+      setPinChoice(undefined);
+      setShareExactPin(false);
+      setPinOpen(false);
       setAttempted(false);
       onPublished(created);
     } catch (error) {
@@ -295,6 +313,23 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={signedIn} busy={busy}
         onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
         onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />
+      {!!locality && !!pickupAddress.trim() && (canShowPickupMap || gpsPin) && <>
+        <Button label={t(pickupPin ? 'Exact pickup pin saved' : 'Set exact pickup pin')} kind="secondary" onPress={() => setPinOpen(!pinOpen)} />
+        {pinOpen && <View style={{ gap: 8 }}>
+          {canShowPickupMap && <>
+            <Text style={styles.small}>{t('Zoom in and choose the spot at the address you entered.')}</Text>
+            <MapView key={pinCenter.lat + ':' + pinCenter.lng} style={{ height: 210 }} initialRegion={{ latitude: pinCenter.lat, longitude: pinCenter.lng, latitudeDelta: 0.008, longitudeDelta: 0.008 }}
+              onPress={({ nativeEvent }) => selectPin({ lat: nativeEvent.coordinate.latitude, lng: nativeEvent.coordinate.longitude })}>
+              {pickupPin && <Marker coordinate={{ latitude: pickupPin.lat, longitude: pickupPin.lng }} />}
+            </MapView>
+          </>}
+          {gpsPin && <Button kind="secondary" label={t('Use my GPS pin for this address')} onPress={() => selectPin(gpsPin)} />}
+          {pickupPin && <>
+            <Button kind="secondary" label={t(shareExactPin ? 'Exact pin is shared on Radar' : 'Share this exact pin on Radar')} onPress={() => setShareExactPin(!shareExactPin)} />
+            <Text style={styles.small}>{t('Otherwise, only your confirmed Taker sees the exact pin and street address.')}</Text>
+          </>}
+        </View>}
+      </>}
       <Field label={t("Private pickup instructions")} showLabel={false} value={notes} onChangeText={setNotes} maxLength={300}
         placeholder={t("Door, intercom, or other instructions (optional)")} editable={!busy} />
       <Text style={styles.muted}>{t("Pickup instructions are shared with the collector who reserves this listing.")}</Text>

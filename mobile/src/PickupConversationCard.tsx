@@ -1,4 +1,6 @@
-import { Pressable, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { getPickupAvatar } from './backend';
+import { Image, Pressable, View } from 'react-native';
 import { ChevronLeft, ChevronRight, Package, Wine } from 'lucide-react-native';
 import { useLanguage } from '../../lib/language-context';
 import { isRtl } from '../../lib/locale';
@@ -7,11 +9,21 @@ import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-stat
 import type { PickupOffer } from '../../lib/types';
 import { Card, Text, useUi } from './ui';
 
-export function PickupAvatar({ name, listing = false }: { name: string; listing?: boolean }) {
+export function PickupAvatar({ name, listing = false, pickupId }: { name: string; listing?: boolean; pickupId?: string }) {
   const { colors } = useUi();
+  const [photo, setPhoto] = useState<{ id: string; avatar: string | null }>();
+  useEffect(() => {
+    if (!pickupId) return;
+    const controller = new AbortController();
+    getPickupAvatar(pickupId, controller.signal).then(({ avatar }) => {
+      if (!controller.signal.aborted) setPhoto({ id: pickupId, avatar });
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [pickupId]);
+  const avatar = photo?.id === pickupId ? photo?.avatar : undefined;
   return <View accessible={false} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.chip,
     borderColor: colors.border, borderWidth: 1, alignItems: 'center', justifyContent: 'center' }}>
-    {listing ? <Package size={18} color={colors.sky} /> : <Text weight="heavy" style={{ color: colors.lightBlue }}>{pickupInitials(name)}</Text>}
+    {avatar ? <Image source={{ uri: avatar }} style={{ width: 42, height: 42, borderRadius: 21 }} /> : listing ? <Package size={18} color={colors.sky} /> : <Text weight="heavy" style={{ color: colors.lightBlue }}>{pickupInitials(name)}</Text>}
   </View>;
 }
 
@@ -26,7 +38,7 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
   return <Pressable accessibilityRole="button" accessibilityHint={t(assigned ? 'Open chat' : 'Pickup details')} onPress={onOpen}
     style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
     <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 24, padding: 12 }}>
-      <PickupAvatar name={title} listing={!assigned} />
+      <PickupAvatar name={title} listing={!assigned} pickupId={assigned ? offer.id : undefined} />
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         <Text weight="heavy" style={styles.body} numberOfLines={1}>{title}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>

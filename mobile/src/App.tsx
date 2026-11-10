@@ -335,13 +335,13 @@ function Marketplace() {
           onAvatar={(avatar_url) => updateProfile({ avatar_url })} onGuide={() => setShowGuide(true)} onSettings={() => setTab('settings')} onSignOut={logout} />
         : <View style={styles.scroll}><Loading label="Restoring your account…" /></View>)}
     </KeyboardAvoidingView>
-    {!conversationOpen && <View accessibilityRole="tablist" style={appStyles.footer}>
+    <View accessibilityRole="tablist" style={appStyles.footer}>
       {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
-        accessibilityState={{ selected: tab === value }} onPress={() => setTab(value)} style={appStyles.tab}>
+        accessibilityState={{ selected: tab === value }} onPress={() => { setTab(value); if (value === 'handover') { setSelectedId(undefined); setChatPickupId(undefined); } }} style={appStyles.tab}>
         <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{t(label)}</Text>
       </Pressable>)}
-    </View>}
+    </View>
     {showGuide && <GettingStartedDialog onClose={() => setShowGuide(false)} />}
     {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) { setToast('Email verified. Signed in.'); setShowGuide(true); } }} />}
     {dialog === 'activity' && <Dialog title={t("Recent activity")} onClose={() => setDialog(undefined)}>

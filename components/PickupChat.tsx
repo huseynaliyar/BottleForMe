@@ -82,7 +82,7 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
         <button type="button" aria-label={t('← All pickups')} onClick={onBack} className="grid size-11 shrink-0 place-items-center rounded-full text-blue-300 hover:bg-white/10">
           <ChevronLeft className="size-6 rtl:rotate-180" aria-hidden="true" />
         </button>
-        <PickupAvatar name={title} />
+        <PickupAvatar name={title} pickupId={offer.id} />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-extrabold text-white">{title}</h1>
           <p className="truncate text-xs text-blue-200">{offer.locality} · {t('Pickup chat')}</p>

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import ReportPickup from '@/components/ReportPickup';
 import PickupPhoto from '@/components/PickupPhoto';
 import PickupPartner from '@/components/PickupPartner';
@@ -35,7 +34,9 @@ import NotificationModal from '@/components/NotificationModal';
 import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
 import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
 import { pickupStatusCss } from '@/lib/pickup-status';
-import PickupConversationCard from '@/components/PickupConversationCard';
+import { isPickupPin, pickupMapUrl, pickupStep, pickupSteps, type PickupPin } from '@/lib/pickup-location';
+import { pickupConversationTitle } from '@/lib/pickup-conversation';
+import PickupConversationCard, { PickupAvatar } from '@/components/PickupConversationCard';
 import PickupChat, { PickupChatFallback, usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
@@ -45,6 +46,8 @@ const RadarMap = dynamic(() => import('@/components/RadarMap'), {
   ssr: false,
   loading: () => <p role="status" className="p-4 text-sm text-blue-300">Loading Radar map…</p>,
 });
+
+const PickupPinPicker = dynamic(() => import('@/components/PickupPinPicker'), { ssr: false });
 
 const pickupStatus: Record<PickupStatus, string> = {
   open: 'Awaiting a Taker', reserved: 'Confirmed', en_route: 'Taker on the way',
@@ -73,12 +76,16 @@ type Tab = 'resident' | 'driver' | 'chat' | 'profile';
 export default function Marketplace({ initialPickup, initialChat = false }: { initialPickup?: string; initialChat?: boolean }) {
   const { t } = useLanguage();
   const maintenance = useMarketplaceStatus();
-  const router = useRouter();
   const [requestedTab, setRequestedTab] = useState<Tab>(initialPickup ? 'chat' : 'resident');
+  const [selectedId, setSelectedId] = useState<string | null>(initialPickup ?? null);
+  const [chatPickupId, setChatPickupId] = useState<string | null>(initialChat ? initialPickup ?? null : null);
   const setActiveTab = useCallback((tab: Tab) => {
     setRequestedTab(tab);
-    if (initialPickup) router.replace(tab === 'profile' ? '/?view=profile' : tab === 'chat' ? '/?view=pickups' : '/');
-  }, [initialPickup, router]);
+    setSelectedId(null);
+    setChatPickupId(null);
+    const path = tab === 'profile' ? '/?view=profile' : tab === 'chat' ? '/?view=pickups' : '/';
+    if (window.location.pathname + window.location.search !== path) window.history.pushState(null, '', path);
+  }, []);
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(!supabase);
   const lifecycle = useAccountLifecycle(sessionUser?.id, loadAccountLifecycle).lifecycle;
@@ -105,6 +112,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const [revolutTag, setRevolutTag] = useState('');
   const [addressNotes, setAddressNotes] = useState('');
   const [pickupAddress, setPickupAddress] = useState('');
+  const [pinChoice, setPinChoice] = useState<{ pin: PickupPin; address: string; locality: string }>();
+  const [gpsPin, setGpsPin] = useState<PickupPin>();
+  const [shareExactPin, setShareExactPin] = useState(false);
+  const pickupPin = pinChoice?.address === pickupAddress.trim() && pinChoice.locality === locality ? pinChoice.pin : undefined;
   const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
   const [addressLookup, setAddressLookup] = useState(false);
   const [payoutMethod, setPayoutMethod] = useState<'revolut' | 'cash'>('cash');
@@ -113,19 +124,13 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const canUseRadar = currentUser?.role === 'taker';
   const activeTab = requestedTab === 'resident' && canUseRadar ? 'driver'
     : requestedTab === 'driver' && !canUseRadar ? 'resident' : requestedTab;
-  const radarDetails = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = radarDetails.current;
-    if (dialog && mapOfferId && !dialog.open) dialog.showModal();
-    if (dialog?.open && !mapOfferId) dialog.close();
-  }, [mapOfferId, radarView, activeTab]);
   const fullscreenRadar = activeTab === 'driver' && canUseRadar && radarView === 'map';
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
   const [handovers, setHandovers] = useState<PickupOffer[]>([]);
   const [handoverStatus, setHandoverStatus] = useState('Loading your pickups…');
-  const [selectedId, setSelectedId] = useState<string | null>(initialPickup ?? null);
-  const [chatPickupId, setChatPickupId] = useState<string | null>(initialChat ? initialPickup ?? null : null);
+  const contentRef = useRef<HTMLElement>(null);
+  useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [activeTab, selectedId]);
   const [revision, setRevision] = useState(0);
   const [isPublishing, setIsPublishing] = useState(false);
   const [triedToPublish, setTriedToPublish] = useState(false);
@@ -167,11 +172,14 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const openActivity = useCallback((pickupId?: string, chat = false) => {
     if (pickupId && /^[0-9a-f-]{36}$/i.test(pickupId)) {
       setIsNotifOpen(false);
-      if (initialPickup === pickupId && initialChat === chat) return;
-      router.push('/pickups/' + encodeURIComponent(pickupId) + (chat ? '?chat=1' : ''));
-      setRevision((value) => value + 1);
+      setRequestedTab('chat');
+      setSelectedId(pickupId);
+      setChatPickupId(chat ? pickupId : null);
+      setActionError('');
+      const path = '/pickups/' + encodeURIComponent(pickupId) + (chat ? '?chat=1' : '');
+      if (window.location.pathname + window.location.search !== path) window.history.pushState(null, '', path);
     } else setIsNotifOpen(true);
-  }, [initialPickup, initialChat, router]);
+  }, []);
 
   useEffect(() => {
     const openInbox = (event: MessageEvent) => {
@@ -193,7 +201,15 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     } else if (url.searchParams.get('view') === 'pickups') {
       queueMicrotask(() => setRequestedTab('chat'));
     }
-    return () => serviceWorker?.removeEventListener('message', openInbox);
+    const restore = () => {
+      const route = /^\/pickups\/([0-9a-f-]{36})\/?$/i.exec(location.pathname);
+      const params = new URLSearchParams(location.search);
+      setSelectedId(route?.[1] ?? null);
+      setChatPickupId(route && params.get('chat') === '1' ? route[1] : null);
+      setRequestedTab(route || params.get('view') === 'pickups' ? 'chat' : params.get('view') === 'profile' ? 'profile' : 'resident');
+    };
+    window.addEventListener('popstate', restore);
+    return () => { serviceWorker?.removeEventListener('message', openInbox); window.removeEventListener('popstate', restore); };
   }, [openActivity]);
 
   useEffect(() => {
@@ -319,7 +335,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
       : fullAddress.length > 300 ? 'Use at most 300 characters for the address and instructions.' : '';
   const revolutError = needsRevolutTag && !REVOLUT_TAG.test(revolutTag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const publishErrors = [countError, localityError, addressError, revolutError, !listingPhoto ? 'Add a photo of the bottles or bags.' : '', bags < 1 ? 'Specify the number of bags.' : '',
+  const publishErrors = [countError, localityError, addressError, !pickupPin ? 'Confirm the exact pickup pin on the map.' : '', revolutError, !listingPhoto ? 'Add a photo of the bottles or bags.' : '', bags < 1 ? 'Specify the number of bags.' : '',
     !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
@@ -351,6 +367,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     setActionError('');
     setIsPinningLocation(true);
     navigator.geolocation.getCurrentPosition(({ coords }) => {
+      const point = { lat: coords.latitude, lng: coords.longitude };
+      setGpsPin(isPickupPin(point) ? point : undefined);
       const distance = (item: typeof MALTA_LOCALITIES[number]) => Math.hypot(item.lat - coords.latitude, item.lng - coords.longitude);
       const nearest = MALTA_LOCALITIES.reduce((best, item) => distance(item) < distance(best) ? item : best);
       setLocality(nearest.name);
@@ -362,7 +380,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     }, () => {
       setActionError('Could not get your location. Choose your locality manually.');
       setIsPinningLocation(false);
-    }, { timeout: 7000 });
+    }, { timeout: 7000, enableHighAccuracy: true });
   }
 
   async function chooseListingPhoto(file: File) {
@@ -388,6 +406,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     const input = {
       locality, address_notes: fullAddress, bag_count: bags, bag_policy: bagPolicy, split_percentage: splitPercent,
       pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability,
+      pickup_pin: pickupPin, share_exact_pin: shareExactPin,
       payout_method: payoutMethod, seller_revolut_tag: revolutTag, photo: listingPhoto,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
     };
@@ -420,10 +439,11 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
       setAddressNotes('');
       setPickupAddress('');
       setAddressSelection(null);
+      setPinChoice(undefined);
+      setShareExactPin(false);
       setRadarLocality('');
       setRevision((value) => value + 1);
-      setActiveTab('chat');
-      setSelectedId(created.id);
+      openActivity(created.id);
       setNotifications((items) => [{
         id: created.id, title: 'Listing published', message: `${created.estimated_bottles} eligible containers in ${created.locality}.`,
         timestamp: 'Just now', read: false, type: 'pickup',
@@ -481,8 +501,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
       });
       if (sessionId.current !== accountId) return;
       setHandovers((items) => [updated, ...items.filter((item) => item.id !== updated.id)]);
-      setSelectedId(updated.id);
-      setRequestedTab('chat');
+      openActivity(updated.id);
       setToastMessage(status === 'completed' ? 'Handover recorded.' : status === 'reserved' ? 'Pickup reserved.' : 'Pickup updated.');
     } catch (error) {
       if (sessionId.current === accountId) {
@@ -539,23 +558,22 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     }
   }
 
-  const RadarResults = fullscreenRadar ? 'dialog' : 'div';
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
   const conversationOpen = activeTab === 'chat' && !!selectedId && chatPickupId === selectedId;
   const conversationOffer = conversationOpen && currentUser && selectedOffer?.seller_id && selectedOffer.collector_id ? selectedOffer : undefined;
-  const backToPickups = () => router.push('/?view=pickups');
+  const backToPickups = () => setActiveTab('chat');
   const conversationLoading = !authReady || !!sessionUser && !actionError && (!currentUser || handoverStatus === 'Loading your pickups…');
 
   return (
     <div className={fullscreenRadar ? 'bg-[#05070c]' : conversationOpen
       ? 'flex h-dvh justify-center bg-[#05070c]'
-      : 'flex min-h-screen justify-center bg-[#05070c] p-2 sm:p-6'}>
+      : 'flex h-dvh justify-center bg-[#05070c] sm:p-4'}>
       {/* Mobile Frame Container */}
       <div className={fullscreenRadar
         ? 'relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
         : conversationOpen ? 'relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
-        : 'relative flex min-h-[780px] w-full flex-col overflow-hidden rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
-          (initialPickup ? 'max-w-3xl' : 'max-w-[420px]')}>
+        : 'relative flex h-full w-full flex-col overflow-hidden sm:rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
+          (selectedId ? 'max-w-3xl' : 'max-w-[420px]')}>
         {/* Ambient Lighting */}
         <div className="absolute top-0 left-1/4 -translate-x-1/2 w-64 h-40 bg-blue-600/20 blur-[70px] pointer-events-none" />
         <div className="absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
@@ -667,7 +685,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         )}
 
         {/* Scrollable Content Viewport */}
-        <main className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
+        <main ref={contentRef} className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
             <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
@@ -836,6 +854,18 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={!!accountId}
                   onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
                   onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />
+                {locality && pickupAddress.trim() && <details className="rounded-xl border border-blue-400/25 p-3 text-sm text-blue-100">
+                  <summary className="cursor-pointer font-bold">{t(pickupPin ? 'Exact pickup pin saved' : 'Set exact pickup pin')}</summary>
+                  <p className="my-2">{t('Zoom in and choose the spot at the address you entered.')}</p>
+                  <PickupPinPicker locality={locality} suggested={gpsPin} value={pickupPin} onChange={(pin) => {
+                    if (isPickupPin(pin)) { setPinChoice({ pin, address: pickupAddress.trim(), locality }); setShareExactPin(false); }
+                    else setActionError('Choose a pickup pin in Malta.');
+                  }} />
+                  {pickupPin && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={shareExactPin} onChange={(event) => setShareExactPin(event.target.checked)} />
+                    {t('Share this exact pin on Radar')}
+                  </label>}
+                  <p className="mt-1 text-xs text-blue-200">{t('Otherwise, only your confirmed Taker sees the exact pin and street address.')}</p>
+                </details>}
                 {/* Address Notes Full-Width Row */}
                 <div>
                   <input
@@ -986,29 +1016,31 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               )}
 
               {/* List view or the pickup selected on the map. */}
-              <RadarResults
-                ref={(node: HTMLDivElement | HTMLDialogElement | null) => { radarDetails.current = node instanceof HTMLDialogElement ? node : null; }}
-                aria-label={fullscreenRadar ? t("Pickup details") : undefined}
-                onCancel={(event) => { event.preventDefault(); setMapOfferId(null); }}
-                className={fullscreenRadar
-                  ? 'm-auto w-[calc(100%-1.5rem)] max-w-md overflow-hidden rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
-                  : 'space-y-2.5'}>
+              <div aria-label={fullscreenRadar && mapOfferId ? t('Pickup details') : undefined} className={fullscreenRadar
+                ? 'relative z-[500] mx-auto w-full max-w-lg shrink-0' : 'space-y-2.5'}>
                 {radarOffers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
-                    className={fullscreenRadar ? 'glass-navy flex max-h-[85dvh] flex-col overflow-hidden rounded-[24px]'
+                    className={fullscreenRadar ? 'glass-navy flex max-h-[48dvh] flex-col overflow-y-auto rounded-t-[24px] shadow-2xl'
                       : 'glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50'}
                   >
-                    <div className={fullscreenRadar ? 'min-h-0 space-y-2.5 overflow-y-auto p-3.5' : 'space-y-2.5'}>
-                      {fullscreenRadar && <button type="button" onClick={() => setMapOfferId(null)}
-                        className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">{t("Close")}</button>}
+                    <div className={fullscreenRadar ? 'space-y-2.5 p-3.5' : 'space-y-2.5'}>
+                      {fullscreenRadar && <>
+                        <div aria-hidden="true" className="mx-auto h-1 w-8 rounded-full bg-blue-200/30" />
+                        <div className="flex items-center justify-between gap-2">
+                          <div><span className="text-xs font-bold text-emerald-300">{t('Available')}</span><h3 className="text-lg font-extrabold text-white">{offer.locality} {t('pickup')}</h3></div>
+                          <button type="button" onClick={() => setMapOfferId(null)} aria-label={t('Close pickup details')}
+                            className="grid size-9 shrink-0 place-items-center rounded-full border border-blue-400/30 text-xl text-blue-200">×</button>
+                        </div>
+                        <p className="flex items-center gap-1 text-xs text-blue-200"><MapPin className="size-3.5 shrink-0" />{t(offer.exact_pin ? 'Exact pin shared · Address after confirmation' : 'Approximate location · Address after confirmation')}</p>
+                      </>}
                       <div className="flex flex-wrap justify-between gap-2">
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            {!fullscreenRadar && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
                               {offer.locality}
-                            </span>
-                            <span
+                            </span>}
+                            {!fullscreenRadar && <span
                               className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                                 offer.split_percentage === 0
                                   ? 'bg-emerald-500/20 text-[#00e599]'
@@ -1016,7 +1048,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                               }`}
                             >
                               {offer.split_percentage === 0 ? '100% Free' : `${offer.split_percentage}% Split`}
-                            </span>
+                            </span>}
                           </div>
                           <h4 className="text-sm font-bold text-white mt-1.5">
                             {offer.containers ? '' : 'About '}{offer.estimated_bottles} containers · {offer.bag_count} bags
@@ -1024,7 +1056,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
                         </div>
                         <div className="shrink-0">
-                          <span className="text-[10px] text-slate-400 font-medium block">{t("Collector’s estimated net value")}</span>
+                          <span className="text-[10px] text-slate-400 font-medium block">{t(fullscreenRadar ? 'Est. you earn' : 'Collector’s estimated net value')}</span>
                           <span className="text-base font-extrabold text-[#00e599]">
                             €{offer.collector_profit.toFixed(2)}
                           </span>
@@ -1035,7 +1067,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
                           <strong className="text-white">
                             €{offer.seller_payout.toFixed(2)}{' '}
-                            {offer.seller_revolut_tag ? `(${offer.seller_revolut_tag})` : ''}
+                            {fullscreenRadar && offer.seller_payout > 0 ? ' · ' + t(offer.payout_method === 'cash' ? 'Cash' : offer.payout_method === 'revolut' ? 'Revolut' : 'As agreed') : ''}
                           </strong>
                         </span>
                         {!fullscreenRadar && !offer.availability?.length && <button
@@ -1044,6 +1076,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
                         >{t("Reserve pickup →")}</button>}
                       </div>
+                      <details open={!fullscreenRadar} className="space-y-2 text-xs text-blue-200">
+                      <summary className="cursor-pointer">{t('Listing details')}</summary>
                       <p className="text-xs text-blue-200">{t(bagPolicyLabel(offer.bag_policy))}</p>
                       <PickupPhoto key={offer.id} pickupId={offer.id} />
                       <div className="flex flex-wrap gap-3 text-xs">
@@ -1053,10 +1087,11 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         <button type="button" onClick={() => setReport({ pickupId: offer.id, target: 'listing' })}
                           className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">{t("Report listing")}</button>
                       </div>
+                      </details>
                     </div>
                     {(fullscreenRadar || !!offer.availability?.length) && <div className={fullscreenRadar
-                      ? 'max-h-[50dvh] shrink-0 overflow-y-auto border-t border-blue-400/25 p-3.5' : undefined}>
-                      {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction}
+                      ? 'sticky bottom-0 shrink-0 has-[details[open]]:static border-t border-blue-400/25 bg-[#0e1626] p-3.5' : undefined}>
+                      {offer.availability?.length ? <RequestPickupTime offer={offer} triggerLabel={fullscreenRadar ? 'Choose pickup time' : undefined} onRestriction={setRestriction}
                         onSaved={() => setRevision((value) => value + 1)} /> : <button type="button" disabled={isUpdating}
                         onClick={() => void changePickup(offer, 'reserved')}
                         className="blue-btn min-h-11 w-full rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
@@ -1065,7 +1100,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     </div>}
                   </div>
                 ))}
-              </RadarResults>
+              </div>
             </section>
           )}
 
@@ -1078,7 +1113,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               : selectedOffer || selectedInOtherRole ? { label: t('Pickup details'), run: () => openActivity(selectedId ?? undefined) } : undefined} />}
           {activeTab === 'chat' && !conversationOpen && (
             <section className={selectedId ? 'glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
-              <h2 className="py-2 text-center text-xl font-extrabold text-white">{t(selectedId ? 'Pickup details' : 'Pickups')}</h2>
+              <h2 className="py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedId ? 'Pickup details' : 'Pickups')}</h2>
               {!currentUser ? (
                 <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button>
               ) : (
@@ -1086,7 +1121,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   {selectedId ? <>
                     <button type="button" className="text-sm font-bold text-blue-300" onClick={() => {
                       setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError('');
-                      if (initialPickup) router.push('/?view=pickups');
+                      backToPickups();
                     }}>{t("← All pickups")}</button>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {selectedInOtherRole ? (
@@ -1100,25 +1135,36 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                       {selectedOffer && <>
                         <header className="space-y-1">
                           <span className="text-xs font-semibold text-blue-300" style={{ color: pickupStatusCss(selectedOffer.overdue ? 'overdue' : selectedOffer.status) }}>{!canUseRadar && selectedOffer.archived_at ? t("Archived") : selectedOffer.overdue ? t("Overdue") : t(pickupStatus[selectedOffer.status])}</span>
-                          <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
-                          {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
+                          <h3 className="flex items-center gap-3 text-lg font-bold text-white">
+                            {selectedOffer.collector_id && selectedOffer.seller_id && <PickupAvatar name={pickupConversationTitle(selectedOffer, canUseRadar, t)} pickupId={selectedOffer.id} />}
+                            {selectedOffer.collector_id ? pickupConversationTitle(selectedOffer, canUseRadar, t) : selectedOffer.locality}
+                          </h3>
                         </header>
 
                         {!canUseRadar && !handoverActive && selectedOffer.seller_id === accountId && <button type="button" disabled={archiving}
                           onClick={() => void toggleArchive(selectedOffer)} className="rounded-lg bg-white/10 px-3 py-2 text-blue-100 disabled:opacity-50">
                           {selectedOffer.archived_at ? t("Restore listing") : t("Archive listing")}
                         </button>}
-                        <PickupPhoto key={selectedOffer.id} pickupId={selectedOffer.id} />
-                        {handoverActive && selectedOffer.address_notes && <div className="rounded-xl bg-white/5 p-3">
-                          <h4 className="font-semibold text-white">{t("Pickup address")}</h4>
-                          <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>
+                        {handoverActive && <div className="rounded-xl bg-white/5 p-3">
+                          <h4 className="font-semibold text-white">{selectedOffer.confirmed_at ? formatAppointment(selectedOffer.confirmed_at) + ' · Malta time' : t('Pickup address')}</h4>
+                          {selectedOffer.address_notes && <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>}
+                          {pickupMapUrl(selectedOffer) && <a href={pickupMapUrl(selectedOffer)!} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold text-blue-300"><MapPin className="size-4" />{t('Open in Maps')}</a>}
                         </div>}
 
-                        {handoverActive && <div className="space-y-2">
+                        {handoverActive && <>
+                          <ol aria-label={t('Pickup progress')} className="grid grid-cols-4 gap-1 py-2 text-center text-xs text-blue-200">
+                            {pickupSteps.map((step, index) => <li key={step} aria-current={pickupStep(selectedOffer.status) === index ? 'step' : undefined}>
+                              <span className={'mx-auto mb-1 grid size-7 place-items-center rounded-full ' + (index <= pickupStep(selectedOffer.status) ? 'bg-blue-600 text-white' : 'bg-white/10')}>{index + 1}</span>{t(step)}
+                            </li>)}
+                          </ol>
+                          <div className="space-y-2 rounded-2xl border border-blue-400/30 bg-blue-950/45 p-4">
+                          <p className="text-xs font-bold uppercase tracking-wide text-blue-300">{t('Next step')}</p>
+                          <h4 className="text-base font-bold text-white">{t(!isCollector ? 'Handover code' : selectedOffer.status === 'reserved' ? 'Heading to the pickup?' : selectedOffer.status === 'en_route' ? 'At the pickup address?' : 'Ready to complete the pickup?')}</h4>
+                          <p className="text-blue-100">{t(!isCollector ? 'Show the handover code to the Taker at the pickup.' : selectedOffer.status === 'reserved' ? 'Let the Giver know when you leave.' : selectedOffer.status === 'en_route' ? 'Let the Giver know when you reach the address.' : 'Ask the Giver for the six-digit code to complete your pickup.')}</p>
                           {isCollector && selectedOffer.status === 'reserved' && <button type="button" disabled={isUpdating}
-                            onClick={() => changePickup(selectedOffer, 'en_route')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Mark on the way")}</button>}
+                            onClick={() => changePickup(selectedOffer, 'en_route')} className="blue-btn w-full rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t('I’m on my way')}</button>}
                           {isCollector && selectedOffer.status === 'en_route' && <button type="button" disabled={isUpdating}
-                            onClick={() => changePickup(selectedOffer, 'arrived')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Mark arrived")}</button>}
+                            onClick={() => changePickup(selectedOffer, 'arrived')} className="blue-btn w-full rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t('I’ve arrived')}</button>}
                           {isCollector && selectedOffer.status === 'arrived' && <form className="space-y-2" onSubmit={(event) => {
                             event.preventDefault();
                             if (typedCode?.id === selectedOffer.id && typedCode.value.length === 6) void changePickup(selectedOffer, 'completed', typedCode.value);
@@ -1128,26 +1174,27 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                                 onChange={(event) => setTypedCode({ id: selectedOffer.id, value: event.target.value.replace(/\D/g, '').slice(0, 6) })} />
                             </label>
                             <button type="submit" disabled={isUpdating || typedCode?.id !== selectedOffer.id || typedCode.value.length !== 6}
-                              className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Confirm handover")}</button>
+                              className="blue-btn w-full rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Confirm handover")}</button>
                           </form>}
                           {!isCollector && <>
                             <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => revealHandoverCode(selectedOffer.id)}>{t("Show code")}</button>
                             {handoverCode?.id === selectedOffer.id && <p className="text-lg font-bold text-white">Show the Taker: {handoverCode.value}</p>}
                           </>}
-                        </div>}
+                        </div></>}
 
+                        {selectedOffer.collector_id && <button type="button" onClick={() => openActivity(selectedOffer.id, true)}
+                          className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
+                          {handoverActive ? t('Chat') : t('Chat history')} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
+                        </button>}
+                        <details className="space-y-3 rounded-xl border border-blue-400/20 p-3 text-blue-200">
+                          <summary className="cursor-pointer font-semibold text-white">{t('More options')}</summary>
+                        <PickupPhoto key={selectedOffer.id} pickupId={selectedOffer.id} />
                         {selectedOffer.collector_id && selectedOffer.seller_id && <PickupPartner
                           key={selectedOffer.id + ':' + selectedOffer.status} pickupId={selectedOffer.id} />}
                         {selectedOffer.collector_id && selectedOffer.seller_id && <button type="button"
                           onClick={() => setReport({ pickupId: selectedOffer.id, target: 'user' })}
                           className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">{t("Report pickup partner")}</button>}
-                        {selectedOffer.collector_id && <button type="button" onClick={() => openActivity(selectedOffer.id, true)}
-                          className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
-                          {handoverActive ? t("Chat") : t("Chat history")} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
-                        </button>}
 
-                        <details className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-200">
-                          <summary className="cursor-pointer font-semibold text-white">{t("Details")}</summary>
                           <p>{selectedOffer.estimated_bottles} containers · {selectedOffer.bag_count} bags</p>
                           <p>{t(bagPolicyLabel(selectedOffer.bag_policy))}</p>
                           {!handoverActive && !isCollector && selectedOffer.address_notes && <p className="whitespace-pre-line break-words">{selectedOffer.address_notes}</p>}
@@ -1162,27 +1209,30 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           {!selectedOffer.confirmed_at && <PickupAvailability offer={selectedOffer} />}
                           {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
                             key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
-                          {(handoverActive || selectedOffer.status === 'open') && <button type="button" disabled={isUpdating}
-                            onClick={() => { if (window.confirm('Cancel this pickup?')) void changePickup(selectedOffer, 'cancelled'); }}
-                            className="block rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">{t("Cancel pickup")}</button>}
+                          {(handoverActive || selectedOffer.status === 'open') && <details className="rounded-xl border border-red-400/25 p-3 text-red-200">
+                            <summary className="cursor-pointer font-semibold">{t('Cancel pickup')}</summary>
+                            <p className="my-2">{t('Cancelling closes this pickup for both people.')}</p>
+                            <button type="button" disabled={isUpdating} onClick={() => void changePickup(selectedOffer, 'cancelled')}
+                              className="rounded-lg bg-red-900 px-3 py-2 font-bold text-white disabled:opacity-50">{t('Confirm cancellation')}</button>
+                          </details>}
                         </details>
                       </>}
-                      <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
+                      {!handoverActive && <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
                         <summary className="cursor-pointer font-semibold text-white">{t("Time requests")}</summary>
                         <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId}
                           participantKey={pickupParticipant} onSwitchRole={() => void handleToggleRole(true)} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
-                      </details>
+                      </details>}
                     </>}
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {!canUseRadar && <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}
                       className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? t("Show current listings") : t("Show archived listings")}</button>}
-                    {!handoverStatus && !visiblePickups.length && <p className="text-blue-200">{showArchived && !canUseRadar ? t("No archived listings yet.") : 'No listings or assigned pickups in this role yet.'}</p>}
                     {visiblePickups.map((offer) => <PickupConversationCard key={offer.id} offer={offer} taker={canUseRadar}
                       status={t(!canUseRadar && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : pickupStatus[offer.status])}
                       unread={unreadCounts.get(offer.id)} onOpen={() => openActivity(offer.id, !!(offer.collector_id && offer.seller_id))} />)}
                     <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
-                      participantKey={pickupParticipant} excludeAcceptedFor={new Set(rolePickups.map((offer) => offer.id))} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                      participantKey={pickupParticipant} excludeFor={new Set(rolePickups.map((offer) => offer.id))}
+                      hideListEntries={showArchived && !canUseRadar} emptyListMessage={!handoverStatus && !visiblePickups.length ? (showArchived && !canUseRadar ? 'No archived listings yet.' : 'No pickups in this role yet.') : undefined} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                   </>}
                 </>
               )}
@@ -1342,7 +1392,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </main>
 
         {/* Bottom Navigation Bar */}
-        {!conversationOpen && <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
+        <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
           {!canUseRadar && (<button
             onClick={() => setActiveTab('resident')}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1379,7 +1429,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Profile")}</span>
           </button>
-        </footer>}
+        </footer>
 
         <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"
           onCancel={(event) => { event.preventDefault(); setRestriction(undefined); }}

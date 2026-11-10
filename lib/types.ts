@@ -46,6 +46,7 @@ export interface PickupOffer {
   collector_phone?: string;
   created_at: string;
   updated_at: string;
+  exact_pin?: boolean;
   lat?: number;
   lng?: number;
 }

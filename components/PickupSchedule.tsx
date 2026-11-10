@@ -103,8 +103,8 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
     {notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}</>;
 }
 
-export function RequestPickupTime({ offer, onSaved, onRestriction }: {
-  offer: PickupOffer; onSaved: () => void; onRestriction?: (value: PickupRestriction) => void;
+export function RequestPickupTime({ offer, onSaved, onRestriction, triggerLabel }: {
+  offer: PickupOffer; onSaved: () => void; triggerLabel?: string; onRestriction?: (value: PickupRestriction) => void;
 }) {
   const { t } = useLanguage();
   const [mode, setMode] = useState<'available' | 'alternative'>('available');
@@ -131,7 +131,7 @@ export function RequestPickupTime({ offer, onSaved, onRestriction }: {
   }
 
   return <details className="w-full rounded-xl border border-blue-400/25 p-3 text-blue-100">
-    <summary className="cursor-pointer font-bold text-white">{t("Request pickup")}</summary>
+    <summary className={triggerLabel ? 'blue-btn cursor-pointer rounded-xl px-3 py-2 font-bold text-white' : 'cursor-pointer font-bold text-white'}>{t(triggerLabel ?? 'Request pickup')}</summary>
     <fieldset disabled={busy} className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
         <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>{t("Available time")}</ScheduleButton>
@@ -220,9 +220,9 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </li>;
 }
 
-export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeAcceptedFor, participantKey, onSwitchRole }: {
+export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeFor, participantKey, onSwitchRole, emptyListMessage, hideListEntries }: {
   userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
-  excludeAcceptedFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
+  emptyListMessage?: string; hideListEntries?: boolean; excludeFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
 }) {
   const { t } = useLanguage();
   const [requests, setRequests] = useState<ScheduleRequest[]>();
@@ -237,16 +237,18 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
     return () => controller.abort();
   }, [revision, userId, listingId]);
   const inRole = requests?.filter((item) => item[participantKey] === userId);
-  const visible = inRole?.filter((item) => item.status !== 'accepted' || !excludeAcceptedFor?.has(item.pickup_id));
+  const standalone = inRole?.filter((item) => !excludeFor?.has(item.pickup_id));
+  const visible = !onOpen ? inRole : hideListEntries ? [] : standalone?.filter((item, index) => standalone.findIndex((first) => first.pickup_id === item.pickup_id) === index);
   const belongsToOtherRole = Boolean(listingId && requests?.length && !inRole?.length);
-  return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
-    <div className="flex items-center justify-between gap-2">
+  if (onOpen && !visible?.length && !error) return visible && emptyListMessage ? <p className="text-blue-200">{t(emptyListMessage)}</p> : null;
+  return <section className={onOpen ? 'text-blue-100' : 'space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100'}>
+    {!onOpen && <div className="flex items-center justify-between gap-2">
       <h3 className="font-bold text-white">{t("Pickup arrangements")}</h3>
       <ScheduleButton onClick={onSaved}>{t("Refresh")}</ScheduleButton>
-    </div>
+    </div>}
     <Feedback error={error} notice="" />
     {visible?.length ? <ul className="space-y-2">{visible.map((item) =>
-      onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="block w-full rounded-lg bg-white/5 p-2 text-left hover:bg-white/10">
+      onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="glass-navy block w-full rounded-[24px] p-3 text-start hover:border-blue-400/70 sm:p-4">
         <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusCss(item.status) }}>{t(item.status.charAt(0).toUpperCase() + item.status.slice(1))}</span></strong>
         <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
       </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>

@@ -1,7 +1,7 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { PUBLIC_COLUMNS } from './pickup-visibility';
+import { RADAR_COLUMNS } from './pickup-visibility';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -9,7 +9,7 @@ export const pickupsDb = url && key ? createClient(url, key, {
   auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
 }) : null;
 
-export const PRIVATE_COLUMNS = `${PUBLIC_COLUMNS},seller_id,collector_id,seller_name,seller_phone,seller_revolut_tag,address_notes,confirmed_at,availability_version,archived_at` as const;
+export const PRIVATE_COLUMNS = `${RADAR_COLUMNS},seller_id,collector_id,seller_name,seller_phone,seller_revolut_tag,address_notes,confirmed_at,availability_version,archived_at` as const;
 
 export function response(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });

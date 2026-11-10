@@ -4,6 +4,7 @@ import { languages, localeKey } from '@/lib/locale';
 import WebLanguageProvider from '@/components/WebLanguageProvider';
 import './globals.css';
 import 'leaflet/dist/leaflet.css';
+import AccountBottomNav from '@/components/AccountBottomNav';
 
 export const metadata: Metadata = {
   title: 'BottleForMe - Plastic Bottle, Can & Glass Collection',
@@ -64,7 +65,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-[#05070c] text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
-        <WebLanguageProvider>{children}</WebLanguageProvider>
+        <WebLanguageProvider>{children}<AccountBottomNav /></WebLanguageProvider>
       </body>
     </html>
   );

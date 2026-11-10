@@ -76,6 +76,20 @@ test('public pickup projection removes private details and uses a locality cente
   assert.equal(participantPickup({ ...row, status: 'completed' }, 'seller').address_notes, 'Door 1');
 });
 
+test('exact pins stay private unless the giver shares them', () => {
+  const pickup = { status: 'reserved' as const, seller_id: 'seller', collector_id: 'taker', locality: 'Sliema',
+    address_notes: 'Private street address', pickup_lat: 35.9137, pickup_lng: 14.5012 };
+  assert.equal(publicPickup(pickup).lat, 35.9122);
+  assert.equal(Object.hasOwn(publicPickup(pickup), 'pickup_lat'), false);
+  const shared = publicPickup({ ...pickup, share_exact_pin: true });
+  assert.equal(shared.lat, 35.9137);
+  assert.equal(shared.lng, 14.5012);
+  assert.equal(shared.address_notes, '');
+  assert.equal(participantPickup(pickup, 'taker').lat, 35.9137);
+  assert.equal(participantPickup({ ...pickup, status: 'completed' }, 'taker').lat, undefined);
+  assert.equal(participantPickup(pickup, 'seller').lng, 14.5012);
+});
+
 test('legacy auth links redirect to the same origin without asserting verification', () => {
   const result = authCallback();
   assert.equal(result.status, 307);

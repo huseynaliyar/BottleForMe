@@ -1,4 +1,5 @@
 import { failure, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
+import sharp from 'sharp';
 import type { PickupPartner, Review } from '@/lib/pickup-partner';
 
 type Context = { params: Promise<{ id: string }> };
@@ -24,6 +25,18 @@ export async function GET(request: Request, context: Context) {
   const found = await lookup(request, context);
   if (found instanceof Response) return found;
   const { db, user, id, partnerId, pickup, otherIsGiver } = found;
+  if (new URL(request.url).searchParams.has('avatar')) {
+    const [profile, blocked] = await Promise.all([
+      db.from('profiles').select('avatar_url').eq('id', partnerId).maybeSingle(),
+      db.rpc('is_marketplace_blocked', { actor: user.id, other_user: partnerId }),
+    ]);
+    const avatar = profile.data?.avatar_url;
+    const match = typeof avatar === 'string' && avatar.length <= 710_000 && /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(avatar);
+    if (!match || blocked.error || blocked.data) return response({ avatar: null });
+    const thumbnail = await sharp(Buffer.from(match[1], 'base64'), { limitInputPixels: 25_000_000 })
+      .rotate().resize(96, 96, { fit: 'cover' }).webp({ quality: 72 }).toBuffer().catch(() => null);
+    return response({ avatar: thumbnail ? 'data:image/webp;base64,' + thumbnail.toString('base64') : null });
+  }
   const active = ['reserved', 'en_route', 'arrived'].includes(pickup.status);
   const [profile, aggregate, reviews, blocked, ownBlock] = await Promise.all([
     db.from('profiles').select('full_name,phone,share_pickup_phone').eq('id', partnerId).maybeSingle(),

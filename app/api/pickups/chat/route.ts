@@ -20,12 +20,14 @@ export async function GET(request: Request) {
   if (!UUID.test(pickup) || before !== null && (!Number.isSafeInteger(before) || before < 1)) {
     return failure('Invalid pickup or message reference.', 400);
   }
-  const { data, error } = await pickupsDb.rpc('read_pickup_chat', { listing: pickup, actor: user.id, before_seq: before });
+  const [{ data, error }, pair] = await Promise.all([
+    pickupsDb.rpc('read_pickup_chat', { listing: pickup, actor: user.id, before_seq: before }),
+    pickupsDb.from('pickups').select('seller_id,collector_id').eq('id', pickup)
+      .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).maybeSingle(),
+  ]);
   if (error) return failure('Could not load pickup chat.', 503);
   if (!data) return failure('Pickup chat is not available.', 404);
   if (data.canSend) {
-    const pair = await pickupsDb.from('pickups').select('seller_id,collector_id').eq('id', pickup)
-      .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).maybeSingle();
     if (pair.error) return failure('Could not load pickup chat.', 503);
     const other = pair.data?.seller_id === user.id ? pair.data.collector_id : pair.data?.seller_id;
     if (!other) return failure('Pickup chat is not available.', 404);
