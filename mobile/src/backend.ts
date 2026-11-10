@@ -6,6 +6,7 @@ import { loadProfile as readProfile, saveProfile as writeProfile } from '../../l
 import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib/types';
 import type { validatePickup } from '../../lib/pickup-validation';
 import type { PickupWindow, ScheduleAction, ScheduleRequest } from '../../lib/pickup-schedule';
+import type { ChatAction, ChatPage, UnreadChat } from '../../lib/use-pickup-chat';
 import type { PickupPartner, Review } from '../../lib/pickup-partner';
 import type { AddressSuggestion } from '../../lib/pickup-address';
 
@@ -169,6 +170,20 @@ export function loadSettings(signal: AbortSignal) {
 export function saveSettings(sharePhone: boolean) {
   return request<{ sharePhone: boolean }>('/api/account/settings', {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sharePhone }),
+  }, true);
+}
+
+export function getUnreadChats() {
+  return request<{ unread: UnreadChat[] }>('/api/pickups/chat', {}, true);
+}
+
+export function getChat(pickupId: string, before?: number, signal?: AbortSignal) {
+  return request<ChatPage>('/api/pickups/chat?pickup=' + encodeURIComponent(pickupId) + (before ? '&before=' + before : ''), { signal }, true);
+}
+
+export function postChat(pickup: string, action: ChatAction, signal?: AbortSignal) {
+  return request('/api/pickups/chat', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickup, ...action }), signal,
   }, true);
 }
 

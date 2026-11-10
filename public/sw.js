@@ -22,12 +22,15 @@ self.addEventListener('notificationclick', (event) => {
     const pickupId = event.notification.data?.pickupId ?? null;
     const pickupChat = event.notification.data?.pickupChat === true;
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const home = windows.find((client) => new URL(client.url).pathname === '/');
+    const home = windows.find((client) => {
+      const path = new URL(client.url).pathname;
+      return path === '/' || path.startsWith('/pickups/');
+    });
     if (home) {
       await home.focus();
       home.postMessage({ type: 'bottleforme-open-inbox', pickupId, pickupChat });
     } else {
-      await self.clients.openWindow(pickupId ? '/?pickup=' + encodeURIComponent(pickupId) + (pickupChat ? '&chat=1' : '') : '/?inbox=1');
+      await self.clients.openWindow(pickupId ? '/pickups/' + encodeURIComponent(pickupId) + (pickupChat ? '?chat=1' : '') : '/?inbox=1');
     }
   })());
 });

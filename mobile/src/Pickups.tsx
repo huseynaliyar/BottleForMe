@@ -9,6 +9,7 @@ import { pickupStatusColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
+import PickupChat from './PickupChat';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
 import { Badge, Button, Card, colors, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
@@ -217,8 +218,10 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
   </ScrollView>;
 }
 
-export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, onSelect, onSignIn, onRefresh, onSwitchRole, onChange }: {
+export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, chatOpen, unread, onChat, onRead,
+  onSelect, onSignIn, onRefresh, onSwitchRole, onChange }: {
   userId?: string; taker: boolean; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
+  chatOpen: boolean; unread: Map<string, number>; onChat: (id?: string) => void; onRead: () => void;
   onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onSwitchRole: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const [linkError, setLinkError] = useState('');
@@ -251,10 +254,14 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
     ]);
   }
 
+  if (selected && chatOpen && selected.collector_id) {
+    return <PickupChat key={selected.id} pickupId={selected.id} onRead={onRead} onBack={() => onChat()} />;
+  }
+
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={userId
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>
     <Card style={{ borderRadius: 24 }}>
-      <Text accessibilityRole="header" weight="heavy" style={styles.body}>{userId ? (taker ? 'Your pickups as Taker' : 'Your pickups as Giver') : 'Your pickups'}</Text>
+      <Text accessibilityRole="header" weight="heavy" style={styles.body}>{selectedId ? 'Pickup details' : userId ? (taker ? 'Your pickups as Taker' : 'Your pickups as Giver') : 'Your pickups'}</Text>
       {!userId ? <Button label="Sign in to view pickups" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
         {selectedId ? <Button label="← All pickups" kind="secondary" onPress={() => {
           setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
@@ -267,6 +274,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
         {!selectedId && visibleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
           onPress={() => { setLinkError(''); onSelect(offer.id); }}>
           <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
+          {!!unread.get(offer.id) && <Badge>{unread.get(offer.id)} unread</Badge>}
           <Text style={[styles.small, { color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }]}>{!taker && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : statusNames[offer.status]}</Text>
         </Pressable>)}
         {selectedInOtherRole ? <Button label={taker ? 'Switch to Giver to view pickup' : 'Switch to Taker to view pickup'} onPress={onSwitchRole} /> :
@@ -277,6 +285,9 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
           <Text style={[styles.small, { color: selected.overdue ? '#fca5a5' : pickupStatusColor[selected.status] }]}>Status · {!taker && selected.archived_at ? 'Archived' : selected.overdue ? 'Overdue' : statusNames[selected.status]}</Text>
           {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? 'Restore listing' : 'Archive listing'}
             kind="secondary" disabled={archiving} onPress={() => void toggleArchive(selected)} />}
+          {selected.collector_id && <Button kind="secondary"
+            label={(active ? 'Open chat' : 'Chat history') + (unread.get(selected.id) ? ' · ' + unread.get(selected.id) + ' unread' : '')}
+            onPress={() => onChat(selected.id)} />}
           <PickupAvailability offer={selected} />
           {selected.collector_id && selected.seller_id && <PickupPartner key={selected.id + ':' + selected.status} pickupId={selected.id} />}
           {selected.collector_id && selected.seller_id && <ReportButton key={selected.id} pickupId={selected.id} target="user" />}

@@ -14,6 +14,7 @@ import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
 import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
+import { usePickupUnread } from './PickupChat';
 import { AccountDialog, Avatar, GettingStartedDialog, ProfileScreen } from './AccountScreen';
 import { apiOrigin, changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
@@ -24,12 +25,12 @@ import { Badge, Button, Card, colors, Dialog, ErrorText, Loading, Segmented, sty
 const primaryTabs = [
   { value: 'give', label: 'List Empties' },
   { value: 'radar', label: 'Radar' },
-  { value: 'handover', label: 'Handover' },
+  { value: 'handover', label: 'Pickups' },
 ] as const;
 const tabs = [
   { value: 'give', label: 'Give', Icon: Package },
   { value: 'radar', label: 'Radar', Icon: Compass },
-  { value: 'handover', label: 'Handover', Icon: MessageSquare },
+  { value: 'handover', label: 'Pickups', Icon: MessageSquare },
   { value: 'profile', label: 'Profile', Icon: User },
 ] as const;
 type Tab = (typeof tabs)[number]['value'] | 'settings';
@@ -62,6 +63,7 @@ function Marketplace() {
   const [radarReset, setRadarReset] = useState(0);
   const [draftReset, setDraftReset] = useState(0);
   const [selectedId, setSelectedId] = useState<string>();
+  const [chatPickupId, setChatPickupId] = useState<string>();
   const [recentPickup, setRecentPickup] = useState<{ userId: string; offer: PickupOffer }>();
   const [sessionNotifications, setNotifications] = useState<NotificationItem[]>([]);
   const [toast, setToast] = useState('');
@@ -72,9 +74,10 @@ function Marketplace() {
   const savingProfile = useRef(false);
   const sessionUser = session?.user;
   const userId = sessionUser?.id;
-  const openInbox = useCallback((pickupId?: string) => {
+  const openInbox = useCallback((pickupId?: string, chat = false) => {
     if (pickupId) {
       setSelectedId(pickupId);
+      setChatPickupId(chat ? pickupId : undefined);
       setTab('handover');
       setDialog(undefined);
       setRevision((value) => value + 1);
@@ -82,7 +85,16 @@ function Marketplace() {
   }, []);
   const inbox = useInbox(supabase, userId, dialog === 'activity');
   const push = useMobilePush(userId, openInbox);
-  const notifications = [...inbox.notifications, ...sessionNotifications];
+  const { unread, refresh: refreshUnread } = usePickupUnread(userId);
+  const unreadCounts = new Map(unread.map((item) => [item.pickup_id, item.unread]));
+  const chatNotifications = unread.map((item) => ({
+    id: 'chat:' + item.pickup_id, pickupId: item.pickup_id, pickupChat: true, read: false,
+    title: 'Pickup chat', message: item.unread + (item.unread === 1 ? ' unread message' : ' unread messages'),
+    timestamp: new Date(item.last_message).toLocaleString(),
+  }));
+  const notifications: (NotificationItem & { pickupChat?: boolean })[] = [
+    ...chatNotifications.map((item) => ({ ...item, type: 'pickup' as const })), ...inbox.notifications, ...sessionNotifications,
+  ];
   const currentProfile = profile?.id === userId ? profile : null;
   const taker = currentProfile?.role === 'taker';
   const tab = requestedTab === 'give' && taker ? 'radar' : requestedTab === 'radar' && !taker ? 'give'
@@ -104,6 +116,7 @@ function Marketplace() {
         setProfile(null);
         setProfileError('');
         if (id === undefined) setSelectedId(undefined);
+        setChatPickupId(undefined);
         setRecentPickup(undefined);
         setNotifications([]);
         setToast('');
@@ -282,7 +295,9 @@ function Marketplace() {
         </Card>
       </View>}
       {tab === 'handover' && <HandoverScreen key={(userId ?? 'guest') + ':' + taker} userId={userId} taker={taker} revision={revision} offers={offers} loading={handovers.loading}
-        error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
+        error={handovers.error} busy={busy} selectedId={selectedId} chatOpen={!!selectedId && chatPickupId === selectedId}
+        unread={unreadCounts} onChat={setChatPickupId} onRead={refreshUnread}
+        onSelect={(id) => { setSelectedId(id); setChatPickupId(undefined); }} onSignIn={openAccount}
         onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
       {tab === 'settings' && userId && <SettingsScreen key={userId} push={push} onBack={() => setTab('profile')} />}
@@ -309,13 +324,13 @@ function Marketplace() {
         <ErrorText message={push.error ?? ''} />
       </>}
       <ErrorText message={inbox.error ?? ''} />
-      {notifications.some((item) => !item.read) && <Button label="Mark all as read" kind="secondary"
+      {notifications.some((item) => !item.read && !item.pickupChat) && <Button label="Mark all as read" kind="secondary"
         onPress={() => {
           setNotifications((items) => items.map((item) => ({ ...item, read: true })));
           void inbox.markRead();
         }} />}
       {notifications.length ? notifications.map((item) => <Pressable key={item.id} disabled={!item.pickupId}
-        accessibilityRole={item.pickupId ? 'button' : undefined} onPress={() => openInbox(item.pickupId)}
+        accessibilityRole={item.pickupId ? 'button' : undefined} onPress={() => openInbox(item.pickupId, item.pickupChat)}
         style={[styles.inset, !item.read && { backgroundColor: '#102242' }]}>
         <Text weight="bold" style={styles.small}>{item.title}</Text>
         <Text style={styles.small}>{item.message}</Text>
