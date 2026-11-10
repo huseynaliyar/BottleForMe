@@ -981,67 +981,78 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 aria-label={fullscreenRadar ? t("Pickup details") : undefined}
                 onCancel={(event) => { event.preventDefault(); setMapOfferId(null); }}
                 className={fullscreenRadar
-                  ? 'm-auto max-h-[85dvh] w-[calc(100%-1.5rem)] max-w-md overflow-y-auto rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
+                  ? 'm-auto w-[calc(100%-1.5rem)] max-w-md overflow-hidden rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
                   : 'space-y-2.5'}>
                 {radarOffers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
-                    className="glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50"
+                    className={fullscreenRadar ? 'glass-navy flex max-h-[85dvh] flex-col overflow-hidden rounded-[24px]'
+                      : 'glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50'}
                   >
-                    {fullscreenRadar && <button type="button" onClick={() => setMapOfferId(null)}
-                      className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">{t("Close")}</button>}
-                    <div className="flex flex-wrap justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            {offer.locality}
-                          </span>
-                          <span
-                            className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              offer.split_percentage === 0
-                                ? 'bg-emerald-500/20 text-[#00e599]'
-                                : 'bg-white/[0.06] text-slate-300'
-                            }`}
-                          >
-                            {offer.split_percentage === 0 ? '100% Free' : `${offer.split_percentage}% Split`}
+                    <div className={fullscreenRadar ? 'min-h-0 space-y-2.5 overflow-y-auto p-3.5' : 'space-y-2.5'}>
+                      {fullscreenRadar && <button type="button" onClick={() => setMapOfferId(null)}
+                        className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">{t("Close")}</button>}
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                              {offer.locality}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                offer.split_percentage === 0
+                                  ? 'bg-emerald-500/20 text-[#00e599]'
+                                  : 'bg-white/[0.06] text-slate-300'
+                              }`}
+                            >
+                              {offer.split_percentage === 0 ? '100% Free' : `${offer.split_percentage}% Split`}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-white mt-1.5">
+                            {offer.containers ? '' : 'About '}{offer.estimated_bottles} containers · {offer.bag_count} bags
+                          </h4>
+
+                        </div>
+                        <div className="shrink-0">
+                          <span className="text-[10px] text-slate-400 font-medium block">{t("Collector’s estimated net value")}</span>
+                          <span className="text-base font-extrabold text-[#00e599]">
+                            €{offer.collector_profit.toFixed(2)}
                           </span>
                         </div>
-                        <h4 className="text-sm font-bold text-white mt-1.5">
-                          {offer.containers ? '' : 'About '}{offer.estimated_bottles} containers · {offer.bag_count} bags
-                        </h4>
-
                       </div>
-                      <div className="shrink-0">
-                        <span className="text-[10px] text-slate-400 font-medium block">{t("Collector’s estimated net value")}</span>
-                        <span className="text-base font-extrabold text-[#00e599]">
-                          €{offer.collector_profit.toFixed(2)}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+                        <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
+                          <strong className="text-white">
+                            €{offer.seller_payout.toFixed(2)}{' '}
+                            {offer.seller_revolut_tag ? `(${offer.seller_revolut_tag})` : ''}
+                          </strong>
                         </span>
+                        {!fullscreenRadar && !offer.availability?.length && <button
+                          disabled={isUpdating}
+                          onClick={() => changePickup(offer, 'reserved')}
+                          className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
+                        >{t("Reserve pickup →")}</button>}
+                      </div>
+                      <p className="text-xs text-blue-200">{t(bagPolicyLabel(offer.bag_policy))}</p>
+                      <PickupPhoto key={offer.id} pickupId={offer.id} />
+                      <div className="flex flex-wrap gap-3 text-xs">
+                        <button type="button" aria-pressed={favorites.ids?.includes(offer.id) ?? false}
+                          disabled={!favorites.ids || favorites.busy} onClick={() => void favorites.toggle(offer.id)}
+                          className="rounded-lg bg-blue-950 px-2 py-1 text-blue-100 disabled:opacity-50">{favorites.ids?.includes(offer.id) ? t("Remove favorite") : t("Save favorite")}</button>
+                        <button type="button" onClick={() => setReport({ pickupId: offer.id, target: 'listing' })}
+                          className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">{t("Report listing")}</button>
                       </div>
                     </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-                      <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
-                        <strong className="text-white">
-                          €{offer.seller_payout.toFixed(2)}{' '}
-                          {offer.seller_revolut_tag ? `(${offer.seller_revolut_tag})` : ''}
-                        </strong>
-                      </span>
-                      {!offer.availability?.length && <button
-                        disabled={isUpdating}
-                        onClick={() => changePickup(offer, 'reserved')}
-                        className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
-                      >{t("Reserve pickup →")}</button>}
-                    </div>
-                    <p className="text-xs text-blue-200">{t(bagPolicyLabel(offer.bag_policy))}</p>
-                    <PickupPhoto key={offer.id} pickupId={offer.id} />
-                    <div className="flex flex-wrap gap-3 text-xs">
-                      <button type="button" aria-pressed={favorites.ids?.includes(offer.id) ?? false}
-                        disabled={!favorites.ids || favorites.busy} onClick={() => void favorites.toggle(offer.id)}
-                        className="rounded-lg bg-blue-950 px-2 py-1 text-blue-100 disabled:opacity-50">{favorites.ids?.includes(offer.id) ? t("Remove favorite") : t("Save favorite")}</button>
-                      <button type="button" onClick={() => setReport({ pickupId: offer.id, target: 'listing' })}
-                        className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">{t("Report listing")}</button>
-                    </div>
-                    {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction} onSaved={() => setRevision((value) => value + 1)} /> : null}
+                    {(fullscreenRadar || !!offer.availability?.length) && <div className={fullscreenRadar
+                      ? 'max-h-[50dvh] shrink-0 overflow-y-auto border-t border-blue-400/25 p-3.5' : undefined}>
+                      {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction}
+                        onSaved={() => setRevision((value) => value + 1)} /> : <button type="button" disabled={isUpdating}
+                        onClick={() => void changePickup(offer, 'reserved')}
+                        className="blue-btn min-h-11 w-full rounded-xl px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
+                        {t('Reserve pickup →')}
+                      </button>}
+                    </div>}
                   </div>
                 ))}
               </RadarResults>

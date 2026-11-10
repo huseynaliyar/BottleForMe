@@ -11,7 +11,10 @@ test('archive rules and marketplace preferences keep private data under server c
       create role authenticated;
       create role service_role bypassrls;
       create schema auth;
-      create table auth.users (id uuid primary key);
+      create table auth.users (
+        id uuid primary key, encrypted_password text,
+        raw_user_meta_data jsonb, raw_app_meta_data jsonb
+      );
       create table public.profiles (id uuid primary key);
       create table public.pickups (
         id uuid primary key, status text not null,
@@ -27,7 +30,7 @@ test('archive rules and marketplace preferences keep private data under server c
       create table public.mobile_push_devices (user_id uuid);
       grant select on public.pickups to service_role;
     `);
-    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks', 'account_lifecycle']) {
+    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks', 'account_lifecycle', 'signup_terms_acceptance']) {
       const path = new URL('../supabase/migrations/', import.meta.url);
       const filename = readdirSync(path).find((file) => file.endsWith('_' + name + '.sql'));
       assert.ok(filename);
@@ -36,8 +39,14 @@ test('archive rules and marketplace preferences keep private data under server c
     const seller = '00000000-0000-4000-8000-000000000001';
     const taker = '00000000-0000-4000-8000-000000000002';
     const pickup = '00000000-0000-4000-8000-000000000003';
+    const signup = '00000000-0000-4000-8000-000000000004';
+    const signupQuery = "insert into auth.users (id, encrypted_password, raw_user_meta_data, raw_app_meta_data) values ($1,'fixture-hash',$2,'{\"provider\":\"email\"}')";
+    await assert.rejects(db.query(signupQuery, [signup, {}]), { code: 'BF010' });
+    await db.query(signupQuery, [signup, { terms_version: 'draft-1' }]);
+    const consent = await db.query('select terms_version from public.signup_terms_acceptances where user_id = $1', [signup]);
+    assert.deepEqual(consent.rows, [{ terms_version: 'draft-1' }]);
     await db.exec(`
-      insert into auth.users values ('${seller}'), ('${taker}');
+      insert into auth.users (id) values ('${seller}'), ('${taker}');
       insert into public.profiles (id) values ('${seller}'), ('${taker}');
       insert into public.pickups (id,status,seller_id) values ('${pickup}','open','${seller}');
       insert into public.pickup_requests values ('${pickup}','pending','${seller}','${taker}');
@@ -95,7 +104,7 @@ test('archive rules and marketplace preferences keep private data under server c
     const retained = await db.query('select seller_id,seller_name,address_notes,photo_jpeg from public.pickups');
     assert.deepEqual(retained.rows, [{ seller_id: null, seller_name: 'Deleted account', address_notes: null, photo_jpeg: null }]);
     await db.exec('set role authenticated');
-    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports', 'marketplace_blocks', 'marketplace_paused_accounts']) {
+    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports', 'marketplace_blocks', 'marketplace_paused_accounts', 'signup_terms_acceptances']) {
       await assert.rejects(db.exec('select * from public.' + table), { code: '42501' });
     }
   } finally {

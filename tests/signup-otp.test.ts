@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { draftTermsVersion } from '../lib/draft-terms';
 import { signupCodeError } from '../lib/signup-otp';
 
 test('signup requires confirmation and delegates code validation and resend to Supabase Auth', async (t) => {
@@ -20,7 +21,7 @@ test('signup requires confirmation and delegates code validation and resend to S
     aud: 'authenticated',
     email,
     app_metadata: {},
-    user_metadata: { full_name: 'New Giver', role: 'giver', locality: 'Sliema' },
+    user_metadata: { full_name: 'New Giver', role: 'giver', locality: 'Sliema', terms_version: draftTermsVersion },
     created_at: '2026-11-09T00:00:00.000Z',
   };
   let token = '123456';
@@ -39,6 +40,7 @@ test('signup requires confirmation and delegates code validation and resend to S
     switch (url.pathname) {
       case '/auth/v1/signup':
         assert.equal(body.email, email);
+        assert.equal(body.data.terms_version, draftTermsVersion);
         return json({ ...user, identities: duplicate ? [] : [{ id: user.id, provider: 'email' }] });
       case '/auth/v1/resend':
         assert.equal(body.type, 'signup');

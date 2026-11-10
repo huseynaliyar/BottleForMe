@@ -46,7 +46,10 @@ test('migrated database handles scheduling, private notifications and legacy res
       CREATE ROLE authenticated;
       CREATE ROLE service_role BYPASSRLS;
       CREATE SCHEMA auth;
-      CREATE TABLE auth.users (id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz, recovery_token text, recovery_sent_at timestamptz);
+      CREATE TABLE auth.users (
+        id uuid PRIMARY KEY, email text, email_confirmed_at timestamptz, recovery_token text, recovery_sent_at timestamptz,
+        encrypted_password text, raw_user_meta_data jsonb, raw_app_meta_data jsonb
+      );
       CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql
         AS 'SELECT NULLIF(current_setting(''request.jwt.claim.sub'', true), '''')::uuid';
       GRANT USAGE ON SCHEMA auth TO authenticated;
