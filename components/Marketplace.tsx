@@ -35,6 +35,7 @@ import NotificationModal from '@/components/NotificationModal';
 import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
 import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
 import { pickupStatusCss } from '@/lib/pickup-status';
+import PickupConversationCard from '@/components/PickupConversationCard';
 import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
@@ -538,12 +539,17 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
   const RadarResults = fullscreenRadar ? 'dialog' : 'div';
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
+  const conversationOffer = currentUser && activeTab === 'chat' && chatPickupId === selectedId &&
+    selectedOffer?.seller_id && selectedOffer.collector_id ? selectedOffer : undefined;
 
   return (
-    <div className={fullscreenRadar ? 'bg-[#05070c]' : 'flex min-h-screen justify-center bg-[#05070c] p-2 sm:p-6'}>
+    <div className={fullscreenRadar ? 'bg-[#05070c]' : conversationOffer
+      ? 'flex h-dvh justify-center bg-[#05070c]'
+      : 'flex min-h-screen justify-center bg-[#05070c] p-2 sm:p-6'}>
       {/* Mobile Frame Container */}
       <div className={fullscreenRadar
         ? 'relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
+        : conversationOffer ? 'relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
         : 'relative flex min-h-[780px] w-full flex-col overflow-hidden rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
           (initialPickup ? 'max-w-3xl' : 'max-w-[420px]')}>
         {/* Ambient Lighting */}
@@ -551,7 +557,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         <div className="absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
 
         {/* Header */}
-        <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
+        {!conversationOffer && <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
           <div className={fullscreenRadar ? 'flex items-center justify-between' : 'mb-3 flex items-center justify-between'}>
             {/* Logo & Brand Title */}
             <div className="flex items-center space-x-2.5">
@@ -641,7 +647,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               }`}
             >{t("Pickups")}</button>
           </div>}
-        </header>
+        </header>}
 
         {/* Toast Notification Banner */}
         {lifecycle?.paused && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">
@@ -657,7 +663,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         )}
 
         {/* Scrollable Content Viewport */}
-        <main className={fullscreenRadar ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
+        <main className={fullscreenRadar || conversationOffer ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
             <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
@@ -1059,19 +1065,21 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             </section>
           )}
 
-          {activeTab === 'chat' && (
-            <section className="glass-navy space-y-3 rounded-[24px] p-4 text-sm">
-              <h2 className="font-extrabold text-white">{selectedId ? t("Pickup details") : currentUser ? (canUseRadar ? t("Your pickups as Taker") : t("Your pickups as Giver")) : t("Your pickups")}</h2>
+          {conversationOffer && <PickupChat key={currentUser?.id + ':' + conversationOffer.id} offer={conversationOffer}
+            taker={canUseRadar} onRead={refreshUnread} onBack={() => router.push('/?view=pickups')}
+            onDetails={() => openActivity(conversationOffer.id)} />}
+          {activeTab === 'chat' && !conversationOffer && (
+            <section className={selectedId ? 'glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
+              <h2 className="py-2 text-center text-xl font-extrabold text-white">{t(selectedId ? 'Pickup details' : 'Pickups')}</h2>
               {!currentUser ? (
                 <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button>
               ) : (
                 <>
                   {selectedId ? <>
                     <button type="button" className="text-sm font-bold text-blue-300" onClick={() => {
-                      if (chatPickupId === selectedId) { openActivity(selectedId); return; }
                       setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError('');
                       if (initialPickup) router.push('/?view=pickups');
-                    }}>{chatPickupId === selectedId ? t("← Pickup details") : t("← All pickups")}</button>
+                    }}>{t("← All pickups")}</button>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {selectedInOtherRole ? (
                       <p className="text-blue-200">
@@ -1080,8 +1088,6 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           Switch to {canUseRadar ? t("Giver") : t("Taker")}
                         </button>
                       </p>
-                    ) : chatPickupId === selectedId && selectedOffer ? (
-                      <PickupChat key={currentUser.id + ':' + selectedId} pickupId={selectedId} onRead={refreshUnread} />
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
@@ -1164,18 +1170,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     {!canUseRadar && <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}
                       className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? t("Show current listings") : t("Show archived listings")}</button>}
                     {!handoverStatus && !visiblePickups.length && <p className="text-blue-200">{showArchived && !canUseRadar ? t("No archived listings yet.") : 'No listings or assigned pickups in this role yet.'}</p>}
-                    {visiblePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
-                      <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
-                        <strong className="block text-white">{offer.locality}</strong>
-                        <span className="block text-blue-200" style={{ color: pickupStatusCss(offer.overdue ? 'overdue' : offer.status) }}>{!canUseRadar && offer.archived_at ? t("Archived") : offer.overdue ? t("Overdue") : t(pickupStatus[offer.status])}</span>
-                        {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
-                      </button>
-                      {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
-                        className="shrink-0 rounded-lg bg-blue-950 px-2 py-1 font-semibold text-blue-100">
-                        {offer.status === 'completed' || offer.status === 'cancelled' ? t("Chat history") : t("Chat")}
-                        <UnreadBadge count={unreadCounts.get(offer.id)} />
-                      </button>}
-                    </div>)}
+                    {visiblePickups.map((offer) => <PickupConversationCard key={offer.id} offer={offer} taker={canUseRadar}
+                      status={t(!canUseRadar && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : pickupStatus[offer.status])}
+                      unread={unreadCounts.get(offer.id)} onOpen={() => openActivity(offer.id, !!(offer.collector_id && offer.seller_id))} />)}
                     <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
                       participantKey={pickupParticipant} excludeAcceptedFor={new Set(rolePickups.map((offer) => offer.id))} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                   </>}
@@ -1337,7 +1334,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </main>
 
         {/* Bottom Navigation Bar */}
-        <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
+        {!conversationOffer && <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
           {!canUseRadar && (<button
             onClick={() => setActiveTab('resident')}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1374,7 +1371,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Profile")}</span>
           </button>
-        </footer>
+        </footer>}
 
         <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"
           onCancel={(event) => { event.preventDefault(); setRestriction(undefined); }}

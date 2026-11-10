@@ -25,7 +25,16 @@ export async function GET(request: Request) {
     const { data, error } = await client.from('pickups').select(PRIVATE_COLUMNS)
       .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).order('updated_at', { ascending: false });
     if (error) return failure('Could not load your pickups.', 503);
-    return response({ count: data.length, offers: data.map((row) => participantPickup(row, user.id)), source: 'supabase' });
+    const collectors = [...new Set(data.flatMap((row) => row.seller_id === user.id && row.collector_id ? [row.collector_id as string] : []))];
+    const profiles = await Promise.all(Array.from({ length: Math.ceil(collectors.length / 100) }, (_, index) =>
+      client.from('profiles').select('id,full_name').in('id', collectors.slice(index * 100, (index + 1) * 100)),
+    ));
+    const names = new Map(profiles.flatMap(({ data }) => (data ?? []).map(({ id, full_name }) => [id, full_name])));
+    const offers = data.map((row) => participantPickup({
+      ...row,
+      collector_name: row.seller_id === user.id ? names.get(row.collector_id) : undefined,
+    }, user.id));
+    return response({ count: offers.length, offers, source: 'supabase' });
   }
 
   const blocked = await takerAccess(user.id);

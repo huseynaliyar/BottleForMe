@@ -1,7 +1,7 @@
 import { useLanguage } from '../../lib/language-context';
 import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
+import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { blockPickupExplanation } from '../../lib/marketplace-blocks';
 import { usePickupPartner } from '../../lib/use-pickup-partner';
@@ -12,6 +12,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import PickupChat from './PickupChat';
+import PickupConversationCard from './PickupConversationCard';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { blockPickupPartner, errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
 import { Badge, Button, Card, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, Text, Field, useUi } from './ui';
@@ -286,33 +287,38 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
     ]);
   }
 
-  if (selected && chatOpen && selected.collector_id) {
-    return <PickupChat key={selected.id} pickupId={selected.id} onRead={onRead} onBack={() => onChat()} />;
+  function backToPickups() {
+    setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
+  }
+
+  if (selected && chatOpen && selected.collector_id && selected.seller_id) {
+    return <PickupChat key={selected.id} offer={selected} taker={taker} onRead={onRead}
+      onBack={backToPickups} onDetails={() => onChat()} />;
   }
 
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={userId
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>
-    <Card style={{ borderRadius: 24 }}>
-      <Text accessibilityRole="header" weight="heavy" style={styles.body}>{selectedId ? t("Pickup details") : userId ? (taker ? t("Your pickups as Taker") : t("Your pickups as Giver")) : t("Your pickups")}</Text>
+    <View style={selectedId ? undefined : { gap: 10 }}>
+      <Text accessibilityRole="header" weight="heavy" style={[styles.title, { textAlign: 'center', marginVertical: 6 }]}>
+        {t(selectedId ? 'Pickup details' : 'Pickups')}
+      </Text>
       {!userId ? <Button label={t("Sign in to view pickups")} onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
-        {selectedId ? <Button label={t("← All pickups")} kind="secondary" onPress={() => {
-          setLinkError(''); setHandoverCode(undefined); setTypedCode(undefined); onSelect();
-        }} /> : null}
+        {selectedId ? <Button label={t('← All pickups')} kind="secondary" onPress={backToPickups} /> : null}
         {loading && <Loading label={t("Loading your pickups…")} />}
         <ErrorText message={error} />
         {!selectedId && !taker && <Button kind="secondary" label={showArchived ? t("Show current listings") : t("Show archived listings")}
           onPress={() => setShowArchived(!showArchived)} />}
         {!selectedId && !loading && !visibleOffers.length && <Text style={styles.small}>{showArchived && !taker ? t("No archived listings yet.") : t("No pickups in this role yet.")}</Text>}
-        {!selectedId && visibleOffers.map((offer) => <Pressable accessibilityRole="button" key={offer.id} style={styles.inset}
-          onPress={() => { setLinkError(''); onSelect(offer.id); }}>
-          <Text weight="bold" style={styles.body}>{offer.locality} · {offer.estimated_bottles} items</Text>
-          {!!unread.get(offer.id) && <Badge>{unread.get(offer.id)} unread</Badge>}
-          <Text style={[styles.small, { color: offer.overdue ? colors.red : theme === 'light' ? pickupStatusLightColor[offer.status] : pickupStatusColor[offer.status] }]}>{!taker && offer.archived_at ? t("Archived") : offer.overdue ? t("Overdue") : t(statusNames[offer.status])}</Text>
-        </Pressable>)}
+        {!selectedId && visibleOffers.map((offer) => <PickupConversationCard key={offer.id} offer={offer} taker={taker}
+          status={t(!taker && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : statusNames[offer.status])}
+          unread={unread.get(offer.id)} onOpen={() => {
+            setLinkError(''); onSelect(offer.id);
+            if (offer.collector_id && offer.seller_id) onChat(offer.id);
+          }} />)}
         {selectedInOtherRole ? <Button label={taker ? 'Switch to Giver to view pickup' : 'Switch to Taker to view pickup'} onPress={onSwitchRole} /> :
         <PickupArrangements key={selectedId ?? 'list'} userId={userId} participantKey={participantKey} listingId={selectedId} revision={revision}
           onSaved={onRefresh} onOpen={selectedId ? undefined : onSelect} />}
-        {selected && <>
+        {selected && <Card>
           <Text weight="semibold" style={styles.body}>{selected.seller_name} · {selected.locality}</Text>
           <Text style={[styles.small, { color: selected.overdue ? colors.red : theme === 'light' ? pickupStatusLightColor[selected.status] : pickupStatusColor[selected.status] }]}>Status · {!taker && selected.archived_at ? t("Archived") : selected.overdue ? t("Overdue") : t(statusNames[selected.status])}</Text>
           {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? t("Restore listing") : t("Archive listing")}
@@ -361,8 +367,8 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
               onPress={() => confirm(selected, 'cancelled')} />}
           </View>
           <Text style={styles.muted}>Users arrange and verify payment directly.</Text>
-        </>}
+        </Card>}
       </>}
-    </Card>
+    </View>
   </ScrollView>;
 }

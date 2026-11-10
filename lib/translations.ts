@@ -292,6 +292,14 @@ Loading account status…|Caricamento dello stato dell’account…|Загруз
 Help with your account|Aiuto per il tuo account|Помощь с аккаунтом|مساعدة بخصوص حسابك|खाते में मदद|اکاؤنٹ سے متعلق مدد
 BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly.|BottleForMe è in manutenzione. Le modifiche ai ritiri sono sospese. Riprova tra poco.|В BottleForMe идут технические работы. Изменения вывозов приостановлены. Повторите попытку позже.|يخضع BottleForMe للصيانة. تعديلات الاستلام متوقفة مؤقتًا. حاول مرة أخرى قريبًا.|BottleForMe में रखरखाव चल रहा है। पिकअप में बदलाव अभी रुके हैं। थोड़ी देर बाद फिर कोशिश करें।|BottleForMe کی دیکھ بھال جاری ہے۔ پک اپ میں تبدیلیاں عارضی طور پر بند ہیں۔ کچھ دیر بعد دوبارہ کوشش کریں۔
 This password reset link is no longer valid. Request a new link.|Questo link per reimpostare la password non è più valido. Richiedi un nuovo link.|Эта ссылка для сброса пароля больше не действует. Запросите новую.|لم يعد رابط إعادة تعيين كلمة المرور صالحًا. اطلب رابطًا جديدًا.|यह पासवर्ड रीसेट लिंक अब मान्य नहीं है। नया लिंक माँगें।|یہ پاس ورڈ ری سیٹ لنک اب قابلِ استعمال نہیں۔ نیا لنک طلب کریں۔
+Containers|Contenitori|Единицы тары|العبوات|बोतलें और डिब्बे|بوتلیں اور ڈبے
+You pay|Paghi|Вы платите|تدفع|आप देते हैं|آپ ادا کرتے ہیں
+You receive|Ricevi|Вы получаете|تستلم|आपको मिलता है|آپ کو ملتا ہے
+You earn|Guadagni|Вы получаете|تربح|आप कमाते हैं|آپ کماتے ہیں
+Taker earns|Guadagno del raccoglitore|Доход сборщика|ربح الجامع|इकट्ठा करने वाले की कमाई|جمع کرنے والے کی کمائی
+Deposit value|Valore della cauzione|Залоговая стоимость|قيمة الوديعة|जमा राशि|جمع شدہ رقم کی قدر
+Unread messages|Messaggi non letti|Непрочитанные сообщения|رسائل غير مقروءة|अपठित संदेश|بغیر پڑھے پیغامات
+Type your message…|Scrivi un messaggio…|Введите сообщение…|اكتب رسالتك…|अपना संदेश लिखें…|اپنا پیغام لکھیں…
 `.trim();
 
 const columns: Record<Exclude<Locale, 'en'>, number> = { it: 1, ru: 2, ar: 3, hi: 4, ur: 5 };

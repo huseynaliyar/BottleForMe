@@ -264,9 +264,11 @@ function Marketplace() {
     }
   }
 
+  const conversationOpen = tab === 'handover' && !!selectedId && chatPickupId === selectedId && offers.some((offer) =>
+    offer.id === selectedId && offer[taker ? 'collector_id' : 'seller_id'] === userId && offer.seller_id && offer.collector_id);
   return <View style={appStyles.frame}>
     <LinearGradient pointerEvents="none" colors={[colors.ambient, colors.background]} style={appStyles.ambient} />
-    <View style={appStyles.header}>
+    {!conversationOpen && <View style={appStyles.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Pressable accessibilityRole="button" accessibilityLabel={t("Open profile")} onPress={() => setTab('profile')}>
           <Avatar uri={currentProfile?.avatar_url} />
@@ -291,7 +293,7 @@ function Marketplace() {
         </View>
       </View>
       <Segmented options={primaryTabs.filter(canSeeTab)} value={tab} onChange={setTab} />
-    </View>
+    </View>}
     {accountState.lifecycle?.paused && <View style={appStyles.alert}>
       <Text style={styles.body}>Your account is {accountState.lifecycle.deleting ? 'pending deletion' : 'deactivated'}.</Text>
       <Button label={t("Open Settings")} kind="secondary" onPress={() => setTab('settings')} />
@@ -333,13 +335,13 @@ function Marketplace() {
           onAvatar={(avatar_url) => updateProfile({ avatar_url })} onGuide={() => setShowGuide(true)} onSettings={() => setTab('settings')} onSignOut={logout} />
         : <View style={styles.scroll}><Loading label="Restoring your account…" /></View>)}
     </KeyboardAvoidingView>
-    <View accessibilityRole="tablist" style={appStyles.footer}>
+    {!conversationOpen && <View accessibilityRole="tablist" style={appStyles.footer}>
       {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: tab === value }} onPress={() => setTab(value)} style={appStyles.tab}>
         <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{t(label)}</Text>
       </Pressable>)}
-    </View>
+    </View>}
     {showGuide && <GettingStartedDialog onClose={() => setShowGuide(false)} />}
     {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) { setToast('Email verified. Signed in.'); setShowGuide(true); } }} />}
     {dialog === 'activity' && <Dialog title={t("Recent activity")} onClose={() => setDialog(undefined)}>
