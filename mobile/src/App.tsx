@@ -18,6 +18,7 @@ import { AccountDialog, Avatar, GettingStartedDialog, ProfileScreen } from './Ac
 import { apiOrigin, changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
+import SettingsScreen from './SettingsScreen';
 import { Badge, Button, Card, colors, Dialog, ErrorText, Loading, Segmented, styles, Text } from './ui';
 
 const primaryTabs = [
@@ -31,7 +32,7 @@ const tabs = [
   { value: 'handover', label: 'Handover', Icon: MessageSquare },
   { value: 'profile', label: 'Profile', Icon: User },
 ] as const;
-type Tab = (typeof tabs)[number]['value'];
+type Tab = (typeof tabs)[number]['value'] | 'settings';
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -84,7 +85,8 @@ function Marketplace() {
   const notifications = [...inbox.notifications, ...sessionNotifications];
   const currentProfile = profile?.id === userId ? profile : null;
   const taker = currentProfile?.role === 'taker';
-  const tab = requestedTab === 'give' && taker ? 'radar' : requestedTab === 'radar' && !taker ? 'give' : requestedTab;
+  const tab = requestedTab === 'give' && taker ? 'radar' : requestedTab === 'radar' && !taker ? 'give'
+    : requestedTab === 'settings' && !userId ? 'profile' : requestedTab;
   const canSeeTab = ({ value }: { value: Tab }) => value === 'give' ? !taker : value === 'radar' ? taker : true;
   const handovers = usePickupFeed({
     userId: tab === 'handover' || tab === 'profile' ? userId : undefined, mine: true, revision,
@@ -283,11 +285,12 @@ function Marketplace() {
         error={handovers.error} busy={busy} selectedId={selectedId} onSelect={setSelectedId} onSignIn={openAccount}
         onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
+      {tab === 'settings' && userId && <SettingsScreen key={userId} push={push} onBack={() => setTab('profile')} />}
       {tab === 'profile' && (authReady
         ? <ProfileScreen key={userId ?? 'guest'} profile={currentProfile} signedIn={!!session} loading={profileLoading}
           error={profileError} offers={offers} pickupsLoading={handovers.loading} onSignIn={openAccount}
           onRefresh={() => setProfileAttempt((previous) => previous + 1)} onSwitch={toggleRole}
-          onAvatar={(avatar_url) => updateProfile({ avatar_url })} onGuide={() => setShowGuide(true)} onSignOut={logout} />
+          onAvatar={(avatar_url) => updateProfile({ avatar_url })} onGuide={() => setShowGuide(true)} onSettings={() => setTab('settings')} onSignOut={logout} />
         : <View style={styles.scroll}><Loading label="Restoring your account…" /></View>)}
     </KeyboardAvoidingView>
     <View accessibilityRole="tablist" style={appStyles.footer}>

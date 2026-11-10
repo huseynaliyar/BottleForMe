@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
+import { usePickupPartner } from '../../lib/use-pickup-partner';
 import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor } from '../../lib/pickup-status';
@@ -9,7 +10,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
-import { errorMessage, getHandoverCode, getListingPhoto, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived } from './backend';
+import { errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
 import { Badge, Button, Card, colors, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
@@ -58,6 +59,33 @@ export function usePickupFeed({ locality = '', userId, mine = false, revision }:
     error: result.scope === scope && !loading ? result.error : '',
     loading: (!mine || !!userId) && (loading || result.scope !== scope),
   };
+}
+
+const ratings = [5, 4, 3, 2, 1].map((value) => ({ label: String(value), value: String(value) }));
+
+function PickupPartner({ pickupId }: { pickupId: string }) {
+  const info = usePickupPartner(pickupId, getPickupPartner, submitPickupReview);
+  const { partner } = info;
+  return <View style={styles.inset}>
+    <Text weight="bold" style={styles.body}>Pickup partner</Text>
+    {partner ? <>
+      <Text style={styles.body}>{partner.name} · {partner.role}</Text>
+      <Text style={styles.small}>{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : 'No ratings yet'}</Text>
+      {partner.phone && <Text style={styles.small}>Phone · {partner.phone}</Text>}
+      {partner.reviewReceived && <>
+        <Text weight="bold" style={styles.small}>Your partner’s review · {partner.reviewReceived.stars}/5</Text>
+        <Text style={styles.small}>{partner.reviewReceived.comment}</Text>
+      </>}
+      {partner.canReview && <>
+        <Select label="Your rating out of five" value={String(info.stars)} options={ratings} onChange={(value) => info.setStars(Number(value))} />
+        <Field label="Review (optional)" multiline maxLength={500} value={info.comment} onChangeText={info.setComment} />
+        <Button label={info.saving ? 'Saving…' : partner.reviewGiven ? 'Update review' : 'Submit review'} kind="secondary"
+          disabled={info.saving} onPress={() => void info.save()} />
+        {info.saved && <Text accessibilityLiveRegion="polite" style={styles.small}>Review saved.</Text>}
+      </>}
+    </> : !info.error && <Text style={styles.small}>Loading pickup partner…</Text>}
+    <ErrorText message={info.error} />
+  </View>;
 }
 
 function PickupPhoto({ pickupId }: { pickupId: string }) {
@@ -250,12 +278,12 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
           {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? 'Restore listing' : 'Archive listing'}
             kind="secondary" disabled={archiving} onPress={() => void toggleArchive(selected)} />}
           <PickupAvailability offer={selected} />
+          {selected.collector_id && selected.seller_id && <PickupPartner key={selected.id + ':' + selected.status} pickupId={selected.id} />}
           {selected.collector_id && selected.seller_id && <ReportButton key={selected.id} pickupId={selected.id} target="user" />}
           <Text style={styles.small}>{bagPolicyLabel(selected.bag_policy)}</Text>
           <PickupPhoto key={'photo:' + selected.id} pickupId={selected.id} />
           {selected.status === 'open' && selected.seller_id === userId && <EditPickupAvailability key={selected.id + ':' + (selected.availability_version ?? 0)} offer={selected} onSaved={onRefresh} />}
           {!!selected.address_notes && <Text style={styles.small}>{selected.address_notes}</Text>}
-          {active && selected.seller_phone && <Text style={styles.small}>Seller phone · {selected.seller_phone}</Text>}
           <Text style={styles.small}>{selected.seller_payout === 0 ? 'Free pickup' :
             'Pay the seller €' + selected.seller_payout.toFixed(2) + (selected.payout_method === 'revolut' ? ' via Revolut.' :
               selected.payout_method === 'cash' ? ' in cash.' : ' as agreed.')}</Text>

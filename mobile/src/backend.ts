@@ -6,6 +6,7 @@ import { loadProfile as readProfile, saveProfile as writeProfile } from '../../l
 import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib/types';
 import type { validatePickup } from '../../lib/pickup-validation';
 import type { PickupWindow, ScheduleAction, ScheduleRequest } from '../../lib/pickup-schedule';
+import type { PickupPartner, Review } from '../../lib/pickup-partner';
 import type { AddressSuggestion } from '../../lib/pickup-address';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -158,6 +159,26 @@ export function listScheduleRequests(signal: AbortSignal, listingId?: string) {
 export function saveSchedule(listingId: string, action: ScheduleAction) {
   return request<{ ok: boolean }>('/api/pickups/schedule', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, ...action }),
+  }, true);
+}
+
+export function loadSettings(signal: AbortSignal) {
+  return request<{ sharePhone: boolean }>('/api/account/settings', { signal }, true);
+}
+
+export function saveSettings(sharePhone: boolean) {
+  return request<{ sharePhone: boolean }>('/api/account/settings', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sharePhone }),
+  }, true);
+}
+
+export function getPickupPartner(id: string, signal: AbortSignal) {
+  return request<PickupPartner>('/api/pickups/' + encodeURIComponent(id) + '/partner', { signal }, true);
+}
+
+export function submitPickupReview(id: string, review: Review) {
+  return request<Review>('/api/pickups/' + encodeURIComponent(id) + '/partner', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(review),
   }, true);
 }
 

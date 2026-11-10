@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { Camera, CircleHelp, LogOut, Wallet } from 'lucide-react-native';
+import { Camera, CircleHelp, LogOut, Settings, Wallet } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
+import ImpactAchievement from './ImpactAchievement';
 import { balanceNote, formatEuro, pickupBalance } from '../../lib/pickup-balance';
 import { gettingStarted } from '../../lib/getting-started';
 import { supportFaq } from '../../lib/support-faq';
@@ -238,13 +239,14 @@ function HelpFaq() {
   </>;
 }
 
-export function ProfileScreen({ profile, signedIn, loading, error, offers, pickupsLoading, onSignIn, onRefresh, onSwitch, onAvatar, onSignOut, onGuide }:  {
+export function ProfileScreen({ profile, signedIn, loading, error, offers, pickupsLoading, onSignIn, onRefresh, onSwitch, onAvatar, onSignOut, onGuide, onSettings }:  {
   profile: UserProfile | null; signedIn: boolean; loading: boolean; error: string; offers: PickupOffer[]; pickupsLoading: boolean;
-  onSignIn: () => void; onRefresh: () => void; onSwitch: () => void; onAvatar: (url: string) => Promise<void>; onSignOut: () => void; onGuide: () => void;
+  onSignIn: () => void; onRefresh: () => void; onSwitch: () => void; onAvatar: (url: string) => Promise<void>; onSignOut: () => void; onGuide: () => void; onSettings: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
   const completed = offers.filter((offer) => offer.status === 'completed');
+  const recycledContainers = completed.reduce((count, offer) => count + offer.estimated_bottles, 0);
   const taker = profile?.role === 'taker';
 
   async function choosePhoto() {
@@ -308,11 +310,12 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
       <Card>
         <Text weight="bold" style={styles.small}>Your Recycling Impact</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Metric label="Containers handed over" value={pickupsLoading && !offers.length ? '—' : String(completed.reduce((count, offer) => count + offer.estimated_bottles, 0))}
+          <Metric label="Containers handed over" value={pickupsLoading && !offers.length ? '—' : String(recycledContainers)}
             caption="Plastic, cans & glass" />
           <Metric label="Recorded handovers" value={pickupsLoading && !offers.length ? '—' : String(completed.length)} caption="Pickups marked complete" green />
         </View>
       </Card>
+      <ImpactAchievement userId={profile.id} containers={recycledContainers} completed={completed.length} />
       <Card>
         <Text weight="bold" style={styles.small}>Payment & Contact Info</Text>
         {[
@@ -323,6 +326,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
           <Text weight="semibold" style={styles.small}>{value || '—'}</Text>
         </View>)}
       </Card>
+      <Button label="Settings" kind="secondary" onPress={onSettings}><Settings size={16} color={colors.sky} /></Button>
       <Balance userId={profile.id} offers={offers} loading={pickupsLoading} />
       <HelpFaq />
       <Button label="Getting started" kind="secondary" onPress={onGuide} />

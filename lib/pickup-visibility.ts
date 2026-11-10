@@ -13,7 +13,7 @@ export function participantPickup<T extends Partial<PickupOffer> & { status: str
   const overdue = active && !!row.confirmed_at && Date.parse(row.confirmed_at) <= Date.now() - 3_600_000;
   if (row.seller_id === userId) return { ...row, overdue };
   if (row.collector_id !== userId) return publicPickup(row);
-  if (row.seller_id && active) return { ...row, overdue };
+  if (row.seller_id && active) return { ...row, seller_phone: null, collector_phone: null, overdue };
   const locality = MALTA_LOCALITIES.find((item) => item.name === row.locality);
   return { ...row, address_notes: '', seller_phone: null, seller_revolut_tag: null, lat: locality?.lat, lng: locality?.lng };
 }

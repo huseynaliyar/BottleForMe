@@ -91,3 +91,11 @@ input[type=range]::-webkit-slider-thumb:hover {
 .leaflet-container {
   background: #080d1a !important;
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .impact-achievement { animation: impact-appear 250ms ease-out; }
+  @keyframes impact-appear {
+    from { opacity: 0.35; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}

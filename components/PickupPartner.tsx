@@ -1,0 +1,46 @@
+'use client';
+
+import { pickupRequest } from '@/lib/auth';
+import type { PickupPartner as Partner, Review } from '@/lib/pickup-partner';
+import { usePickupPartner } from '@/lib/use-pickup-partner';
+
+const partnerPath = (id: string) => '/' + encodeURIComponent(id) + '/partner';
+const loadPartner = (id: string, signal: AbortSignal): Promise<Partner> => pickupRequest(partnerPath(id), { signal });
+const submitReview = (id: string, review: Review): Promise<Review> => pickupRequest(partnerPath(id), {
+  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(review),
+});
+
+export default function PickupPartner({ pickupId }: { pickupId: string }) {
+  const info = usePickupPartner(pickupId, loadPartner, submitReview);
+  const { partner } = info;
+
+  return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
+    <h4 className="font-bold text-white">Pickup partner</h4>
+    {partner ? <>
+      <p>{partner.name} · {partner.role}</p>
+      <p className="text-xs">{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : 'No ratings yet'}</p>
+      {partner.phone && <p className="break-words">Phone · {partner.phone}</p>}
+      {partner.reviewReceived && <div className="space-y-1 text-sm">
+        <p className="font-bold">Your partner’s review · {partner.reviewReceived.stars}/5</p>
+        <p className="whitespace-pre-wrap break-words">{partner.reviewReceived.comment}</p>
+      </div>}
+      {partner.canReview && <form onSubmit={(event) => { event.preventDefault(); void info.save(); }} className="space-y-2">
+        <label className="block">Your rating
+          <select value={info.stars} onChange={(event) => info.setStars(Number(event.target.value))}
+            className="ml-2 rounded-lg bg-[#0b1220] p-2">
+            {[5, 4, 3, 2, 1].map((number) => <option key={number} value={number}>{number} / 5</option>)}
+          </select>
+        </label>
+        <label className="block">Review (optional)
+          <textarea maxLength={500} value={info.comment} onChange={(event) => info.setComment(event.target.value)}
+            className="mt-1 block w-full rounded-lg bg-[#0b1220] p-2" />
+        </label>
+        <button type="submit" disabled={info.saving} className="blue-btn rounded-lg px-3 py-2 text-white disabled:opacity-50">
+          {info.saving ? 'Saving…' : partner.reviewGiven ? 'Update review' : 'Submit review'}
+        </button>
+        {info.saved && <p role="status" className="text-xs">Review saved.</p>}
+      </form>}
+    </> : !info.error && <p className="text-xs">Loading pickup partner…</p>}
+    {info.error && <p role="alert" className="text-xs text-red-300">{info.error}</p>}
+  </section>;
+}

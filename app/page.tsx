@@ -6,12 +6,14 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import ReportPickup from '@/components/ReportPickup';
 import PickupPhoto from '@/components/PickupPhoto';
+import PickupPartner from '@/components/PickupPartner';
+import ImpactAchievement from '@/components/ImpactAchievement';
 import { readPickupPhoto } from '@/lib/read-pickup-photo';
 import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
-  Check, Bell, LogOut, Wallet, CircleHelp,
+  Check, Bell, LogOut, Wallet, CircleHelp, Settings,
 } from 'lucide-react';
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
@@ -172,6 +174,8 @@ export default function HomePage() {
       url.searchParams.delete('chat');
       window.history.replaceState(window.history.state, '', url);
       queueMicrotask(() => openActivity(pickup ?? undefined, chat));
+    } else if (url.searchParams.get('view') === 'profile') {
+      queueMicrotask(() => setActiveTab('profile'));
     }
     return () => serviceWorker?.removeEventListener('message', openInbox);
   }, [openActivity]);
@@ -304,6 +308,8 @@ export default function HomePage() {
   const pickupParticipant = canUseRadar ? 'collector_id' : 'seller_id';
   const rolePickups = handovers.filter((offer) => offer[pickupParticipant] === accountId);
   const visiblePickups = canUseRadar ? rolePickups : rolePickups.filter((offer) => !!offer.archived_at === showArchived);
+  const completedPickups = handovers.filter((offer) => offer.status === 'completed');
+  const recycledContainers = completedPickups.reduce((count, offer) => count + offer.estimated_bottles, 0);
   const selectedOffer = rolePickups.find((offer) => offer.id === selectedId);
   const selectedInOtherRole = !selectedOffer && handovers.some((offer) => offer.id === selectedId);
   const isCollector = Boolean(currentUser && selectedOffer?.collector_id === currentUser.id);
@@ -1125,6 +1131,8 @@ export default function HomePage() {
                           </>}
                         </div>}
 
+                        {selectedOffer.collector_id && selectedOffer.seller_id && <PickupPartner
+                          key={selectedOffer.id + ':' + selectedOffer.status} pickupId={selectedOffer.id} />}
                         {selectedOffer.collector_id && selectedOffer.seller_id && <button type="button"
                           onClick={() => setReport({ pickupId: selectedOffer.id, target: 'user' })}
                           className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">Report pickup partner</button>}
@@ -1138,7 +1146,6 @@ export default function HomePage() {
                           <p>{selectedOffer.estimated_bottles} containers · {selectedOffer.bag_count} bags</p>
                           <p>{bagPolicyLabel(selectedOffer.bag_policy)}</p>
                           {!handoverActive && !isCollector && selectedOffer.address_notes && <p className="whitespace-pre-line break-words">{selectedOffer.address_notes}</p>}
-                          {handoverActive && selectedOffer.seller_phone && <p className="break-words">Giver phone · {selectedOffer.seller_phone}</p>}
                           <p>{selectedOffer.seller_payout === 0 ? 'Free pickup' :
                             'Pay the Giver €' + selectedOffer.seller_payout.toFixed(2) +
                             (selectedOffer.payout_method === 'cash' ? ' in cash' : selectedOffer.payout_method === 'revolut' ? ' via Revolut' : ' as agreed')}</p>
@@ -1274,7 +1281,7 @@ export default function HomePage() {
                   <div className="bg-[#0b1220] p-3 rounded-2xl border border-blue-500/20">
                     <span className="text-[10px] text-blue-300 font-medium block">Containers handed over</span>
                     <span className="text-xl font-extrabold text-white mt-0.5 block">
-                      {handoverStatus && !handovers.length ? '—' : handovers.filter((offer) => offer.status === 'completed').reduce((count, offer) => count + offer.estimated_bottles, 0)}
+                      {handoverStatus && !handovers.length ? '—' : recycledContainers}
                     </span>
                     <span className="text-[10px] text-blue-200/50">Plastic, cans & glass</span>
                   </div>
@@ -1283,12 +1290,14 @@ export default function HomePage() {
                       {'Recorded handovers'}
                     </span>
                     <span className="text-xl font-extrabold text-[#00e599] mt-0.5 block">
-                      {handoverStatus && !handovers.length ? '—' : handovers.filter((offer) => offer.status === 'completed').length}
+                      {handoverStatus && !handovers.length ? '—' : completedPickups.length}
                     </span>
                     <span className="text-[10px] text-emerald-300/50">Pickups marked complete</span>
                   </div>
                 </div>
               </div>
+
+              <ImpactAchievement key={currentUser.id} userId={currentUser.id} containers={recycledContainers} completed={completedPickups.length} />
 
               {/* Contact Details & Revolut Handle */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
@@ -1323,6 +1332,9 @@ export default function HomePage() {
 
               {/* Account management */}
               <div className="space-y-2 pt-1">
+                <Link href="/settings" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
+                  <Settings className="size-4 text-blue-300" aria-hidden="true" /> Settings
+                </Link>
                 <Link href="/balance" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
                   <Wallet className="size-4 text-blue-300" aria-hidden="true" /> Balance
                 </Link>
