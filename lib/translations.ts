@@ -300,6 +300,19 @@ Taker earns|Guadagno del raccoglitore|Доход сборщика|ربح الج�
 Deposit value|Valore della cauzione|Залоговая стоимость|قيمة الوديعة|जमा राशि|جمع شدہ رقم کی قدر
 Unread messages|Messaggi non letti|Непрочитанные сообщения|رسائل غير مقروءة|अपठित संदेश|بغیر پڑھے پیغامات
 Type your message…|Scrivi un messaggio…|Введите сообщение…|اكتب رسالتك…|अपना संदेश लिखें…|اپنا پیغام لکھیں…
+Confirmed|Confermato|Подтверждено|مؤكّد|पुष्टि हुई|تصدیق شدہ
+Bag|Sacco|Пакет|كيس|थैला|تھیلا
+Bags|Sacchi|Пакеты|أكياس|थैले|تھیلے
+Cash|Contanti|Наличными|نقدًا|नकद|نقد
+As agreed|Come concordato|По договорённости|حسب الاتفاق|तय तरीके से|طے شدہ طریقے سے
+Collecting|Da ritirare|К вывозу|ما سيتم استلامه|इकट्ठा करना है|جمع کرنا ہے
+Pay the giver|Paga il donatore|Оплатите дарителю|ادفع للمعطي|देने वाले को भुगतान करें|دینے والے کو ادائیگی کریں
+Address unavailable|Indirizzo non disponibile|Адрес недоступен|العنوان غير متاح|पता उपलब्ध नहीं|پتہ دستیاب نہیں
+Manage pickup|Gestisci ritiro|Управлять вывозом|أدر الاستلام|पिकअप प्रबंधित करें|پک اپ کا انتظام کریں
+Pickup chat unavailable|Chat del ritiro non disponibile|Чат вывоза недоступен|محادثة الاستلام غير متاحة|पिकअप चैट उपलब्ध नहीं|پک اپ چیٹ دستیاب نہیں
+Back to chat|Torna alla chat|Назад в чат|العودة إلى المحادثة|चैट पर लौटें|چیٹ پر واپس جائیں
+Time to be agreed|Orario da concordare|Время не согласовано|لم يُتفق على الوقت بعد|समय तय होना बाकी है|وقت طے ہونا باقی ہے
+Malta time|Ora di Malta|Время Мальты|توقيت مالطا|माल्टा का समय|مالٹا کا وقت
 `.trim();
 
 const columns: Record<Exclude<Locale, 'en'>, number> = { it: 1, ru: 2, ar: 3, hi: 4, ur: 5 };

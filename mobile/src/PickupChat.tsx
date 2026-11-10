@@ -1,15 +1,16 @@
 import { useLanguage } from '../../lib/language-context';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from 'expo-crypto';
-import { AppState, BackHandler, Image, Pressable, ScrollView, StyleSheet, TextInput, View, type ScrollViewInstance } from 'react-native';
+import { AppState, BackHandler, Image, Modal, Pressable, ScrollView, StyleSheet, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { messageTime, usePickupChat, usePickupUnread as useUnread } from '../../lib/use-pickup-chat';
 import { getChat, getListingPhoto, getUnreadChats, postChat } from './backend';
 import { Button, Card, ErrorText, Loading, Text, useUi } from './ui';
-import { ChevronLeft, ChevronRight, Ellipsis, Package, Send, Wine } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, MapPin, Package, Send, Wallet, Wine } from 'lucide-react-native';
 import { SvgXml } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PickupAvatar } from './PickupConversationCard';
 import { isRtl } from '../../lib/locale';
-import { pickupChatPattern, pickupConversationTitle, pickupMoney } from '../../lib/pickup-conversation';
+import { pickupChatPattern, pickupConversationTitle, pickupDetails, pickupMoney } from '../../lib/pickup-conversation';
 import type { PickupOffer } from '../../lib/types';
 
 const visible = () => AppState.currentState === 'active' || AppState.currentState === null;
@@ -22,6 +23,33 @@ export function usePickupUnread(userId?: string) {
   return useUnread(userId, getUnreadChats, visible, subscribe);
 }
 
+export function PickupChatFallback({ message, onBack, action }: {
+  message: string; onBack: () => void; action?: { label: string; run: () => void };
+}) {
+  const { locale, t } = useLanguage();
+  const { colors, styles } = useUi();
+  const Chevron = isRtl(locale) ? ChevronRight : ChevronLeft;
+  useEffect(() => {
+    const back = BackHandler.addEventListener('hardwareBackPress', () => { onBack(); return true; });
+    return () => back.remove();
+  }, [onBack]);
+  return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, backgroundColor: colors.panel }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={t('← All pickups')} onPress={onBack}
+        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+        <Chevron size={24} color={colors.sky} />
+      </Pressable>
+      <Text accessibilityRole="header" weight="heavy" style={styles.title}>{t('Pickup chat')}</Text>
+    </View>
+    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, padding: 16 }}>
+      <Text accessibilityLiveRegion="polite" style={{ textAlign: 'center' }}>{message}</Text>
+      {action && <Button label={action.label} onPress={action.run} />}
+    </View>
+  </View>;
+}
+
+const detailIcons = [MapPin, Package, Wallet];
+
 export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: {
   offer: PickupOffer; taker: boolean; onRead: () => void; onBack: () => void; onDetails: () => void;
 }) {
@@ -31,6 +59,9 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
   const Chevron = isRtl(locale) ? ChevronRight : ChevronLeft;
   const chat = usePickupChat(offer.id, onRead, getChat, postChat, visible, subscribe, randomUUID);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const details = pickupDetails(offer, taker, locale, t);
+  const { bottom } = useSafeAreaInsets();
   const scroll = useRef<ScrollViewInstance>(null);
   const split = Math.max(0, Math.min(100, offer.split_percentage));
   useEffect(() => {
@@ -62,9 +93,9 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
         <Text accessibilityRole="header" weight="heavy" style={styles.title} numberOfLines={1}>{title}</Text>
         <Text style={styles.muted} numberOfLines={1}>{offer.locality} · {t('Pickup chat')}</Text>
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel={t('Pickup details')} onPress={onDetails}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
-        <Ellipsis size={24} color={colors.sky} />
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: showDetails }} onPress={() => setShowDetails(true)}
+        style={{ minHeight: 44, paddingHorizontal: 8, borderRadius: 12, backgroundColor: colors.chip, justifyContent: 'center' }}>
+        <Text weight="bold" style={[styles.small, { color: colors.lightBlue }]}>{t('Pickup details')}</Text>
       </Pressable>
     </View>
     <Card style={{ margin: 12, padding: 10, borderRadius: 18, flexDirection: 'row', alignItems: 'center' }}>
@@ -127,5 +158,30 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
         <ErrorText message={chat.sendError} />
       </View> : <Text style={[styles.small, { padding: 12, textAlign: 'center', backgroundColor: colors.panel }]}>{t('This conversation is read-only.')}</Text>}
     </>}
+    <Modal transparent visible={showDetails} animationType="slide" onRequestClose={() => setShowDetails(false)}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.50)' }}>
+        <View accessibilityViewIsModal style={{ maxHeight: '85%', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          overflow: 'hidden', backgroundColor: colors.panel }}>
+          <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: Math.max(16, bottom), gap: 4, direction: isRtl(locale) ? 'rtl' : 'ltr' }}>
+            <View style={styles.between}>
+              <Text weight="bold" style={{ color: offer.overdue || offer.status === 'cancelled' ? colors.red : colors.green }}>{details.status}</Text>
+              <Button kind="secondary" label={t('Back to chat')} onPress={() => setShowDetails(false)} />
+            </View>
+            <Text accessibilityRole="header" weight="heavy" style={styles.title}>{details.time ?? t('Time to be agreed')}</Text>
+            {details.time && <Text style={styles.muted}>{t('Malta time')}</Text>}
+            <View style={{ marginTop: 10 }}>
+              {details.rows.map(({ label, value }, index) => {
+                const Icon = detailIcons[index];
+                return <View key={label} style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 10, gap: 4 }}>
+                  <View style={styles.row}><Icon size={16} color={colors.sky} /><Text style={styles.small}>{label}</Text></View>
+                  <Text style={[styles.body, { marginStart: 24 }]}>{value}</Text>
+                </View>;
+              })}
+            </View>
+            <Button kind="secondary" label={t('Manage pickup')} onPress={() => { setShowDetails(false); onDetails(); }} />
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   </View>;
 }

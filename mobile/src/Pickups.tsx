@@ -11,7 +11,7 @@ import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-stat
 import MapView, { Marker } from 'react-native-maps';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
-import PickupChat from './PickupChat';
+import PickupChat, { PickupChatFallback } from './PickupChat';
 import PickupConversationCard from './PickupConversationCard';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { blockPickupPartner, errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
@@ -249,10 +249,10 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
   </ScrollView>;
 }
 
-export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, chatOpen, unread, onChat, onRead,
+export function HandoverScreen({ userId, taker, revision, offers, loading, error, busy, selectedId, chatOpen, chatLoading, unread, onChat, onRead,
   onSelect, onSignIn, onRefresh, onSwitchRole, onChange }: {
   userId?: string; taker: boolean; revision: number; offers: PickupOffer[]; loading: boolean; error: string; busy: boolean; selectedId?: string;
-  chatOpen: boolean; unread: Map<string, number>; onChat: (id?: string) => void; onRead: () => void;
+  chatOpen: boolean; chatLoading: boolean; unread: Map<string, number>; onChat: (id?: string) => void; onRead: () => void;
   onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onSwitchRole: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const { t } = useLanguage();
@@ -295,6 +295,11 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
     return <PickupChat key={selected.id} offer={selected} taker={taker} onRead={onRead}
       onBack={backToPickups} onDetails={() => onChat()} />;
   }
+
+  if (chatOpen) return <PickupChatFallback onBack={backToPickups}
+    message={t(chatLoading ? 'Loading chat…' : !userId ? 'Sign in to view pickups' : 'Pickup chat unavailable')}
+    action={chatLoading ? undefined : !userId ? { label: t('Log in'), run: onSignIn }
+      : selected || selectedInOtherRole ? { label: t('Pickup details'), run: () => onChat() } : undefined} />;
 
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={userId
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>

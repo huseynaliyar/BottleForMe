@@ -2,9 +2,9 @@
 
 import { useLanguage } from '@/lib/language-context';
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, Ellipsis, Package, Send, Wine } from 'lucide-react';
+import { ChevronLeft, MapPin, Package, Send, Wallet, Wine } from 'lucide-react';
 import { PickupAvatar } from '@/components/PickupConversationCard';
-import { pickupChatPattern, pickupConversationTitle, pickupMoney } from '@/lib/pickup-conversation';
+import { pickupChatPattern, pickupConversationTitle, pickupDetails, pickupMoney } from '@/lib/pickup-conversation';
 import type { PickupOffer } from '@/lib/types';
 import { pickupRequest } from '@/lib/auth';
 import { messageTime, usePickupChat, usePickupUnread as useUnread, type ChatAction, type ChatPage } from '@/lib/use-pickup-chat';
@@ -32,6 +32,26 @@ export function usePickupUnread(userId?: string) {
 
 const chatBackground = 'url("data:image/svg+xml,' + encodeURIComponent(pickupChatPattern('#60a5fa')) + '")';
 
+export function PickupChatFallback({ message, onBack, action }: {
+  message: string; onBack: () => void; action?: { label: string; run: () => void };
+}) {
+  const { t } = useLanguage();
+  return <section className="flex min-h-0 flex-1 flex-col bg-[#080b12]" style={{ backgroundImage: chatBackground }}>
+    <header className="flex shrink-0 items-center gap-2 border-b border-blue-400/20 bg-[#090f1d] px-3 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <button type="button" aria-label={t('← All pickups')} onClick={onBack} className="grid size-11 place-items-center rounded-full text-blue-300 hover:bg-white/10">
+        <ChevronLeft className="size-6 rtl:rotate-180" aria-hidden="true" />
+      </button>
+      <h1 className="font-extrabold text-white">{t('Pickup chat')}</h1>
+    </header>
+    <div className="m-auto space-y-3 px-4 text-center">
+      <p className="text-blue-200" role="status">{message}</p>
+      {action && <button type="button" className="blue-btn rounded-xl px-3 py-2 text-white" onClick={action.run}>{action.label}</button>}
+    </div>
+  </section>;
+}
+
+const detailIcons = [MapPin, Package, Wallet];
+
 export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: {
   offer: PickupOffer; taker: boolean; onRead: () => void; onBack: () => void; onDetails: () => void;
 }) {
@@ -39,6 +59,8 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
   const pickupId = offer.id;
   const title = pickupConversationTitle(offer, taker, t);
   const [photo, setPhoto] = useState<string | null>(null);
+  const detailsDialog = useRef<HTMLDialogElement>(null);
+  const details = pickupDetails(offer, taker, locale, t);
   useEffect(() => {
     const controller = new AbortController();
     void pickupRequest('/' + encodeURIComponent(pickupId) + '/photo', { signal: controller.signal })
@@ -65,8 +87,9 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
           <h1 className="truncate text-lg font-extrabold text-white">{title}</h1>
           <p className="truncate text-xs text-blue-200">{offer.locality} · {t('Pickup chat')}</p>
         </div>
-        <button type="button" aria-label={t('Pickup details')} onClick={onDetails} className="grid size-11 shrink-0 place-items-center rounded-full text-blue-300 hover:bg-white/10">
-          <Ellipsis className="size-6" aria-hidden="true" />
+        <button type="button" aria-haspopup="dialog" onClick={() => detailsDialog.current?.showModal()}
+          className="min-h-11 shrink-0 rounded-xl bg-blue-950 px-2 text-xs font-semibold text-blue-100 sm:px-3">
+          {t('Pickup details')}
         </button>
       </header>
       <div className="glass-navy mx-3 mt-3 grid shrink-0 grid-cols-[auto_minmax(0,1fr)] gap-3 rounded-2xl p-3 sm:mx-4 sm:gap-4">
@@ -117,6 +140,30 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
           {sendError && <p role="alert" className="mt-1 text-sm text-red-300">{sendError}</p>}
         </form> : <p className="shrink-0 bg-[#090f1d] p-3 text-center text-sm text-blue-200">{t('This conversation is read-only.')}</p>}
       </>}
+      <dialog ref={detailsDialog} aria-label={t('Pickup details')}
+        className="fixed inset-x-0 bottom-0 top-auto mx-auto mb-0 mt-auto max-h-[85dvh] w-full max-w-3xl overflow-y-auto rounded-t-[24px] border border-blue-400/25 bg-[#0d1527] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-white backdrop:bg-black/50 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <span className={'text-sm font-semibold ' + (offer.overdue || offer.status === 'cancelled' ? 'text-red-300' : 'text-emerald-400')}>{details.status}</span>
+          <button type="button" autoFocus onClick={() => detailsDialog.current?.close()} className="min-h-11 rounded-xl bg-blue-950 px-3 text-xs font-semibold text-blue-100">
+            {t('Back to chat')}
+          </button>
+        </div>
+        <h2 className="mt-1 text-xl font-extrabold">{details.time ?? t('Time to be agreed')}</h2>
+        {details.time && <p className="mt-1 text-sm text-blue-200">{t('Malta time')}</p>}
+        <dl className="mt-3">
+          {details.rows.map(({ label, value }, index) => {
+            const Icon = detailIcons[index];
+            return <div key={label} className="border-t border-blue-400/20 py-2.5">
+              <dt className="flex items-center gap-2 text-sm text-blue-200"><Icon className="size-4" aria-hidden="true" />{label}</dt>
+              <dd className="ms-6 mt-1 whitespace-pre-wrap break-words text-sm">{value}</dd>
+            </div>;
+          })}
+        </dl>
+        <button type="button" onClick={() => { detailsDialog.current?.close(); onDetails(); }}
+          className="min-h-11 w-full rounded-xl border border-blue-400/25 px-3 text-sm font-semibold text-blue-100">
+          {t('Manage pickup')}
+        </button>
+      </dialog>
     </section>
   );
 }

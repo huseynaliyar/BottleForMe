@@ -36,7 +36,7 @@ import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
 import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
 import { pickupStatusCss } from '@/lib/pickup-status';
 import PickupConversationCard from '@/components/PickupConversationCard';
-import PickupChat, { usePickupUnread } from '@/components/PickupChat';
+import PickupChat, { PickupChatFallback, usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
 import { disableBrowserPush } from '@/lib/browser-push';
@@ -80,6 +80,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     if (initialPickup) router.replace(tab === 'profile' ? '/?view=profile' : tab === 'chat' ? '/?view=pickups' : '/');
   }, [initialPickup, router]);
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(!supabase);
   const lifecycle = useAccountLifecycle(sessionUser?.id, loadAccountLifecycle).lifecycle;
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [showGuide, setShowGuide] = useState(false);
@@ -199,6 +200,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     try { localStorage.removeItem('bottleforme_current_user'); } catch { /* Storage may be disabled. */ }
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setAuthReady(true);
       const id = session?.user.id ?? null;
       const previousId = sessionId.current;
       if (id !== previousId) {
@@ -539,17 +541,19 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
   const RadarResults = fullscreenRadar ? 'dialog' : 'div';
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
-  const conversationOffer = currentUser && activeTab === 'chat' && chatPickupId === selectedId &&
-    selectedOffer?.seller_id && selectedOffer.collector_id ? selectedOffer : undefined;
+  const conversationOpen = activeTab === 'chat' && !!selectedId && chatPickupId === selectedId;
+  const conversationOffer = conversationOpen && currentUser && selectedOffer?.seller_id && selectedOffer.collector_id ? selectedOffer : undefined;
+  const backToPickups = () => router.push('/?view=pickups');
+  const conversationLoading = !authReady || !!sessionUser && !actionError && (!currentUser || handoverStatus === 'Loading your pickups…');
 
   return (
-    <div className={fullscreenRadar ? 'bg-[#05070c]' : conversationOffer
+    <div className={fullscreenRadar ? 'bg-[#05070c]' : conversationOpen
       ? 'flex h-dvh justify-center bg-[#05070c]'
       : 'flex min-h-screen justify-center bg-[#05070c] p-2 sm:p-6'}>
       {/* Mobile Frame Container */}
       <div className={fullscreenRadar
         ? 'relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
-        : conversationOffer ? 'relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
+        : conversationOpen ? 'relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
         : 'relative flex min-h-[780px] w-full flex-col overflow-hidden rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
           (initialPickup ? 'max-w-3xl' : 'max-w-[420px]')}>
         {/* Ambient Lighting */}
@@ -557,7 +561,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         <div className="absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
 
         {/* Header */}
-        {!conversationOffer && <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
+        {!conversationOpen && <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
           <div className={fullscreenRadar ? 'flex items-center justify-between' : 'mb-3 flex items-center justify-between'}>
             {/* Logo & Brand Title */}
             <div className="flex items-center space-x-2.5">
@@ -663,7 +667,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         )}
 
         {/* Scrollable Content Viewport */}
-        <main className={fullscreenRadar || conversationOffer ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
+        <main className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 flex-1 space-y-4 px-4 pb-4'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
             <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
@@ -1066,9 +1070,13 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           )}
 
           {conversationOffer && <PickupChat key={currentUser?.id + ':' + conversationOffer.id} offer={conversationOffer}
-            taker={canUseRadar} onRead={refreshUnread} onBack={() => router.push('/?view=pickups')}
+            taker={canUseRadar} onRead={refreshUnread} onBack={backToPickups}
             onDetails={() => openActivity(conversationOffer.id)} />}
-          {activeTab === 'chat' && !conversationOffer && (
+          {conversationOpen && !conversationOffer && <PickupChatFallback onBack={backToPickups}
+            message={t(conversationLoading ? 'Loading chat…' : !sessionUser ? 'Sign in to view pickups' : 'Pickup chat unavailable')}
+            action={conversationLoading ? undefined : !sessionUser ? { label: t('Log in'), run: () => setIsAuthOpen(true) }
+              : selectedOffer || selectedInOtherRole ? { label: t('Pickup details'), run: () => openActivity(selectedId ?? undefined) } : undefined} />}
+          {activeTab === 'chat' && !conversationOpen && (
             <section className={selectedId ? 'glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
               <h2 className="py-2 text-center text-xl font-extrabold text-white">{t(selectedId ? 'Pickup details' : 'Pickups')}</h2>
               {!currentUser ? (
@@ -1334,7 +1342,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </main>
 
         {/* Bottom Navigation Bar */}
-        {!conversationOffer && <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
+        {!conversationOpen && <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
           {!canUseRadar && (<button
             onClick={() => setActiveTab('resident')}
             className={`flex flex-col items-center gap-1 transition ${

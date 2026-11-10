@@ -264,8 +264,7 @@ function Marketplace() {
     }
   }
 
-  const conversationOpen = tab === 'handover' && !!selectedId && chatPickupId === selectedId && offers.some((offer) =>
-    offer.id === selectedId && offer[taker ? 'collector_id' : 'seller_id'] === userId && offer.seller_id && offer.collector_id);
+  const conversationOpen = tab === 'handover' && !!selectedId && chatPickupId === selectedId;
   return <View style={appStyles.frame}>
     <LinearGradient pointerEvents="none" colors={[colors.ambient, colors.background]} style={appStyles.ambient} />
     {!conversationOpen && <View style={appStyles.header}>
@@ -319,7 +318,8 @@ function Marketplace() {
         </Card>
       </View>}
       {tab === 'handover' && <HandoverScreen key={(userId ?? 'guest') + ':' + taker} userId={userId} taker={taker} revision={revision} offers={offers} loading={handovers.loading}
-        error={handovers.error} busy={busy} selectedId={selectedId} chatOpen={!!selectedId && chatPickupId === selectedId}
+        error={handovers.error} busy={busy} selectedId={selectedId} chatOpen={conversationOpen}
+        chatLoading={!authReady || !!userId && (handovers.loading || !currentProfile && !profileError)}
         unread={unreadCounts} onChat={setChatPickupId} onRead={refreshUnread}
         onSelect={(id) => { setSelectedId(id); setChatPickupId(undefined); }} onSignIn={openAccount}
         onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
