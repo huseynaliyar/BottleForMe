@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import GettingStarted from '@/components/GettingStarted';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
   Check, Bell, LogOut, Wallet, CircleHelp,
@@ -51,6 +52,7 @@ export default function HomePage() {
   const [requestedTab, setActiveTab] = useState<'resident' | 'driver' | 'chat' | 'profile'>('resident');
   const [sessionUser, setSessionUser] = useState<AuthUser | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [recovery, setRecovery] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -1208,6 +1210,9 @@ export default function HomePage() {
                 </div>
               </div>
 
+              <button type="button" className="min-h-11 w-full rounded-xl bg-blue-950/40 px-3 text-left text-sm font-semibold text-blue-100"
+                onClick={() => setShowGuide(true)}>Getting started</button>
+
               {/* Account management */}
               <div className="space-y-2 pt-1">
                 <Link href="/balance" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
@@ -1285,6 +1290,7 @@ export default function HomePage() {
         </dialog>
 
         {/* Authentication Modal */}
+        {showGuide && <GettingStarted onClose={() => setShowGuide(false)} />}
         <AuthModal
           isOpen={isAuthOpen}
           onClose={() => setIsAuthOpen(false)}
@@ -1294,6 +1300,7 @@ export default function HomePage() {
             setCurrentUser(user);
             setIsAuthOpen(false);
             setActionError('');
+            if (verified) setShowGuide(true);
             setToastMessage(verified ? 'Email verified. Signed in.' : `Signed in as ${user.full_name}.`);
           }}
           onPasswordUpdated={() => {

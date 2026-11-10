@@ -4,6 +4,7 @@ import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { Camera, CircleHelp, LogOut, Wallet } from 'lucide-react-native';
 import { Image, Keyboard, Pressable, ScrollView, View } from 'react-native';
 import { balanceNote, formatEuro, pickupBalance } from '../../lib/pickup-balance';
+import { gettingStarted } from '../../lib/getting-started';
 import { supportFaq } from '../../lib/support-faq';
 import { draftTerms, draftTermsVersion } from '../../lib/draft-terms';
 import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
@@ -206,6 +207,20 @@ function Balance({ userId, offers, loading }: { userId: string; offers: PickupOf
   </>;
 }
 
+export function GettingStartedDialog({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const item = gettingStarted[step];
+  const last = step === gettingStarted.length - 1;
+  return <Dialog title="Getting started" onClose={onClose}>
+    <Text style={styles.small}>Step {step + 1} of {gettingStarted.length}</Text>
+    <Text accessibilityRole="header" weight="bold" style={styles.body}>{item.title}</Text>
+    <Text accessibilityLiveRegion="polite" style={styles.small}>{item.description}</Text>
+    {step > 0 && <Button label="Back" kind="secondary" onPress={() => setStep(step - 1)} />}
+    <Button label={last ? 'Done' : 'Next'} onPress={() => last ? onClose() : setStep(step + 1)} />
+    {!last && <Button label="Skip" kind="quiet" onPress={onClose} />}
+  </Dialog>;
+}
+
 function HelpFaq() {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string>();
@@ -223,9 +238,9 @@ function HelpFaq() {
   </>;
 }
 
-export function ProfileScreen({ profile, signedIn, loading, error, offers, pickupsLoading, onSignIn, onRefresh, onSwitch, onAvatar, onSignOut }: {
+export function ProfileScreen({ profile, signedIn, loading, error, offers, pickupsLoading, onSignIn, onRefresh, onSwitch, onAvatar, onSignOut, onGuide }:  {
   profile: UserProfile | null; signedIn: boolean; loading: boolean; error: string; offers: PickupOffer[]; pickupsLoading: boolean;
-  onSignIn: () => void; onRefresh: () => void; onSwitch: () => void; onAvatar: (url: string) => Promise<void>; onSignOut: () => void;
+  onSignIn: () => void; onRefresh: () => void; onSwitch: () => void; onAvatar: (url: string) => Promise<void>; onSignOut: () => void; onGuide: () => void;
 }) {
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
@@ -310,6 +325,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
       </Card>
       <Balance userId={profile.id} offers={offers} loading={pickupsLoading} />
       <HelpFaq />
+      <Button label="Getting started" kind="secondary" onPress={onGuide} />
       <Button label="Log out" kind="quiet" onPress={onSignOut} disabled={uploading}>
         <LogOut size={13} color={colors.muted} />
       </Button>

@@ -14,7 +14,7 @@ import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
 import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
-import { AccountDialog, Avatar, ProfileScreen } from './AccountScreen';
+import { AccountDialog, Avatar, GettingStartedDialog, ProfileScreen } from './AccountScreen';
 import { apiOrigin, changePickup, errorMessage, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
@@ -48,6 +48,7 @@ export default function App() {
 
 function Marketplace() {
   const maintenance = useMarketplaceStatus(apiOrigin);
+  const [showGuide, setShowGuide] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!supabase);
   const [requestedTab, setTab] = useState<Tab>('give');
@@ -286,7 +287,7 @@ function Marketplace() {
         ? <ProfileScreen key={userId ?? 'guest'} profile={currentProfile} signedIn={!!session} loading={profileLoading}
           error={profileError} offers={offers} pickupsLoading={handovers.loading} onSignIn={openAccount}
           onRefresh={() => setProfileAttempt((previous) => previous + 1)} onSwitch={toggleRole}
-          onAvatar={(avatar_url) => updateProfile({ avatar_url })} onSignOut={logout} />
+          onAvatar={(avatar_url) => updateProfile({ avatar_url })} onGuide={() => setShowGuide(true)} onSignOut={logout} />
         : <View style={styles.scroll}><Loading label="Restoring your account…" /></View>)}
     </KeyboardAvoidingView>
     <View accessibilityRole="tablist" style={appStyles.footer}>
@@ -296,7 +297,8 @@ function Marketplace() {
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{label}</Text>
       </Pressable>)}
     </View>
-    {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) setToast('Email verified. Signed in.'); }} />}
+    {showGuide && <GettingStartedDialog onClose={() => setShowGuide(false)} />}
+    {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) { setToast('Email verified. Signed in.'); setShowGuide(true); } }} />}
     {dialog === 'activity' && <Dialog title="Recent activity" onClose={() => setDialog(undefined)}>
       {userId && push.supported && <>
         <Button label={push.enabled ? 'Turn off lock screen alerts' : 'Enable lock screen alerts'} kind="secondary"
