@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, Switch, View } from 'react-native';
+import { useBlockedAccounts } from '../../lib/use-blocked-accounts';
 import { pickupPhoneHelp } from '../../lib/pickup-partner';
-import { errorMessage, loadSettings, saveSettings } from './backend';
+import { errorMessage, loadBlockedAccounts, loadSettings, saveSettings, unblockAccount } from './backend';
 import { Button, Card, colors, ErrorText, styles, Text } from './ui';
 import type { useMobilePush } from './useMobilePush';
 
 export default function SettingsScreen({ push, onBack }: { push: ReturnType<typeof useMobilePush>; onBack: () => void }) {
+  const blocks = useBlockedAccounts(loadBlockedAccounts, unblockAccount);
   const [sharePhone, setSharePhone] = useState<boolean>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -46,6 +48,16 @@ export default function SettingsScreen({ push, onBack }: { push: ReturnType<type
           disabled={push.busy} onPress={push.toggle} />
         <ErrorText message={push.error ?? ''} />
       </> : <Text style={styles.small}>Lock-screen alerts are unavailable on this device.</Text>}
+    </Card>
+    <Card>
+      <Text weight="bold" style={styles.body}>Blocked accounts</Text>
+      {blocks.accounts?.length === 0 && <Text style={styles.small}>You haven’t blocked any accounts.</Text>}
+      {!blocks.accounts && !blocks.error && <Text style={styles.small}>Loading blocked accounts…</Text>}
+      {blocks.accounts?.map((account) => <View key={account.id} style={styles.between}>
+        <Text style={[styles.small, { flexShrink: 1 }]}>{account.name}</Text>
+        <Button label="Unblock" kind="quiet" disabled={blocks.busy} onPress={() => void blocks.remove(account.id)} />
+      </View>)}
+      <ErrorText message={blocks.error} />
     </Card>
   </ScrollView>;
 }

@@ -7,6 +7,7 @@ export type PickupPartner = {
   average: number | null;
   count: number;
   canReview: boolean;
+  blockedByYou: boolean;
   reviewGiven: Review | null;
   reviewReceived: Review | null;
 };

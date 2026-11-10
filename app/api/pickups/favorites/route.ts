@@ -28,8 +28,7 @@ export async function POST(request: Request) {
     const { error } = await pickupsDb.from('pickup_favorites').delete().eq('user_id', user.id).eq('pickup_id', body.pickupId);
     return error ? failure('Could not remove this favorite.', 503) : response({ ok: true });
   }
-  const listing = await pickupsDb.from('pickups').select('id').eq('id', body.pickupId)
-    .eq('status', 'open').is('archived_at', null).is('collector_id', null).not('seller_id', 'is', null).neq('seller_id', user.id).maybeSingle();
+  const listing = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select('id').eq('id', body.pickupId).maybeSingle();
   if (listing.error) return failure('Could not check this listing.', 503);
   if (!listing.data) return failure('This listing is no longer available.', 404);
   const { error } = await pickupsDb.from('pickup_favorites').upsert({ user_id: user.id, pickup_id: body.pickupId },

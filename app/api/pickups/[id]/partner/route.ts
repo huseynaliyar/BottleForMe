@@ -25,12 +25,14 @@ export async function GET(request: Request, context: Context) {
   if (found instanceof Response) return found;
   const { db, user, id, partnerId, pickup, otherIsGiver } = found;
   const active = ['reserved', 'en_route', 'arrived'].includes(pickup.status);
-  const [profile, aggregate, reviews] = await Promise.all([
+  const [profile, aggregate, reviews, blocked, ownBlock] = await Promise.all([
     db.from('profiles').select('full_name,phone,share_pickup_phone').eq('id', partnerId).maybeSingle(),
     db.rpc('pickup_review_summary', { subject: partnerId }).maybeSingle<{ average: number | null; count: number }>(),
     db.from('pickup_reviews').select('author_id,stars,comment').eq('pickup_id', id).in('author_id', [user.id, partnerId]),
+    db.rpc('is_marketplace_blocked', { actor: user.id, other_user: partnerId }),
+    db.from('marketplace_blocks').select('blocked_id').eq('blocker_id', user.id).eq('blocked_id', partnerId).maybeSingle(),
   ]);
-  if (profile.error || aggregate.error || reviews.error) return failure('Could not load your pickup partner.', 503);
+  if (profile.error || aggregate.error || reviews.error || blocked.error || ownBlock.error) return failure('Could not load your pickup partner.', 503);
   const role = otherIsGiver ? 'Giver' : 'Taker';
   const review = (author: string): Review | null => {
     const item = reviews.data.find((row) => row.author_id === author);
@@ -38,9 +40,9 @@ export async function GET(request: Request, context: Context) {
   };
   const data: PickupPartner = {
     name: profile.data?.full_name?.trim() || (otherIsGiver && pickup.seller_name) || role,
-    role, phone: active && profile.data?.share_pickup_phone ? profile.data.phone || null : null,
+    role, phone: active && !blocked.data && profile.data?.share_pickup_phone ? profile.data.phone || null : null,
     average: aggregate.data?.average ?? null, count: aggregate.data?.count ?? 0,
-    canReview: pickup.status === 'completed',
+    canReview: pickup.status === 'completed', blockedByYou: !!ownBlock.data,
     reviewGiven: review(user.id), reviewReceived: review(partnerId),
   };
   return response(data);

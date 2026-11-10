@@ -23,8 +23,7 @@ export async function GET(request: Request, { params }: Context) {
   if (!user) return failure('Sign in as a Taker to view Radar.', 401);
   const blocked = await takerAccess(user.id);
   if (blocked) return blocked;
-  const { data, error } = await pickupsDb.from('pickups').select(PUBLIC_COLUMNS).eq('id', id)
-    .eq('status', 'open').is('archived_at', null).is('collector_id', null).not('seller_id', 'is', null).maybeSingle();
+  const { data, error } = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select(PUBLIC_COLUMNS).eq('id', id).maybeSingle();
   if (error) return failure('Could not load the pickup.', 503);
   return data ? response(publicPickup(data)) : failure('Pickup not found.', 404);
 }
@@ -63,6 +62,7 @@ export async function PATCH(request: Request, { params }: Context) {
     pickup_id: id, actor_id: user.id, next_status: status,
   }).maybeSingle();
   if (error?.code === 'BF001') return failure('BottleForMe is under maintenance. Try again shortly.', 503);
+  if (error?.code === 'BF008') return failure('This pickup is unavailable.', 409);
   if (error?.code === 'BF007') return failure(error.message, 409);
   const restriction = pickupRestrictionResponse(error);
   if (restriction) return restriction;

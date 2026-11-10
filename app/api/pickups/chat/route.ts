@@ -22,7 +22,18 @@ export async function GET(request: Request) {
   }
   const { data, error } = await pickupsDb.rpc('read_pickup_chat', { listing: pickup, actor: user.id, before_seq: before });
   if (error) return failure('Could not load pickup chat.', 503);
-  return data ? response(data) : failure('Pickup chat is not available.', 404);
+  if (!data) return failure('Pickup chat is not available.', 404);
+  if (data.canSend) {
+    const pair = await pickupsDb.from('pickups').select('seller_id,collector_id').eq('id', pickup)
+      .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).maybeSingle();
+    if (pair.error) return failure('Could not load pickup chat.', 503);
+    const other = pair.data?.seller_id === user.id ? pair.data.collector_id : pair.data?.seller_id;
+    if (!other) return failure('Pickup chat is not available.', 404);
+    const blocked = await pickupsDb.rpc('is_marketplace_blocked', { actor: user.id, other_user: other });
+    if (blocked.error) return failure('Could not load pickup chat.', 503);
+    return response({ ...data, canSend: !blocked.data });
+  }
+  return response(data);
 }
 
 export async function POST(request: Request) {
@@ -45,6 +56,7 @@ export async function POST(request: Request) {
     return failure('Enter a message of up to 1,000 characters.', 400);
   }
   const { data, error } = await pickupsDb.rpc('send_pickup_chat', { ...scope, message_id: body.id, content: message });
+  if (error?.code === 'BF008') return failure('This pickup chat is unavailable for new messages.', 409);
   if (error) return failure('Could not send your message. Try again.', 503);
   if (data === 'limited') return failure('Too many messages. Try again in a minute.', 429);
   if (data !== 'sent') return failure('This pickup chat is closed or unavailable.', 409);

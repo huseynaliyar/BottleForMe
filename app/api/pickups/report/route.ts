@@ -20,6 +20,11 @@ export async function POST(request: Request) {
     (body.target === 'listing' && (user.id === pickup.seller_id || !participant && (pickup.status !== 'open' || pickup.archived_at !== null)))) {
     return failure('This report is unavailable.', 404);
   }
+  if (!participant) {
+    const visible = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select('id').eq('id', body.pickupId).maybeSingle();
+    if (visible.error) return failure('Could not look up this pickup.', 503);
+    if (!visible.data) return failure('This report is unavailable.', 404);
+  }
   const { error } = await pickupsDb.from('marketplace_reports').upsert({
     reporter_id: user.id, pickup_id: body.pickupId, target: body.target, reason, reported_user_id: reportedUser,
   }, { onConflict: 'reporter_id,pickup_id,target', ignoreDuplicates: true });

@@ -30,16 +30,14 @@ export async function GET(request: Request) {
 
   const blocked = await takerAccess(user.id);
   if (blocked) return blocked;
-  let query = client.from('pickups').select(PUBLIC_COLUMNS)
-    .eq('status', 'open').is('archived_at', null).is('collector_id', null).not('seller_id', 'is', null)
-    .neq('seller_id', user.id).order('created_at', { ascending: false });
+  let query = client.rpc('get_radar_pickups', { viewer: user.id }).select(PUBLIC_COLUMNS).order('created_at', { ascending: false });
   if (locality && locality !== 'all') {
     const canonical = MALTA_LOCALITIES.find((item) => item.name.toLowerCase() === locality.toLowerCase());
     if (!canonical) return response({ count: 0, offers: [], source: 'supabase' });
     query = query.eq('locality', canonical.name);
   }
   const { data, error } = await query;
-  if (error) return failure('Could not load Radar listings.', 503);
+  if (error || !Array.isArray(data)) return failure('Could not load Radar listings.', 503);
   return response({ count: data.length, offers: data.map(publicPickup), source: 'supabase' });
 }
 

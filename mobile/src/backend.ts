@@ -7,6 +7,7 @@ import type { PickupOffer, PickupStatus, UserProfile, UserRole } from '../../lib
 import type { validatePickup } from '../../lib/pickup-validation';
 import type { PickupWindow, ScheduleAction, ScheduleRequest } from '../../lib/pickup-schedule';
 import type { ChatAction, ChatPage, UnreadChat } from '../../lib/use-pickup-chat';
+import type { BlockedAccount } from '../../lib/marketplace-blocks';
 import type { PickupPartner, Review } from '../../lib/pickup-partner';
 import type { AddressSuggestion } from '../../lib/pickup-address';
 
@@ -160,6 +161,22 @@ export function listScheduleRequests(signal: AbortSignal, listingId?: string) {
 export function saveSchedule(listingId: string, action: ScheduleAction) {
   return request<{ ok: boolean }>('/api/pickups/schedule', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId, ...action }),
+  }, true);
+}
+
+export function blockPickupPartner(pickupId: string) {
+  return request('/api/account/blocks', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId }),
+  }, true);
+}
+
+export function loadBlockedAccounts(signal: AbortSignal) {
+  return request<{ accounts: BlockedAccount[] }>('/api/account/blocks', { signal }, true);
+}
+
+export function unblockAccount(id: string) {
+  return request('/api/account/blocks', {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
   }, true);
 }
 

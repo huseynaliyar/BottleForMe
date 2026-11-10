@@ -3,9 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { accountRequest } from '@/lib/auth';
+import { useBlockedAccounts } from '@/lib/use-blocked-accounts';
 import { pickupPhoneHelp } from '@/lib/pickup-partner';
 import { supabase } from '@/lib/supabase';
 import WebPushControl from '@/components/WebPushControl';
+
+const loadBlocks = (signal: AbortSignal) => accountRequest('/api/account/blocks', { signal });
+const unblock = (id: string) => accountRequest('/api/account/blocks', {
+  method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }),
+});
 
 export default function SettingsPage() {
   const [userId, setUserId] = useState<string>();
@@ -28,6 +34,7 @@ export default function SettingsPage() {
 }
 
 function Settings({ userId }: { userId: string }) {
+  const blocks = useBlockedAccounts(loadBlocks, unblock);
   const [sharePhone, setSharePhone] = useState<boolean>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -69,6 +76,17 @@ function Settings({ userId }: { userId: string }) {
     <section className="glass-navy space-y-2 rounded-xl p-4">
       <h2 className="font-semibold">Notifications</h2>
       <WebPushControl userId={userId} />
+    </section>
+    <section className="glass-navy space-y-2 rounded-xl p-4">
+      <h2 className="font-semibold">Blocked accounts</h2>
+      {blocks.accounts?.length === 0 && <p className="text-sm text-blue-200">You haven’t blocked any accounts.</p>}
+      {!blocks.accounts && !blocks.error && <p className="text-sm text-blue-200">Loading blocked accounts…</p>}
+      {blocks.accounts?.map((account) => <div key={account.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className="break-words">{account.name}</span>
+        <button type="button" disabled={blocks.busy} onClick={() => void blocks.remove(account.id)}
+          className="rounded-lg bg-white/10 px-3 py-2">Unblock</button>
+      </div>)}
+      {blocks.error && <p role="alert" className="text-sm text-red-300">{blocks.error}</p>}
     </section>
   </>;
 }

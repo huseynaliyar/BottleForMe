@@ -1,6 +1,8 @@
 'use client';
 
-import { pickupRequest } from '@/lib/auth';
+import { useState } from 'react';
+import { accountRequest, pickupRequest } from '@/lib/auth';
+import { blockPickupExplanation } from '@/lib/marketplace-blocks';
 import type { PickupPartner as Partner, Review } from '@/lib/pickup-partner';
 import { usePickupPartner } from '@/lib/use-pickup-partner';
 
@@ -13,13 +15,36 @@ const submitReview = (id: string, review: Review): Promise<Review> => pickupRequ
 export default function PickupPartner({ pickupId }: { pickupId: string }) {
   const info = usePickupPartner(pickupId, loadPartner, submitReview);
   const { partner } = info;
+  const [blocked, setBlocked] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState('');
+
+  async function block() {
+    if (blocking || !window.confirm(blockPickupExplanation)) return;
+    setBlocking(true);
+    setBlockError('');
+    try {
+      await accountRequest('/api/account/blocks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pickupId }),
+      });
+      setBlocked(true);
+    } catch (cause) {
+      setBlockError(cause instanceof Error ? cause.message : 'Could not block the account.');
+    } finally { setBlocking(false); }
+  }
+
+  const isBlocked = blocked || partner?.blockedByYou;
 
   return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
     <h4 className="font-bold text-white">Pickup partner</h4>
     {partner ? <>
       <p>{partner.name} · {partner.role}</p>
       <p className="text-xs">{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : 'No ratings yet'}</p>
-      {partner.phone && <p className="break-words">Phone · {partner.phone}</p>}
+      {partner.phone && !isBlocked && <p className="break-words">Phone · {partner.phone}</p>}
+      {isBlocked ? <p className="text-xs">You blocked this account. Manage it in Settings.</p>
+        : <button type="button" disabled={blocking} onClick={() => void block()}
+          className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">Block account</button>}
+      {blockError && <p role="alert" className="text-xs text-red-300">{blockError}</p>}
       {partner.reviewReceived && <div className="space-y-1 text-sm">
         <p className="font-bold">Your partner’s review · {partner.reviewReceived.stars}/5</p>
         <p className="whitespace-pre-wrap break-words">{partner.reviewReceived.comment}</p>

@@ -15,8 +15,7 @@ export async function GET(request: Request, { params }: Context) {
 
   const denied = await takerAccess(user.id);
   if (denied) return denied;
-  const listing = await pickupsDb.from('pickups').select('photo_jpeg').eq('id', id)
-    .eq('status', 'open').is('archived_at', null).is('collector_id', null).not('seller_id', 'is', null).maybeSingle();
+  const listing = await pickupsDb.rpc('get_radar_pickups', { viewer: user.id }).select('photo_jpeg').eq('id', id).maybeSingle();
   if (listing.error) return failure('Could not load the listing photo.', 503);
   return listing.data ? response({ photo: photoUrl(listing.data.photo_jpeg) }) : failure('Pickup not found.', 404);
 }

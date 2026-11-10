@@ -13,10 +13,12 @@ test('archive rules and marketplace preferences keep private data under server c
       create schema auth;
       create table auth.users (id uuid primary key);
       create table public.profiles (id uuid primary key);
-      create table public.pickups (id uuid primary key, status text not null);
-      create table public.pickup_requests (pickup_id uuid not null, status text not null);
+      create table public.pickups (id uuid primary key, status text not null, seller_id uuid, collector_id uuid);
+      create table public.pickup_requests (pickup_id uuid not null, status text not null, seller_id uuid, collector_id uuid);
+      create table public.pickup_chat_messages (giver_id uuid not null, taker_id uuid not null);
+      grant select on public.pickups to service_role;
     `);
-    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact']) {
+    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks']) {
       const path = new URL('../supabase/migrations/', import.meta.url);
       const filename = readdirSync(path).find((file) => file.endsWith('_' + name + '.sql'));
       assert.ok(filename);
@@ -28,8 +30,8 @@ test('archive rules and marketplace preferences keep private data under server c
     await db.exec(`
       insert into auth.users values ('${seller}'), ('${taker}');
       insert into public.profiles (id) values ('${seller}'), ('${taker}');
-      insert into public.pickups (id,status) values ('${pickup}','open');
-      insert into public.pickup_requests values ('${pickup}','pending');
+      insert into public.pickups (id,status,seller_id) values ('${pickup}','open','${seller}');
+      insert into public.pickup_requests values ('${pickup}','pending','${seller}','${taker}');
     `);
     const archive = "update public.pickups set archived_at = now() where id = '" + pickup + "'";
     await assert.rejects(db.exec(archive), { code: 'BF007' });
@@ -48,8 +50,19 @@ test('archive rules and marketplace preferences keep private data under server c
     `);
     const summary = await db.query('select * from public.pickup_review_summary($1)', [seller]);
     assert.deepEqual(summary.rows, [{ average: '5.0', count: 1 }]);
-    await db.exec('reset role; set role authenticated');
-    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports']) {
+    await db.exec("reset role; update public.pickups set status = 'open'; set role service_role");
+    assert.equal((await db.query('select id from public.get_radar_pickups($1)', [taker])).rows.length, 1);
+    await db.query('insert into public.marketplace_blocks (blocker_id,blocked_id) values ($1,$2)', [seller, taker]);
+    assert.equal((await db.query('select id from public.get_radar_pickups($1)', [taker])).rows.length, 0);
+    assert.equal((await db.query<{ blocked: boolean }>('select public.is_marketplace_blocked($1,$2) as blocked', [taker, seller])).rows[0].blocked, true);
+    await db.exec('reset role');
+    await assert.rejects(db.query('update public.pickups set collector_id = $1', [taker]), { code: 'BF008' });
+    await assert.rejects(db.query("insert into public.pickup_requests values ($1,'pending',$2,$3)", [pickup, seller, taker]), { code: 'BF008' });
+    await assert.rejects(db.query('insert into public.pickup_chat_messages values ($1,$2)', [seller, taker]), { code: 'BF008' });
+    await db.query('delete from public.marketplace_blocks where blocker_id = $1', [seller]);
+    await db.query('insert into public.pickup_chat_messages values ($1,$2)', [seller, taker]);
+    await db.exec('set role authenticated');
+    for (const table of ['pickup_reviews', 'pickup_favorites', 'marketplace_reports', 'marketplace_blocks']) {
       await assert.rejects(db.exec('select * from public.' + table), { code: '42501' });
     }
   } finally {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Alert, Image, Linking, Platform, RefreshControl, ScrollView, View, Pressable } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
+import { blockPickupExplanation } from '../../lib/marketplace-blocks';
 import { usePickupPartner } from '../../lib/use-pickup-partner';
 import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
@@ -11,7 +12,7 @@ import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import { MALTA_LOCALITIES, type PickupOffer, type PickupStatus } from '../../lib/types';
 import PickupChat from './PickupChat';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
-import { errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
+import { blockPickupPartner, errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
 import { Badge, Button, Card, colors, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, styles, Text, Field } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
@@ -67,12 +68,32 @@ const ratings = [5, 4, 3, 2, 1].map((value) => ({ label: String(value), value: S
 function PickupPartner({ pickupId }: { pickupId: string }) {
   const info = usePickupPartner(pickupId, getPickupPartner, submitPickupReview);
   const { partner } = info;
+  const [blocked, setBlocked] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blockError, setBlockError] = useState('');
+
+  async function block() {
+    setBlocking(true);
+    setBlockError('');
+    try { await blockPickupPartner(pickupId); setBlocked(true); }
+    catch (cause) { setBlockError(errorMessage(cause)); }
+    finally { setBlocking(false); }
+  }
+
+  const isBlocked = blocked || partner?.blockedByYou;
   return <View style={styles.inset}>
     <Text weight="bold" style={styles.body}>Pickup partner</Text>
     {partner ? <>
       <Text style={styles.body}>{partner.name} · {partner.role}</Text>
       <Text style={styles.small}>{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : 'No ratings yet'}</Text>
-      {partner.phone && <Text style={styles.small}>Phone · {partner.phone}</Text>}
+      {partner.phone && !isBlocked && <Text style={styles.small}>Phone · {partner.phone}</Text>}
+      {isBlocked ? <Text style={styles.small}>You blocked this account. Manage it in Settings.</Text>
+        : <Button label="Block account" kind="quiet" disabled={blocking} onPress={() => Alert.alert(
+          'Block account?', blockPickupExplanation, [{ text: 'Cancel', style: 'cancel' }, {
+            text: 'Block', style: 'destructive', onPress: () => void block(),
+          }],
+        )} />}
+      <ErrorText message={blockError} />
       {partner.reviewReceived && <>
         <Text weight="bold" style={styles.small}>Your partner’s review · {partner.reviewReceived.stars}/5</Text>
         <Text style={styles.small}>{partner.reviewReceived.comment}</Text>

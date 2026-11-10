@@ -42,7 +42,7 @@ export default function PickupChat({ pickupId, onRead, onBack }: { pickupId: str
         <Field label="Message" multiline value={chat.draft} onChangeText={chat.setDraft} editable={!chat.sending} maxLength={1000} />
         <Button label={chat.sending ? 'Sending…' : 'Send message'} disabled={chat.sending || !chat.draft.trim()} onPress={() => void chat.send()} />
         <ErrorText message={chat.sendError} />
-      </Card> : <Text style={styles.small}>This pickup has ended. You can read the messages here.</Text>}
+      </Card> : <Text style={styles.small}>This conversation is read-only.</Text>}
     </>}
   </View>;
 }
