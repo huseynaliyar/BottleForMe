@@ -1,10 +1,12 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { emailAuthRequest } from '@/lib/email-auth-request';
 
 export default function ResetPasswordPage() {
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [saved, setSaved] = useState(false);
@@ -46,13 +48,13 @@ export default function ResetPasswordPage() {
   }
 
   return <main className="mx-auto max-w-sm space-y-4 p-5 text-white">
-    <h1 className="text-xl font-bold">Choose a new password</h1>
-    {valid === false && !saved && <p role="alert">This password reset link is no longer valid. Request a new link.</p>}
+    <h1 className="text-xl font-bold">{t("Choose a new password")}</h1>
+    {valid === false && !saved && <p role="alert">{t("This password reset link is no longer valid. Request a new link.")}</p>}
     {valid === undefined && !message && <p role="status">Checking your password reset link…</p>}
     {!saved && valid === true && <form className="space-y-3" onSubmit={reset}>
-      <label className="block">New password<input className="block w-full rounded-xl bg-slate-900 p-3" type="password" name="password" autoComplete="new-password" minLength={6} required /></label>
-      <label className="block">Confirm new password<input className="block w-full rounded-xl bg-slate-900 p-3" type="password" name="confirm" autoComplete="new-password" minLength={6} required /></label>
-      <button className="blue-btn w-full rounded-xl p-3" disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
+      <label className="block">{t("New password")}<input className="block w-full rounded-xl bg-slate-900 p-3" type="password" name="password" autoComplete="new-password" minLength={6} required /></label>
+      <label className="block">{t("Confirm new password")}<input className="block w-full rounded-xl bg-slate-900 p-3" type="password" name="confirm" autoComplete="new-password" minLength={6} required /></label>
+      <button className="blue-btn w-full rounded-xl p-3" disabled={busy}>{busy ? t("Saving…") : 'Save password'}</button>
     </form>}
     {message && <p role={saved ? 'status' : 'alert'}>{message}</p>}
     <Link href="/" className="text-blue-300">Return to BottleForMe</Link>

@@ -1,4 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import { themeKey } from '@/lib/appearance';
+import { languages, localeKey } from '@/lib/locale';
+import WebLanguageProvider from '@/components/WebLanguageProvider';
 import './globals.css';
 import 'leaflet/dist/leaflet.css';
 
@@ -24,8 +27,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `try {
+          document.documentElement.dataset.theme = localStorage.getItem(${JSON.stringify(themeKey)}) === 'light' ? 'light' : 'dark';
+          var locale = localStorage.getItem(${JSON.stringify(localeKey)});
+          if (${JSON.stringify(languages.map(({ value }) => value))}.includes(locale)) {
+            document.documentElement.lang = locale;
+            document.documentElement.dir = locale === 'ar' || locale === 'ur' ? 'rtl' : 'ltr';
+          }
+        } catch {}` }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- this App Router layout covers every route */}
@@ -53,7 +64,7 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-[#05070c] text-slate-100 min-h-screen antialiased selection:bg-blue-600 selection:text-white">
-        {children}
+        <WebLanguageProvider>{children}</WebLanguageProvider>
       </body>
     </html>
   );

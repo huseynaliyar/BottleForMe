@@ -1,3 +1,4 @@
+import { useLanguage } from '../../lib/language-context';
 import { useEffect, useRef, useState } from 'react';
 import { randomUUID } from 'expo-crypto';
 import * as Location from 'expo-location';
@@ -15,7 +16,7 @@ import { pickupAddressText, type AddressSuggestion } from '../../lib/pickup-addr
 import { newWindow, parseWindowDrafts } from '../../lib/pickup-schedule';
 import { AvailabilityEditor } from './PickupSchedule';
 import { PickupAddressField } from './PickupAddressField';
-import { Badge, Button, Card, colors, ErrorText, Field, Metric, Select, styles, Text } from './ui';
+import { Badge, Button, Card, ErrorText, Field, Metric, Select, Text, useUi } from './ui';
 
 const containerFields = [
   { key: 'plastic_bottles', label: 'Plastic', icon: '🧴' },
@@ -29,6 +30,8 @@ const whole = (value: string) => /^\d+$/.test(value) ? Number(value) : NaN;
 function Counter({ label, icon, value, onChange, busy }: {
   label: string; icon: string; value: string; onChange: (value: string) => void; busy: boolean;
 }) {
+  const { t } = useLanguage();
+  const { colors, styles, theme } = useUi();
   const count = whole(value);
   function step(amount: number) {
     onChange(String(Math.max(0, Math.min(MAX_CONTAINERS, (Number.isFinite(count) ? count : 0) + amount))));
@@ -37,7 +40,7 @@ function Counter({ label, icon, value, onChange, busy }: {
     <Text style={{ fontSize: 16 }}>{icon}</Text>
     <Text weight="bold" style={{ fontSize: 10 }}>{label}</Text>
     <TextInput accessibilityLabel={label + ' container count'} value={value} onChangeText={onChange}
-      maxLength={6} selectTextOnFocus keyboardType="number-pad" keyboardAppearance="dark" editable={!busy}
+      maxLength={6} selectTextOnFocus keyboardType="number-pad" keyboardAppearance={theme} editable={!busy}
       style={{
         minHeight: 36, width: '100%', padding: 0, fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold',
         textAlign: 'center', borderBottomWidth: 1, borderColor: colors.border, color: colors.lightBlue,
@@ -47,11 +50,11 @@ function Counter({ label, icon, value, onChange, busy }: {
         const disabled = busy || (amount < 0 ? !(count > 0) : count >= MAX_CONTAINERS);
         const text = amount < 0 ? '−1' : '+1';
         return <Pressable key={amount} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
-          accessibilityLabel={(amount < 0 ? 'Remove' : 'Add') + ' one ' + label.toLowerCase() + ' container'}
+          accessibilityLabel={(amount < 0 ? t("Remove") : 'Add') + ' one ' + label.toLowerCase() + ' container'}
           onPress={() => step(amount)} style={{
             minWidth: 32, minHeight: 38, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: amount < 0 ? '#20293a' : colors.blue, opacity: disabled ? 0.45 : 1,
-          }}><Text weight="bold" style={{ fontSize: 12 }}>{text}</Text></Pressable>;
+            backgroundColor: amount < 0 ? colors.quiet : colors.blue, opacity: disabled ? 0.45 : 1,
+          }}><Text weight="bold" style={{ fontSize: 12, color: amount < 0 ? colors.ink : colors.onAccent }}>{text}</Text></Pressable>;
       })}
     </View>
   </View>;
@@ -60,6 +63,8 @@ function Counter({ label, icon, value, onChange, busy }: {
 export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished }: {
   profile: UserProfile | null; signedIn: boolean; authReady: boolean; onSignIn: () => void; onPublished: (offer: PickupOffer) => void;
 }) {
+  const { t } = useLanguage();
+  const { colors, styles } = useUi();
   const [counts, setCounts] = useState(zeroCounts);
   const [bags, setBags] = useState(0);
   const [bagPolicy, setBagPolicy] = useState('');
@@ -216,28 +221,28 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     <Card>
       <View style={styles.between}>
         <View>
-          <Text weight="bold" style={styles.eyebrow}>Zero Queues · Doorstep Pickup</Text>
-          <Text accessibilityRole="header" weight="bold" style={styles.title}>Arrange an empties pickup.</Text>
+          <Text weight="bold" style={styles.eyebrow}>{t("Zero Queues · Doorstep Pickup")}</Text>
+          <Text accessibilityRole="header" weight="bold" style={styles.title}>{t("Arrange an empties pickup.")}</Text>
         </View>
-        <Badge tone="green" style={{ fontSize: 12 }}>€0.10 per eligible item</Badge>
+        <Badge tone="green" style={{ fontSize: 12 }}>{t("€0.10 per eligible item")}</Badge>
       </View>
       <View style={[styles.rule, { gap: 8 }]}>
         <View style={styles.between}>
-          <Text weight="bold" style={[styles.eyebrow, { color: colors.muted }]}>Containers to hand over</Text>
-          <Text weight="semibold" style={{ fontSize: 10, color: colors.lightBlue }}>Type exact count or tap − / +</Text>
+          <Text weight="bold" style={[styles.eyebrow, { color: colors.muted }]}>{t("Containers to hand over")}</Text>
+          <Text weight="semibold" style={{ fontSize: 10, color: colors.lightBlue }}>{t("Type exact count or tap − / +")}</Text>
         </View>
-        <Text style={styles.muted}>Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.</Text>
+        <Text style={styles.muted}>{t("Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.")}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {containerFields.map(({ key, label, icon }) => <Counter key={key} label={label} icon={icon}
+          {containerFields.map(({ key, label, icon }) => <Counter key={key} label={t(label)} icon={icon}
             value={counts[key]} busy={busy} onChange={(value) => setCounts((previous) => ({ ...previous, [key]: value }))} />)}
         </View>
-        <Text style={styles.small}>Total: <Text weight="bold">{countsValid ? totals.totalContainers : '—'} eligible items</Text></Text>
+        <Text style={styles.small}>{t("Total:") + ' '}<Text weight="bold">{countsValid ? totals.totalContainers : '—'}{' ' + t("eligible items")}</Text></Text>
         <ErrorText message={attempted || !countsValid ? countsError : ''} />
         <View style={styles.between}>
-          <Text style={styles.muted}>Pickup bags · {bags || 'Choose a quantity'}</Text>
+          <Text style={styles.muted}>{t("Pickup bags ·") + ' '}{bags || 'Choose a quantity'}</Text>
           <View style={styles.row}>
-            <Button label="−1 Bag" kind="quiet" disabled={busy || bags <= 1} onPress={() => setBags((value) => Math.max(1, value - 1))} />
-            <Button label="+1 Bag" kind="secondary" disabled={busy || bags >= MAX_BAGS} onPress={() => setBags((value) => Math.min(MAX_BAGS, value + 1))} />
+            <Button label={t("−1 Bag")} kind="quiet" disabled={busy || bags <= 1} onPress={() => setBags((value) => Math.max(1, value - 1))} />
+            <Button label={t("+1 Bag")} kind="secondary" disabled={busy || bags >= MAX_BAGS} onPress={() => setBags((value) => Math.min(MAX_BAGS, value + 1))} />
           </View>
         </View>
       </View>
@@ -245,14 +250,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
     <Card>
       <View style={styles.between}>
         <View style={{ flexShrink: 1 }}>
-          <Text weight="bold" style={styles.small}>Deposit Split Ratio</Text>
-          <Text style={styles.muted}>Estimated BCRS voucher value <Text weight="semibold">{money(totals.totalDepositValue)}</Text></Text>
+          <Text weight="bold" style={styles.small}>{t("Deposit Split Ratio")}</Text>
+          <Text style={styles.muted}>{t("Estimated BCRS voucher value") + ' '}<Text weight="semibold">{money(totals.totalDepositValue)}</Text></Text>
         </View>
         <Badge tone={split === 0 ? 'green' : split === 50 ? 'blue' : 'neutral'}>
           {split === 0 ? '100% Free Gift' : split === 50 ? '50/50 Fair Split' : split + '% to You'}
         </Badge>
       </View>
-      <Slider accessibilityLabel="Seller share of estimated voucher value" value={split} minimumValue={0}
+      <Slider accessibilityLabel={t("Seller share of estimated voucher value")} value={split} minimumValue={0}
         maximumValue={MAX_SELLER_SPLIT} step={5} disabled={busy} onValueChange={setSplit}
         minimumTrackTintColor={colors.blue} maximumTrackTintColor="#243652" thumbTintColor={colors.white}
         style={{ height: 36, marginHorizontal: -4 }} />
@@ -262,37 +267,37 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
         <Text style={styles.muted}>70%</Text>
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Metric label="You Get (At Door)" value={money(totals.sellerPayout)} caption="Direct Revolut / Cash" />
-        <Metric label="Collector’s estimated net value" value={money(totals.collectorProfit)} caption="Voucher value minus seller payment" green />
+        <Metric label={t("You Get (At Door)")} value={money(totals.sellerPayout)} caption={t("Direct Revolut / Cash")} />
+        <Metric label={t("Collector’s estimated net value")} value={money(totals.collectorProfit)} caption={t("Voucher value minus seller payment")} green />
       </View>
     </Card>
     <Card>
       <View style={styles.between}>
-        <Text weight="bold" style={styles.small}>Location & Contact Details</Text>
+        <Text weight="bold" style={styles.small}>{t("Location & Contact Details")}</Text>
         <Text weight="semibold" style={[styles.muted, { color: colors.sky }]}>Malta</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Select label="Pickup locality" options={localities} value={locality} placeholder="Choose a locality"
+        <Select label={t("Pickup locality")} options={localities} value={locality} placeholder={t("Choose a locality")}
           onChange={(value) => { setLocality(value); setLocationMessage(''); setLocationError(''); }} disabled={busy || locating} style={{ flex: 1 }} />
-        <Button label={locating ? 'Locating…' : 'Use GPS'} kind="secondary" onPress={useGps} disabled={busy || locating}>
+        <Button label={locating ? 'Locating…' : t("Use GPS")} kind="secondary" onPress={useGps} disabled={busy || locating}>
           <MapPin size={14} color={colors.sky} />
         </Button>
       </View>
       <ErrorText message={locationError} />
       {locationMessage ? <Text style={styles.muted}>{locationMessage}</Text> : null}
-      {needsTag && <Field label="Revolut tag" showLabel={false} value={tag} onChangeText={setTag} maxLength={51}
+      {needsTag && <Field label={t("Revolut tag")} showLabel={false} value={tag} onChangeText={setTag} maxLength={51}
         placeholder="@your_revolut_tag" autoCapitalize="none" autoCorrect={false} editable={!busy} error={attempted ? tagError : ''} />}
       {streets.length > 0 && <View style={{ gap: 4 }}>
-        <Select label="Nearby street" value={gpsStreet} options={streets.map((name) => ({ label: name, value: name }))}
+        <Select label={t("Nearby street")} value={gpsStreet} options={streets.map((name) => ({ label: name, value: name }))}
           disabled={busy} onChange={(name) => { setGpsStreet(name); setPickupAddress(name); setAddressSelection(null); }} />
         <Text accessibilityRole="link" style={styles.muted} onPress={() => void Linking.openURL('https://www.openstreetmap.org/copyright').catch(() => {})}>© OpenStreetMap contributors</Text>
       </View>}
       <PickupAddressField value={pickupAddress} selection={addressSelection} enabled={addressLookup} signedIn={signedIn} busy={busy}
         onChange={(value) => { setPickupAddress(value); setAddressSelection(null); }}
         onSelect={(value) => { setPickupAddress(value.address); setAddressSelection(value); }} />
-      <Field label="Private pickup instructions" showLabel={false} value={notes} onChangeText={setNotes} maxLength={300}
-        placeholder="Door, intercom, or other instructions (optional)" editable={!busy} />
-      <Text style={styles.muted}>Pickup instructions are shared with the collector who reserves this listing.</Text>
+      <Field label={t("Private pickup instructions")} showLabel={false} value={notes} onChangeText={setNotes} maxLength={300}
+        placeholder={t("Door, intercom, or other instructions (optional)")} editable={!busy} />
+      <Text style={styles.muted}>{t("Pickup instructions are shared with the collector who reserves this listing.")}</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <Button label="⚡ Revolut P2P" kind={method === 'revolut' ? 'secondary' : 'quiet'}
           style={{ flex: 1 }} onPress={() => setMethod('revolut')} disabled={busy} />
@@ -300,25 +305,25 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
           style={{ flex: 1 }} onPress={() => setMethod('cash')} disabled={busy} />
       </View>
     </Card>
-    <Select label="Bag arrangements" value={bagPolicy} onChange={setBagPolicy} options={bagPolicies} placeholder="Choose an option" disabled={busy} />
-    {attempted && errors.length > 0 && <View style={[styles.inset, { backgroundColor: '#350f1a', borderColor: '#763147' }]}>
+    <Select label={t("Bag arrangements")} value={bagPolicy} onChange={setBagPolicy} options={bagPolicies.map((option) => ({ ...option, label: t(option.label) }))} placeholder={t("Choose an option")} disabled={busy} />
+    {attempted && errors.length > 0 && <View style={[styles.inset, { backgroundColor: colors.redTint, borderColor: colors.redBorder }]}>
       {errors.map((message) => <ErrorText key={message} message={'• ' + message} />)}
     </View>}
     <ErrorText message={serverError} />
     <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={busy} />
     <Card>
-      <Text weight="bold" style={styles.body}>Photo of the bottles or bags (required)</Text>
+      <Text weight="bold" style={styles.body}>{t("Photo of the bottles or bags (required)")}</Text>
       {photo ? <>
-        <Image source={{ uri: 'data:image/jpeg;base64,' + photo }} accessibilityLabel="Listing photo preview"
+        <Image source={{ uri: 'data:image/jpeg;base64,' + photo }} accessibilityLabel={t("Listing photo preview")}
           style={{ width: '100%', height: 160 }} resizeMode="contain" />
-        <Button label="Remove photo" kind="quiet" disabled={busy || choosingPhoto}
+        <Button label={t("Remove photo")} kind="quiet" disabled={busy || choosingPhoto}
           onPress={() => { setPhoto(''); setPhotoError(''); }} />
       </> : null}
-      <Button label={choosingPhoto ? 'Preparing photo…' : photo ? 'Replace photo' : 'Choose photo'}
+      <Button label={choosingPhoto ? t("Preparing photo…") : photo ? t("Replace photo") : t("Choose photo")}
         kind="secondary" disabled={busy || choosingPhoto} onPress={() => void choosePhoto()} />
       <ErrorText message={photoError} />
     </Card>
-    <Button label={busy ? 'Publishing…' : 'Publish Collection Request'} disabled={!authReady || busy || locating || choosingPhoto} onPress={submit}>
+    <Button label={busy ? t("Publishing…") : t("Publish Collection Request")} disabled={!authReady || busy || locating || choosingPhoto} onPress={submit}>
       <ArrowRight size={16} color={colors.white} />
     </Button>
   </ScrollView>;

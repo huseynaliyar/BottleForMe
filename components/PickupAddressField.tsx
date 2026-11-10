@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import { useEffect, useState } from 'react';
 import { searchPickupAddresses } from '@/lib/auth';
 import type { AddressSuggestion } from '@/lib/pickup-address';
@@ -8,6 +9,7 @@ export default function PickupAddressField({ value, selection, enabled, signedIn
   value: string; selection: AddressSuggestion | null; enabled: boolean; signedIn: boolean;
   onChange: (value: string) => void; onSelect: (value: AddressSuggestion) => void;
 }) {
+  const { t } = useLanguage();
   const [lookup, setLookup] = useState<{ query: string; suggestions: AddressSuggestion[]; message?: string }>();
   const query = value.trim();
   const shouldSearch = enabled && signedIn && !selection && query.length >= 3;
@@ -27,7 +29,7 @@ export default function PickupAddressField({ value, selection, enabled, signedIn
 
   const result = shouldSearch && lookup?.query === query ? lookup : null;
   return <div className="space-y-1.5">
-    <label htmlFor="pickup-address" className="text-xs font-semibold text-blue-200">Pickup address</label>
+    <label htmlFor="pickup-address" className="text-xs font-semibold text-blue-200">{t("Pickup address")}</label>
     <input id="pickup-address" value={value} autoComplete="off" maxLength={240}
       onChange={(event) => { setLookup(undefined); onChange(event.target.value); }} placeholder="Start with the street and number"
       className="w-full rounded-2xl border border-blue-500/25 bg-[#0b1220] px-3 py-2.5 text-white placeholder-blue-300/40" />

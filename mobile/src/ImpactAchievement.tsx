@@ -1,13 +1,16 @@
+import { useLanguage } from '../../lib/language-context';
 import { useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AccessibilityInfo, Animated } from 'react-native';
 import { useImpactAchievement } from '../../lib/use-impact-achievement';
-import { Button, styles, Text } from './ui';
+import { Button, Text, useUi } from './ui';
 
 const load = (key: string) => AsyncStorage.getItem(key);
 const persist = (key: string, value: string) => AsyncStorage.setItem(key, value);
 
 export default function ImpactAchievement({ userId, containers, completed }: { userId: string; containers: number; completed: number }) {
+  const { t } = useLanguage();
+  const { styles } = useUi();
   const { achievement, dismiss } = useImpactAchievement(userId, containers, completed, load, persist);
   const opacity = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -23,6 +26,6 @@ export default function ImpactAchievement({ userId, containers, completed }: { u
   if (!achievement) return null;
   return <Animated.View style={[styles.inset, { opacity }]}>
     <Text weight="bold" style={styles.body} accessibilityLiveRegion="polite">Achievement unlocked · {achievement.title}</Text>
-    <Button label="Dismiss" kind="quiet" onPress={dismiss} />
+    <Button label={t("Dismiss")} kind="quiet" onPress={dismiss} />
   </Animated.View>;
 }

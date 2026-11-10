@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useLanguage } from '@/lib/language-context';
 import { browserPushInfo, disableBrowserPush, enableBrowserPush } from '@/lib/browser-push';
 
 type PushInfo = Awaited<ReturnType<typeof browserPushInfo>>;
 
 export default function WebPushControl({ userId }: { userId: string }) {
+  const { t } = useLanguage();
   const [info, setInfo] = useState<PushInfo>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +48,7 @@ export default function WebPushControl({ userId }: { userId: string }) {
   return <div className="mb-3 rounded-xl border border-white/10 p-3 text-xs text-blue-200">
     {info ? <>
       <button type="button" disabled={busy} className="font-semibold text-blue-300 disabled:opacity-60" onClick={() => void toggle()}>
-        {info.enabled ? 'Disable lock-screen alerts' : 'Enable lock-screen alerts'}
+        {t(info.enabled ? 'Turn off lock screen alerts' : 'Enable lock screen alerts')}
       </button>
       <p className="mt-1" aria-live="polite">{info.enabled ? 'Lock-screen alerts are on for this browser.' : 'Show inbox notification titles and messages on this device.'}</p>
     </> : <p>Lock-screen alerts are unavailable here. On iPhone or iPad, add BottleForMe to your Home Screen and open it from there.</p>}

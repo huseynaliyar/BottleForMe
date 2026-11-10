@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import dynamic from 'next/dynamic';
@@ -33,7 +34,7 @@ import ContainerCounter, { parseCount } from '@/components/ContainerCounter';
 import NotificationModal from '@/components/NotificationModal';
 import { bagPolicies, bagPolicyLabel, isBagPolicy } from '@/lib/bag-policy';
 import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
-import { pickupStatusColor } from '@/lib/pickup-status';
+import { pickupStatusCss } from '@/lib/pickup-status';
 import PickupChat, { usePickupUnread } from '@/components/PickupChat';
 import { useMarketplaceStatus } from '@/lib/use-marketplace-status';
 import { useInbox } from '@/lib/use-inbox';
@@ -69,6 +70,7 @@ function saveFavorite(pickupId: string, saved: boolean) {
 type Tab = 'resident' | 'driver' | 'chat' | 'profile';
 
 export default function Marketplace({ initialPickup, initialChat = false }: { initialPickup?: string; initialChat?: boolean }) {
+  const { t } = useLanguage();
   const maintenance = useMarketplaceStatus();
   const router = useRouter();
   const [requestedTab, setRequestedTab] = useState<Tab>(initialPickup ? 'chat' : 'resident');
@@ -553,7 +555,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           <div className={fullscreenRadar ? 'flex items-center justify-between' : 'mb-3 flex items-center justify-between'}>
             {/* Logo & Brand Title */}
             <div className="flex items-center space-x-2.5">
-              <button type="button" aria-label="Open profile" className="relative cursor-pointer" onClick={() => setActiveTab('profile')}>
+              <button type="button" aria-label={t("Open profile")} className="relative cursor-pointer" onClick={() => setActiveTab('profile')}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- avatars are private data URLs */}
                 <img
                   src={currentUser?.avatar_url || '/logo.jpg'}
@@ -583,9 +585,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     {currentUser?.role === 'taker' ? '🚛 Taker' : currentUser ? '🎁 Giver' : 'Guest'}
                   </button>
                 </div>
-                <p className="text-[11px] text-blue-200/60 font-medium mt-0.5">
-                  Plastic · Cans · Glass Collection
-                </p>
+                <p className="text-[11px] text-blue-200/60 font-medium mt-0.5">{t("Plastic · Cans · Glass Collection")}</p>
               </div>
             </div>
 
@@ -594,7 +594,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               {/* Notifications Bell */}
               <button
                 onClick={() => setIsNotifOpen(true)}
-                aria-label="Notifications"
+                aria-label={t("Notifications")}
                 className="relative w-9 h-9 rounded-full bg-blue-950/40 border border-blue-500/20 flex items-center justify-center text-blue-200 hover:text-white hover:bg-blue-900/40 transition"
               >
                 <Bell className="w-4 h-4" />
@@ -606,7 +606,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               {/* Profile / Auth Button */}
               <button
                 onClick={() => (currentUser ? setActiveTab('profile') : setIsAuthOpen(true))}
-                aria-label={currentUser ? 'Profile' : 'Log in'}
+                aria-label={currentUser ? t("Profile") : t("Log in")}
                 className="w-9 h-9 rounded-full bg-blue-950/40 border border-blue-500/20 flex items-center justify-center text-blue-200 hover:text-white hover:bg-blue-900/40 transition"
               >
                 <User className="w-4 h-4" />
@@ -623,9 +623,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   ? 'bg-[#0066ff] text-white shadow'
                   : 'text-blue-200/70 hover:text-white'
               }`}
-            >
-              List Empties
-            </button>)}
+            >{t("List Empties")}</button>)}
             {canUseRadar && (<button
               onClick={() => setActiveTab('driver')}
               className={`flex-1 py-2 rounded-xl transition-all duration-200 ${
@@ -633,9 +631,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   ? 'bg-[#0066ff] text-white shadow font-bold'
                   : 'text-blue-200/70 hover:text-white'
               }`}
-            >
-              Radar
-            </button>)}
+            >{t("Radar")}</button>)}
             <button
               onClick={() => setActiveTab('chat')}
               className={`flex-1 py-2 rounded-xl transition-all duration-200 relative ${
@@ -643,18 +639,15 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   ? 'bg-[#0066ff] text-white shadow font-bold'
                   : 'text-blue-200/70 hover:text-white'
               }`}
-            >
-              Pickups
-
-            </button>
+            >{t("Pickups")}</button>
           </div>}
         </header>
 
         {/* Toast Notification Banner */}
         {lifecycle?.paused && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">
-          Your account is {lifecycle.deleting ? 'pending deletion' : 'deactivated'}. <Link href="/settings" className="font-semibold underline">Open Settings</Link>
+          Your account is {lifecycle.deleting ? 'pending deletion' : 'deactivated'}. <Link href="/settings" className="font-semibold underline">{t("Open Settings")}</Link>
         </p>}
-        {maintenance && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly.</p>}
+        {maintenance && <p role="status" className="mx-4 mb-2 rounded-xl bg-amber-950 p-3 text-sm text-amber-100">{t("BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly.")}</p>}
         {actionError && <p role="alert" className="mx-4 mb-2 break-words rounded-xl bg-red-950 p-3 text-xs text-red-200">{actionError}</p>}
         {toastMessage && (
           <div role="status" className="mx-4 mb-2 p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs font-semibold rounded-2xl shadow-lg animate-fade-in flex items-center gap-2">
@@ -672,46 +665,33 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
                 <div className="flex flex-wrap justify-between gap-2">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
-                      Zero Queues · Doorstep Pickup
-                    </span>
-                    <h2 className="text-lg font-bold text-white tracking-tight mt-0.5">
-                      Arrange an empties pickup.
-                    </h2>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Zero Queues · Doorstep Pickup")}</span>
+                    <h2 className="text-lg font-bold text-white tracking-tight mt-0.5">{t("Arrange an empties pickup.")}</h2>
                   </div>
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#00e599]/10 border border-[#00e599]/25 text-[#00e599]">
-                    €0.10 per eligible item
-                  </span>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#00e599]/10 border border-[#00e599]/25 text-[#00e599]">{t("€0.10 per eligible item")}</span>
                 </div>
 
                 {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) with 1-by-1 increments & direct input */}
                 <div className="mt-3.5 pt-3 border-t border-white/[0.08] space-y-2.5">
                   <div className="flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider">
-                      Containers to Hand Over:
-                    </span>
-                    <span className="text-[10px] text-blue-300 font-semibold">
-                      Type exact count or tap − / +
-                    </span>
+                    <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider">{t("Containers to Hand Over:")}</span>
+                    <span className="text-[10px] text-blue-300 font-semibold">{t("Type exact count or tap − / +")}</span>
                   </div>
 
-                  <p className="text-[11px] text-blue-200/70">
-                    Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.
-                  </p>
+                  <p className="text-[11px] text-blue-200/70">{t("Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.")}</p>
                   <div className="grid grid-cols-3 gap-2">
                     <ContainerCounter name="Plastic" icon="🧴" value={plasticCount} onChange={setPlasticCount} />
                     <ContainerCounter name="Cans" icon="🥫" value={canCount} onChange={setCanCount} />
                     <ContainerCounter name="Glass" icon="🍾" value={glassCount} onChange={setGlassCount} />
                   </div>
-                  <p className="text-xs text-blue-200/70">
-                    Total: <strong className="text-white">{countsValid ? totalContainers : '—'} eligible items</strong>
+                  <p className="text-xs text-blue-200/70">{t("Total:") + ' '}<strong className="text-white">{countsValid ? totalContainers : '—'}{' ' + t("eligible items")}</strong>
                   </p>
                   {!countsValid && <p className="text-xs text-red-300">{countError}</p>}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <span className="text-xs text-blue-200/70">Pickup bags · {bags || 'Choose a quantity'}</span>
+                    <span className="text-xs text-blue-200/70">{t("Pickup bags ·") + ' '}{bags || 'Choose a quantity'}</span>
                     <div className="flex gap-1.5">
-                      <button type="button" disabled={bags <= 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">−1 Bag</button>
-                      <button type="button" disabled={bags === MAX_BAGS} onClick={() => setBags((count) => count + 1)} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">+1 Bag</button>
+                      <button type="button" disabled={bags <= 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("−1 Bag")}</button>
+                      <button type="button" disabled={bags === MAX_BAGS} onClick={() => setBags((count) => count + 1)} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("+1 Bag")}</button>
                     </div>
                   </div>
                 </div>
@@ -721,9 +701,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               <div className="glass-navy rounded-[28px] p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="text-xs font-bold text-white tracking-tight">Deposit Split Ratio</span>
-                    <p className="text-[11px] text-blue-200/60">
-                      Estimated BCRS voucher value{' '}
+                    <span className="text-xs font-bold text-white tracking-tight">{t("Deposit Split Ratio")}</span>
+                    <p className="text-[11px] text-blue-200/60">{t("Estimated BCRS voucher value")}{' '}
                       <span className="text-white font-semibold">€{countsValid ? totalDepositValue.toFixed(2) : '—'}</span>
                     </p>
                   </div>
@@ -749,7 +728,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     type="range"
                     min="0"
                     max={MAX_SELLER_SPLIT}
-                    aria-label="Seller share of estimated voucher value"
+                    aria-label={t("Seller share of estimated voucher value")}
                     step="5"
                     value={splitPercent}
                     onChange={(e) => setSplitPercent(Number(e.target.value))}
@@ -765,18 +744,18 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 {/* Split Metrics */}
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <div className="bg-[#0b1220] rounded-2xl p-2.5 border border-blue-500/20">
-                    <span className="text-[10px] text-blue-300 font-medium block">You Get (At Door)</span>
+                    <span className="text-[10px] text-blue-300 font-medium block">{t("You Get (At Door)")}</span>
                     <span className="text-lg font-extrabold text-white mt-0.5 block">
                       €{countsValid ? sellerPayout.toFixed(2) : '—'}
                     </span>
-                    <span className="text-[10px] text-blue-200/50">Direct Revolut / Cash</span>
+                    <span className="text-[10px] text-blue-200/50">{t("Direct Revolut / Cash")}</span>
                   </div>
                   <div className="bg-[#0b1220] rounded-2xl p-2.5 border border-emerald-500/20">
-                    <span className="text-[10px] text-emerald-400 font-medium block">Collector’s estimated net value</span>
+                    <span className="text-[10px] text-emerald-400 font-medium block">{t("Collector’s estimated net value")}</span>
                     <span className="text-lg font-extrabold text-[#00e599] mt-0.5 block">
                       €{countsValid ? collectorProfit.toFixed(2) : '—'}
                     </span>
-                    <span className="text-[10px] text-emerald-300/50">Voucher value minus seller payment</span>
+                    <span className="text-[10px] text-emerald-300/50">{t("Voucher value minus seller payment")}</span>
                   </div>
                 </div>
               </div>
@@ -784,9 +763,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               {/* Location & contact details */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-bold text-white tracking-tight">
-                    Location & Contact Details
-                  </span>
+                  <span className="text-xs font-bold text-white tracking-tight">{t("Location & Contact Details")}</span>
                   <span className="text-[10px] text-blue-400 font-semibold">Malta</span>
                 </div>
 
@@ -795,14 +772,14 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   <div className="relative flex-1 min-w-0">
                     <select
                       value={locality}
-                      aria-label="Pickup locality"
+                      aria-label={t("Pickup locality")}
                       aria-invalid={triedToPublish && Boolean(localityError) || undefined}
                       aria-describedby={triedToPublish && localityError ? 'publish-errors' : undefined}
                       required
                       onChange={(e) => setLocality(e.target.value)}
                       className="w-full bg-[#0b1220] border border-blue-500/25 text-white text-xs font-semibold rounded-2xl px-3 py-2.5 appearance-none focus:outline-none focus:border-blue-500 truncate"
                     >
-                      <option value="">Choose a locality</option>
+                      <option value="">{t("Choose a locality")}</option>
                       {MALTA_LOCALITIES.map((loc) => (
                         <option key={loc.id} value={loc.name}>
                           {loc.name} ({loc.region})
@@ -818,14 +795,14 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     className="shrink-0 px-3 py-2.5 bg-blue-900/40 hover:bg-blue-800/50 border border-blue-500/30 text-blue-300 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
                   >
                     <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                    <span>{isPinningLocation ? 'Locating...' : 'Use GPS'}</span>
+                    <span>{isPinningLocation ? 'Locating...' : t("Use GPS")}</span>
                   </button>
                 </div>
 
                 {needsRevolutTag && <div>
                   <input
                     type="text"
-                    aria-label="Revolut tag"
+                    aria-label={t("Revolut tag")}
                     aria-invalid={triedToPublish && Boolean(revolutError) || undefined}
                     aria-describedby={triedToPublish && revolutError ? 'publish-errors' : undefined}
                     placeholder="@your_revolut_tag"
@@ -838,10 +815,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 </div>}
 
                 {streets.length > 0 && <div className="space-y-1">
-                  <label className="block text-sm text-blue-200">Nearby street
-                    <select className="mt-1 block w-full min-w-0 rounded-xl bg-[#0b1220] p-2 text-base text-white" value={gpsStreet}
+                  <label className="block text-sm text-blue-200">{t("Nearby street")}<select className="mt-1 block w-full min-w-0 rounded-xl bg-[#0b1220] p-2 text-base text-white" value={gpsStreet}
                       onChange={(event) => { setGpsStreet(event.target.value); setPickupAddress(event.target.value); setAddressSelection(null); }}>
-                      <option value="">Choose a street</option>
+                      <option value="">{t("Choose a street")}</option>
                       {streets.map((name) => <option key={name}>{name}</option>)}
                     </select>
                   </label>
@@ -854,10 +830,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 <div>
                   <input
                     type="text"
-                    aria-label="Private pickup instructions"
+                    aria-label={t("Private pickup instructions")}
                     aria-invalid={triedToPublish && Boolean(addressError) || undefined}
                     aria-describedby={triedToPublish && addressError ? 'publish-errors' : undefined}
-                    placeholder="Door, intercom, or other instructions (optional)"
+                    placeholder={t("Door, intercom, or other instructions (optional)")}
                     maxLength={300}
                     value={addressNotes}
                     onChange={(e) => setAddressNotes(e.target.value)}
@@ -865,7 +841,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   />
                 </div>
 
-                <p className="text-[10px] text-blue-200/70">Pickup instructions are shared with the collector who reserves this listing.</p>
+                <p className="text-[10px] text-blue-200/70">{t("Pickup instructions are shared with the collector who reserves this listing.")}</p>
                 {/* Payout Method Toggle */}
                 <div className="flex gap-2 pt-1">
                   <button
@@ -895,7 +871,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
               <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
               <div className="glass-navy space-y-2 rounded-2xl p-3 text-sm text-white">
-                <label className="block font-semibold" htmlFor="listing-photo">Photo of the bottles or bags (required)</label>
+                <label className="block font-semibold" htmlFor="listing-photo">{t("Photo of the bottles or bags (required)")}</label>
                 <input id="listing-photo" type="file" accept="image/jpeg,image/png,image/webp"
                   disabled={isPublishing || readingListingPhoto} className="block w-full max-w-full text-blue-100"
                   onChange={(event) => {
@@ -903,27 +879,25 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     event.currentTarget.value = '';
                     if (file) void chooseListingPhoto(file);
                   }} />
-                {readingListingPhoto && <p role="status">Preparing photo…</p>}
+                {readingListingPhoto && <p role="status">{t("Preparing photo…")}</p>}
                 {listingPhotoError && <p role="alert" className="text-red-300">{listingPhotoError}</p>}
                 {listingPhoto && <>
                   {/* eslint-disable-next-line @next/next/no-img-element -- preview of a local file */}
-                  <img className="max-h-40 rounded-xl object-contain" src={'data:image/jpeg;base64,' + listingPhoto} alt="Listing photo preview" />
+                  <img className="max-h-40 rounded-xl object-contain" src={'data:image/jpeg;base64,' + listingPhoto} alt={t("Listing photo preview")} />
                   <button type="button" disabled={isPublishing || readingListingPhoto} className="text-blue-200 underline"
-                    onClick={() => { setListingPhoto(''); setListingPhotoError(''); }}>Remove photo</button>
+                    onClick={() => { setListingPhoto(''); setListingPhotoError(''); }}>{t("Remove photo")}</button>
                 </>}
               </div>
               {/* Publish Request Button */}
-              <label className="block rounded-xl bg-[#0e1626] p-3 text-sm text-blue-200">
-                Bag arrangements
-                <select value={bagPolicy} onChange={(event) => setBagPolicy(event.target.value)} className="mt-1 block w-full rounded-lg bg-[#080b12] p-2 text-white">
-                  <option value="">Choose an option</option>
-                  {bagPolicies.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
+              <label className="block rounded-xl bg-[#0e1626] p-3 text-sm text-blue-200">{t("Bag arrangements")}<select value={bagPolicy} onChange={(event) => setBagPolicy(event.target.value)} className="mt-1 block w-full rounded-lg bg-[#080b12] p-2 text-white">
+                  <option value="">{t("Choose an option")}</option>
+                  {bagPolicies.map(({ value, label }) => <option key={value} value={value}>{t(label)}</option>)}
                 </select>
               </label>
               {triedToPublish && publishErrors.length > 0 && (
                 <div id="publish-errors" role="alert" className="rounded-xl bg-red-950 p-3 text-sm text-red-200">
                   <ul className="list-disc space-y-1 pl-5">
-                    {publishErrors.map((error) => <li key={error}>{error}</li>)}
+                    {publishErrors.map((error) => <li key={error}>{t(error)}</li>)}
                   </ul>
                 </div>
               )}
@@ -932,7 +906,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 disabled={isPublishing || readingListingPhoto}
                 className="w-full py-3.5 rounded-2xl blue-btn text-white font-extrabold text-sm tracking-tight flex items-center justify-center gap-2 cursor-pointer shadow-lg disabled:opacity-50"
               >
-                <span>{isPublishing ? 'Publishing…' : 'Publish Collection Request'}</span>
+                <span>{isPublishing ? t("Publishing…") : t("Publish Collection Request")}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -941,10 +915,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           {/* ================= 2. TAKER / RADAR VIEW ================= */}
           {activeTab === 'driver' && !canUseRadar && (
             <section className="glass-navy space-y-3 rounded-[28px] p-4">
-              <h2 className="font-extrabold text-white">Radar is for Takers</h2>
-              <p className="text-sm text-blue-200">Switch to Taker to see and reserve pickups from other accounts.</p>
+              <h2 className="font-extrabold text-white">{t("Radar is for Takers")}</h2>
+              <p className="text-sm text-blue-200">{t("Switch to Taker to see and reserve pickups from other accounts.")}</p>
               <button type="button" className="blue-btn rounded-xl px-3 py-2 text-sm font-bold text-white" onClick={() => void handleToggleRole()}>
-                {currentUser ? 'Switch to Taker' : 'Sign in to use Radar'}
+                {currentUser ? t("Switch to Taker") : 'Sign in to use Radar'}
               </button>
             </section>
           )}
@@ -953,12 +927,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               <div className={fullscreenRadar ? 'shrink-0 space-y-1 border-t border-blue-500/20 bg-[#0e1626] px-3 py-2' : 'glass-navy relative overflow-hidden rounded-[28px] p-4'}>
                 <div className="flex justify-between items-center mb-2.5">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">
-                      Malta Collector Radar
-                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Malta Collector Radar")}</span>
                     <h3 className="text-base font-bold text-white tracking-tight mt-0.5">
-                      {offers.length} Live Pickup Requests
-                    </h3>
+                      {offers.length}{' ' + t("Live Pickup Requests")}</h3>
                   </div>
 
                   {/* List vs Map Switcher */}
@@ -970,9 +941,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           ? 'bg-blue-600 text-white'
                           : 'text-blue-200/60 hover:text-white'
                       }`}
-                    >
-                      List
-                    </button>
+                    >{t("List")}</button>
                     <button
                       aria-pressed={radarView === 'map'} onClick={() => setRadarView('map')}
                       className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
@@ -980,26 +949,24 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           ? 'bg-blue-600 text-white'
                           : 'text-blue-200/60 hover:text-white'
                       }`}
-                    >
-                      Map
-                    </button>
+                    >{t("Map")}</button>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <select aria-label="Filter Radar by locality" value={radarLocality} onChange={(event) => { setOffers([]); setMapOfferId(null); setRadarStatus('Loading Radar…'); setRadarLocality(event.target.value); }} className="min-w-0 flex-1 rounded-xl border border-blue-500/25 bg-[#0b1220] p-2 text-xs text-white">
-                    <option value="">All localities</option>
+                  <select aria-label={t("Filter Radar by locality")} value={radarLocality} onChange={(event) => { setOffers([]); setMapOfferId(null); setRadarStatus('Loading Radar…'); setRadarLocality(event.target.value); }} className="min-w-0 flex-1 rounded-xl border border-blue-500/25 bg-[#0b1220] p-2 text-xs text-white">
+                    <option value="">{t("All localities")}</option>
                     {MALTA_LOCALITIES.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
                   </select>
-                  <button type="button" onClick={() => setRevision((value) => value + 1)} className="rounded-xl bg-blue-950 p-2 text-xs text-blue-200">Refresh</button>
+                  <button type="button" onClick={() => setRevision((value) => value + 1)} className="rounded-xl bg-blue-950 p-2 text-xs text-blue-200">{t("Refresh")}</button>
                 </div>
 
                 <button type="button" aria-pressed={savedOnly} disabled={!favorites.ids} onClick={() => {
                   setMapOfferId(null);
                   setSavedOnly(!savedOnly);
-                }} className="rounded-lg bg-blue-950 px-3 py-2 text-xs text-blue-100 disabled:opacity-50">{savedOnly ? 'Show all listings' : 'Show saved listings'}</button>
+                }} className="rounded-lg bg-blue-950 px-3 py-2 text-xs text-blue-100 disabled:opacity-50">{savedOnly ? t("Show all listings") : t("Show saved listings")}</button>
                 {favorites.error && <p role="alert" className="text-xs text-red-300">{favorites.error}</p>}
-                {savedOnly && !radarOffers.length && <p className="text-xs text-blue-200">No saved listings in this area.</p>}
+                {savedOnly && !radarOffers.length && <p className="text-xs text-blue-200">{t("No saved listings in this area.")}</p>}
                 {radarStatus && <p role="status" className="text-xs text-blue-200">{radarStatus}</p>}
               </div>
               {fullscreenRadar && (
@@ -1011,7 +978,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               {/* List view or the pickup selected on the map. */}
               <RadarResults
                 ref={(node: HTMLDivElement | HTMLDialogElement | null) => { radarDetails.current = node instanceof HTMLDialogElement ? node : null; }}
-                aria-label={fullscreenRadar ? 'Pickup details' : undefined}
+                aria-label={fullscreenRadar ? t("Pickup details") : undefined}
                 onCancel={(event) => { event.preventDefault(); setMapOfferId(null); }}
                 className={fullscreenRadar
                   ? 'm-auto max-h-[85dvh] w-[calc(100%-1.5rem)] max-w-md overflow-y-auto rounded-[24px] bg-[#0e1626] text-white backdrop:bg-black/60'
@@ -1022,7 +989,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     className="glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50"
                   >
                     {fullscreenRadar && <button type="button" onClick={() => setMapOfferId(null)}
-                      className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">Close</button>}
+                      className="float-right ml-2 rounded-lg border border-blue-400/30 px-2 py-1 text-xs text-blue-200">{t("Close")}</button>}
                     <div className="flex flex-wrap justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -1045,7 +1012,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
                       </div>
                       <div className="shrink-0">
-                        <span className="text-[10px] text-slate-400 font-medium block">Collector’s estimated net value</span>
+                        <span className="text-[10px] text-slate-400 font-medium block">{t("Collector’s estimated net value")}</span>
                         <span className="text-base font-extrabold text-[#00e599]">
                           €{offer.collector_profit.toFixed(2)}
                         </span>
@@ -1053,8 +1020,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     </div>
 
                     <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-                      <span className="text-[11px] text-slate-300">
-                        Pay Giver:{' '}
+                      <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
                         <strong className="text-white">
                           €{offer.seller_payout.toFixed(2)}{' '}
                           {offer.seller_revolut_tag ? `(${offer.seller_revolut_tag})` : ''}
@@ -1064,18 +1030,16 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         disabled={isUpdating}
                         onClick={() => changePickup(offer, 'reserved')}
                         className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
-                      >
-                        Reserve pickup →
-                      </button>}
+                      >{t("Reserve pickup →")}</button>}
                     </div>
-                    <p className="text-xs text-blue-200">{bagPolicyLabel(offer.bag_policy)}</p>
+                    <p className="text-xs text-blue-200">{t(bagPolicyLabel(offer.bag_policy))}</p>
                     <PickupPhoto key={offer.id} pickupId={offer.id} />
                     <div className="flex flex-wrap gap-3 text-xs">
                       <button type="button" aria-pressed={favorites.ids?.includes(offer.id) ?? false}
                         disabled={!favorites.ids || favorites.busy} onClick={() => void favorites.toggle(offer.id)}
-                        className="rounded-lg bg-blue-950 px-2 py-1 text-blue-100 disabled:opacity-50">{favorites.ids?.includes(offer.id) ? 'Remove favorite' : 'Save favorite'}</button>
+                        className="rounded-lg bg-blue-950 px-2 py-1 text-blue-100 disabled:opacity-50">{favorites.ids?.includes(offer.id) ? t("Remove favorite") : t("Save favorite")}</button>
                       <button type="button" onClick={() => setReport({ pickupId: offer.id, target: 'listing' })}
-                        className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">Report listing</button>
+                        className="rounded-lg bg-white/10 px-2 py-1 text-blue-100">{t("Report listing")}</button>
                     </div>
                     {offer.availability?.length ? <RequestPickupTime offer={offer} onRestriction={setRestriction} onSaved={() => setRevision((value) => value + 1)} /> : null}
                   </div>
@@ -1086,9 +1050,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
           {activeTab === 'chat' && (
             <section className="glass-navy space-y-3 rounded-[24px] p-4 text-sm">
-              <h2 className="font-extrabold text-white">{selectedId ? 'Pickup details' : currentUser ? (canUseRadar ? 'Your pickups as Taker' : 'Your pickups as Giver') : 'Your pickups'}</h2>
+              <h2 className="font-extrabold text-white">{selectedId ? t("Pickup details") : currentUser ? (canUseRadar ? t("Your pickups as Taker") : t("Your pickups as Giver")) : t("Your pickups")}</h2>
               {!currentUser ? (
-                <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>Sign in to view pickups</button>
+                <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button>
               ) : (
                 <>
                   {selectedId ? <>
@@ -1096,13 +1060,13 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                       if (chatPickupId === selectedId) { openActivity(selectedId); return; }
                       setSelectedId(null); setHandoverCode(undefined); setTypedCode(undefined); setActionError('');
                       if (initialPickup) router.push('/?view=pickups');
-                    }}>{chatPickupId === selectedId ? '← Pickup details' : '← All pickups'}</button>
+                    }}>{chatPickupId === selectedId ? t("← Pickup details") : t("← All pickups")}</button>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {selectedInOtherRole ? (
                       <p className="text-blue-200">
-                        This pickup belongs to your {canUseRadar ? 'Giver' : 'Taker'} role.{' '}
+                        This pickup belongs to your {canUseRadar ? t("Giver") : t("Taker")} role.{' '}
                         <button type="button" onClick={() => void handleToggleRole(true)} className="font-bold text-blue-300 underline">
-                          Switch to {canUseRadar ? 'Giver' : 'Taker'}
+                          Switch to {canUseRadar ? t("Giver") : t("Taker")}
                         </button>
                       </p>
                     ) : chatPickupId === selectedId && selectedOffer ? (
@@ -1110,40 +1074,39 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
-                          <span className="text-xs font-semibold text-blue-300" style={{ color: selectedOffer.overdue ? '#fca5a5' : pickupStatusColor[selectedOffer.status] }}>{!canUseRadar && selectedOffer.archived_at ? 'Archived' : selectedOffer.overdue ? 'Overdue' : pickupStatus[selectedOffer.status]}</span>
+                          <span className="text-xs font-semibold text-blue-300" style={{ color: pickupStatusCss(selectedOffer.overdue ? 'overdue' : selectedOffer.status) }}>{!canUseRadar && selectedOffer.archived_at ? t("Archived") : selectedOffer.overdue ? t("Overdue") : t(pickupStatus[selectedOffer.status])}</span>
                           <h3 className="text-lg font-bold text-white">{selectedOffer.locality}</h3>
                           {selectedOffer.confirmed_at && <p className="text-blue-100">{formatAppointment(selectedOffer.confirmed_at)} · Malta time</p>}
                         </header>
 
                         {!canUseRadar && !handoverActive && selectedOffer.seller_id === accountId && <button type="button" disabled={archiving}
                           onClick={() => void toggleArchive(selectedOffer)} className="rounded-lg bg-white/10 px-3 py-2 text-blue-100 disabled:opacity-50">
-                          {selectedOffer.archived_at ? 'Restore listing' : 'Archive listing'}
+                          {selectedOffer.archived_at ? t("Restore listing") : t("Archive listing")}
                         </button>}
                         <PickupPhoto key={selectedOffer.id} pickupId={selectedOffer.id} />
                         {handoverActive && selectedOffer.address_notes && <div className="rounded-xl bg-white/5 p-3">
-                          <h4 className="font-semibold text-white">Pickup address</h4>
+                          <h4 className="font-semibold text-white">{t("Pickup address")}</h4>
                           <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>
                         </div>}
 
                         {handoverActive && <div className="space-y-2">
                           {isCollector && selectedOffer.status === 'reserved' && <button type="button" disabled={isUpdating}
-                            onClick={() => changePickup(selectedOffer, 'en_route')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Mark on the way</button>}
+                            onClick={() => changePickup(selectedOffer, 'en_route')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Mark on the way")}</button>}
                           {isCollector && selectedOffer.status === 'en_route' && <button type="button" disabled={isUpdating}
-                            onClick={() => changePickup(selectedOffer, 'arrived')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Mark arrived</button>}
+                            onClick={() => changePickup(selectedOffer, 'arrived')} className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Mark arrived")}</button>}
                           {isCollector && selectedOffer.status === 'arrived' && <form className="space-y-2" onSubmit={(event) => {
                             event.preventDefault();
                             if (typedCode?.id === selectedOffer.id && typedCode.value.length === 6) void changePickup(selectedOffer, 'completed', typedCode.value);
                           }}>
-                            <label className="block text-blue-200">Enter the six-digit code from the Giver
-                              <input className="mt-1 block w-full min-w-0 rounded-lg bg-[#0b1220] p-2 text-base text-white"
+                            <label className="block text-blue-200">{t("Enter the six-digit code from the Giver")}<input className="mt-1 block w-full min-w-0 rounded-lg bg-[#0b1220] p-2 text-base text-white"
                                 inputMode="numeric" maxLength={6} value={typedCode?.id === selectedOffer.id ? typedCode.value : ''}
                                 onChange={(event) => setTypedCode({ id: selectedOffer.id, value: event.target.value.replace(/\D/g, '').slice(0, 6) })} />
                             </label>
                             <button type="submit" disabled={isUpdating || typedCode?.id !== selectedOffer.id || typedCode.value.length !== 6}
-                              className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">Confirm handover</button>
+                              className="blue-btn rounded-xl px-3 py-2 font-bold text-white disabled:opacity-50">{t("Confirm handover")}</button>
                           </form>}
                           {!isCollector && <>
-                            <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => revealHandoverCode(selectedOffer.id)}>Show code</button>
+                            <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => revealHandoverCode(selectedOffer.id)}>{t("Show code")}</button>
                             {handoverCode?.id === selectedOffer.id && <p className="text-lg font-bold text-white">Show the Taker: {handoverCode.value}</p>}
                           </>}
                         </div>}
@@ -1152,37 +1115,35 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           key={selectedOffer.id + ':' + selectedOffer.status} pickupId={selectedOffer.id} />}
                         {selectedOffer.collector_id && selectedOffer.seller_id && <button type="button"
                           onClick={() => setReport({ pickupId: selectedOffer.id, target: 'user' })}
-                          className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">Report pickup partner</button>}
+                          className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">{t("Report pickup partner")}</button>}
                         {selectedOffer.collector_id && <button type="button" onClick={() => openActivity(selectedOffer.id, true)}
                           className="rounded-xl border border-blue-400/30 px-3 py-2 font-bold text-blue-100">
-                          {handoverActive ? 'Chat' : 'Chat history'} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
+                          {handoverActive ? t("Chat") : t("Chat history")} <UnreadBadge count={unreadCounts.get(selectedOffer.id)} />
                         </button>}
 
                         <details className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-200">
-                          <summary className="cursor-pointer font-semibold text-white">Details</summary>
+                          <summary className="cursor-pointer font-semibold text-white">{t("Details")}</summary>
                           <p>{selectedOffer.estimated_bottles} containers · {selectedOffer.bag_count} bags</p>
-                          <p>{bagPolicyLabel(selectedOffer.bag_policy)}</p>
+                          <p>{t(bagPolicyLabel(selectedOffer.bag_policy))}</p>
                           {!handoverActive && !isCollector && selectedOffer.address_notes && <p className="whitespace-pre-line break-words">{selectedOffer.address_notes}</p>}
-                          <p>{selectedOffer.seller_payout === 0 ? 'Free pickup' :
+                          <p>{selectedOffer.seller_payout === 0 ? t("Free pickup") :
                             'Pay the Giver €' + selectedOffer.seller_payout.toFixed(2) +
                             (selectedOffer.payout_method === 'cash' ? ' in cash' : selectedOffer.payout_method === 'revolut' ? ' via Revolut' : ' as agreed')}</p>
                           {isCollector && handoverActive && selectedOffer.seller_payout > 0 && selectedOffer.payout_method === 'revolut' &&
                             selectedOffer.seller_revolut_tag && REVOLUT_TAG.test(selectedOffer.seller_revolut_tag) && (
                             <a target="_blank" rel="noopener noreferrer" className="inline-block rounded-xl bg-blue-600 px-3 py-2 text-white"
-                              href={'https://revolut.me/' + encodeURIComponent(selectedOffer.seller_revolut_tag.replace(/^@/, '')) + '?amount=' + selectedOffer.seller_payout.toFixed(2)}>
-                              Open Revolut
-                            </a>
+                              href={'https://revolut.me/' + encodeURIComponent(selectedOffer.seller_revolut_tag.replace(/^@/, '')) + '?amount=' + selectedOffer.seller_payout.toFixed(2)}>{t("Open Revolut")}</a>
                           )}
                           {!selectedOffer.confirmed_at && <PickupAvailability offer={selectedOffer} />}
                           {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
                             key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
                           {(handoverActive || selectedOffer.status === 'open') && <button type="button" disabled={isUpdating}
                             onClick={() => { if (window.confirm('Cancel this pickup?')) void changePickup(selectedOffer, 'cancelled'); }}
-                            className="block rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">Cancel pickup</button>}
+                            className="block rounded-xl bg-white/10 px-3 py-2 text-white disabled:opacity-50">{t("Cancel pickup")}</button>}
                         </details>
                       </>}
                       <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
-                        <summary className="cursor-pointer font-semibold text-white">Time requests</summary>
+                        <summary className="cursor-pointer font-semibold text-white">{t("Time requests")}</summary>
                         <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId}
                           participantKey={pickupParticipant} onSwitchRole={() => void handleToggleRole(true)} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
                       </details>
@@ -1190,17 +1151,17 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {!canUseRadar && <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}
-                      className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? 'Show current listings' : 'Show archived listings'}</button>}
-                    {!handoverStatus && !visiblePickups.length && <p className="text-blue-200">{showArchived && !canUseRadar ? 'No archived listings yet.' : 'No listings or assigned pickups in this role yet.'}</p>}
+                      className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? t("Show current listings") : t("Show archived listings")}</button>}
+                    {!handoverStatus && !visiblePickups.length && <p className="text-blue-200">{showArchived && !canUseRadar ? t("No archived listings yet.") : 'No listings or assigned pickups in this role yet.'}</p>}
                     {visiblePickups.map((offer) => <div key={offer.id} className="flex items-center gap-2 rounded-xl border border-blue-400/25 p-3">
                       <button type="button" onClick={() => openActivity(offer.id)} className="min-w-0 flex-1 text-left">
                         <strong className="block text-white">{offer.locality}</strong>
-                        <span className="block text-blue-200" style={{ color: offer.overdue ? '#fca5a5' : pickupStatusColor[offer.status] }}>{!canUseRadar && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : pickupStatus[offer.status]}</span>
+                        <span className="block text-blue-200" style={{ color: pickupStatusCss(offer.overdue ? 'overdue' : offer.status) }}>{!canUseRadar && offer.archived_at ? t("Archived") : offer.overdue ? t("Overdue") : t(pickupStatus[offer.status])}</span>
                         {offer.confirmed_at && <span className="block text-xs text-blue-200">{formatAppointment(offer.confirmed_at)}</span>}
                       </button>
                       {offer.collector_id && <button type="button" onClick={() => openActivity(offer.id, true)}
                         className="shrink-0 rounded-lg bg-blue-950 px-2 py-1 font-semibold text-blue-100">
-                        {offer.status === 'completed' || offer.status === 'cancelled' ? 'Chat history' : 'Chat'}
+                        {offer.status === 'completed' || offer.status === 'cancelled' ? t("Chat history") : t("Chat")}
                         <UnreadBadge count={unreadCounts.get(offer.id)} />
                       </button>}
                     </div>)}
@@ -1215,9 +1176,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           {/* ================= 4. PROFILE & SETTINGS TAB ================= */}
           {activeTab === 'profile' && !currentUser && (
             <section className="glass-navy rounded-3xl p-4 text-sm">
-              <h2 className="mb-2 font-bold text-white">Your profile</h2>
-              <Link href="/help" className="mb-3 flex items-center gap-2 text-blue-200"><CircleHelp className="size-4" aria-hidden="true" /> Help &amp; FAQ</Link>
-              <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>Sign in or register</button>
+              <h2 className="mb-2 font-bold text-white">{t("Your profile")}</h2>
+              <Link href="/settings" className="mb-3 flex items-center gap-2 text-blue-200"><Settings className="size-4" aria-hidden="true" /> {t('Settings')}</Link>
+              <Link href="/help" className="mb-3 flex items-center gap-2 text-blue-200"><CircleHelp className="size-4" aria-hidden="true" />{' ' + t("Help & FAQ")}</Link>
+              <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in or register")}</button>
             </section>
           )}
           {activeTab === 'profile' && currentUser && (
@@ -1238,7 +1200,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
-                        aria-label="Update profile photo"
+                        aria-label={t("Update profile photo")}
                         onChange={handleAvatarUpload}
                         className="sr-only"
                       />
@@ -1275,7 +1237,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 {/* Role Switcher Action */}
                 <div className="mt-3.5 pt-3 border-t border-white/[0.08] flex items-center justify-between">
                   <div>
-                    <span className="text-xs font-bold text-white block">Switch Active Role</span>
+                    <span className="text-xs font-bold text-white block">{t("Switch Active Role")}</span>
                     <p className="text-[10px] text-blue-200/60">
                       Currently acting as {currentUser?.role === 'taker' ? 'Taker (Collector)' : 'Giver (Resident)'}
                     </p>
@@ -1284,19 +1246,17 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     onClick={() => void handleToggleRole()}
                     className="px-3 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white border border-blue-500/40 text-xs font-bold transition flex items-center gap-1"
                   >
-                    <span>Switch to {currentUser?.role === 'taker' ? 'Giver' : 'Taker'}</span>
+                    <span>Switch to {currentUser?.role === 'taker' ? t("Giver") : t("Taker")}</span>
                   </button>
                 </div>
               </div>
 
               {/* Impact & Recycling Statistics */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
-                <span className="text-xs font-bold text-white tracking-tight block">
-                  Your Recycling Impact
-                </span>
+                <span className="text-xs font-bold text-white tracking-tight block">{t("Your Recycling Impact")}</span>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-[#0b1220] p-3 rounded-2xl border border-blue-500/20">
-                    <span className="text-[10px] text-blue-300 font-medium block">Containers handed over</span>
+                    <span className="text-[10px] text-blue-300 font-medium block">{t("Containers handed over")}</span>
                     <span className="text-xl font-extrabold text-white mt-0.5 block">
                       {handoverStatus && !handovers.length ? '—' : recycledContainers}
                     </span>
@@ -1304,7 +1264,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   </div>
                   <div className="bg-[#0b1220] p-3 rounded-2xl border border-emerald-500/20">
                     <span className="text-[10px] text-emerald-400 font-medium block">
-                      {'Recorded handovers'}
+                      {t("Recorded handovers")}
                     </span>
                     <span className="text-xl font-extrabold text-[#00e599] mt-0.5 block">
                       {handoverStatus && !handovers.length ? '—' : completedPickups.length}
@@ -1318,9 +1278,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
               {/* Contact Details & Revolut Handle */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
-                <span className="text-xs font-bold text-white tracking-tight block">
-                  Payment & Contact Info
-                </span>
+                <span className="text-xs font-bold text-white tracking-tight block">{t("Payment & Contact Info")}</span>
 
                 <div className="space-y-2 text-xs">
                   <div className="bg-[#0b1220] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
@@ -1330,13 +1288,13 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     </span>
                   </div>
                   <div className="bg-[#0b1220] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                    <span className="text-slate-400">Phone Number</span>
+                    <span className="text-slate-400">{t("Phone Number")}</span>
                     <span className="text-white font-semibold">
                       {currentUser?.phone || '—'}
                     </span>
                   </div>
                   <div className="bg-[#0b1220] p-2.5 rounded-xl border border-white/5 flex items-center justify-between">
-                    <span className="text-slate-400">Default Locality</span>
+                    <span className="text-slate-400">{t("Default Locality")}</span>
                     <span className="text-white font-semibold">
                       {currentUser.locality ? currentUser.locality + ', Malta' : '—'}
                     </span>
@@ -1345,25 +1303,22 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               </div>
 
               <button type="button" className="min-h-11 w-full rounded-xl bg-blue-950/40 px-3 text-left text-sm font-semibold text-blue-100"
-                onClick={() => setShowGuide(true)}>Getting started</button>
+                onClick={() => setShowGuide(true)}>{t("Getting started")}</button>
 
               {/* Account management */}
               <div className="space-y-2 pt-1">
                 <Link href="/settings" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
-                  <Settings className="size-4 text-blue-300" aria-hidden="true" /> Settings
-                </Link>
+                  <Settings className="size-4 text-blue-300" aria-hidden="true" />{' ' + t("Settings")}</Link>
                 <Link href="/balance" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
-                  <Wallet className="size-4 text-blue-300" aria-hidden="true" /> Balance
-                </Link>
+                  <Wallet className="size-4 text-blue-300" aria-hidden="true" />{' ' + t("Balance")}</Link>
                 <Link href="/help" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
-                  <CircleHelp className="size-4 text-blue-300" aria-hidden="true" /> Help &amp; FAQ
-                </Link>
+                  <CircleHelp className="size-4 text-blue-300" aria-hidden="true" />{' ' + t("Help & FAQ")}</Link>
                 <button
                   onClick={handleSignOut}
                   className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-red-400 text-xs font-semibold transition flex items-center justify-center gap-1"
                 >
                   <LogOut className="w-3 h-3" />
-                  <span>Log out</span>
+                  <span>{t("Log out")}</span>
                 </button>
               </div>
             </section>
@@ -1379,7 +1334,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             }`}
           >
             <Package className={`w-4 h-4 ${activeTab === 'resident' ? 'text-[#0066ff]' : ''}`} />
-            <span className="text-[10px]">Give</span>
+            <span className="text-[10px]">{t("Give")}</span>
           </button>)}
           {canUseRadar && (<button
             onClick={() => setActiveTab('driver')}
@@ -1388,7 +1343,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             }`}
           >
             <Compass className={`w-4 h-4 ${activeTab === 'driver' ? 'text-[#0066ff]' : ''}`} />
-            <span className="text-[10px]">Radar</span>
+            <span className="text-[10px]">{t("Radar")}</span>
           </button>)}
           <button
             onClick={() => setActiveTab('chat')}
@@ -1397,7 +1352,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             }`}
           >
             <MessageSquare className={`w-4 h-4 ${activeTab === 'chat' ? 'text-[#0066ff]' : ''}`} />
-            <span className="text-[10px]">Pickups</span>
+            <span className="text-[10px]">{t("Pickups")}</span>
           </button>
           <button
             onClick={() => setActiveTab('profile')}
@@ -1406,23 +1361,23 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             }`}
           >
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
-            <span className="text-[10px]">Profile</span>
+            <span className="text-[10px]">{t("Profile")}</span>
           </button>
         </footer>
 
         <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"
           onCancel={(event) => { event.preventDefault(); setRestriction(undefined); }}
           className="m-auto max-w-sm space-y-3 rounded-2xl bg-[#0e1626] p-5 text-white backdrop:bg-black/70">
-          <h2 id="pickup-restriction-title" className="font-bold">Pickup request blocked</h2>
+          <h2 id="pickup-restriction-title" className="font-bold">{t("Pickup request blocked")}</h2>
           <p>{restriction?.message}</p>
           <div className="flex gap-3">
-            <button type="button" className="rounded-lg border border-blue-400/30 px-3 py-2" onClick={() => setRestriction(undefined)}>Close</button>
+            <button type="button" className="rounded-lg border border-blue-400/30 px-3 py-2" onClick={() => setRestriction(undefined)}>{t("Close")}</button>
             <button type="button" className="blue-btn rounded-lg px-3 py-2" onClick={() => {
               setMapOfferId(null);
               setRestriction(undefined);
               if (restriction?.pickupId) openActivity(restriction.pickupId);
               else { setSelectedId(null); setActiveTab('chat'); }
-            }}>{restriction?.pickupId ? 'Go to Pickup' : 'Go to Pickups'}</button>
+            }}>{restriction?.pickupId ? t("Go to Pickup") : t("Go to Pickups")}</button>
           </div>
         </dialog>
 

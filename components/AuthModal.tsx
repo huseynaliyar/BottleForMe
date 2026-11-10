@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { MALTA_LOCALITIES, UserProfile, UserRole } from '@/lib/types';
@@ -24,6 +25,7 @@ const buttonClass = 'rounded-xl px-3 py-2 text-sm font-bold text-blue-200 hover:
 type AccountField = 'name' | 'email' | 'password' | 'confirm' | 'revolut' | 'code' | 'terms';
 
 export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, onPasswordUpdated }: AuthModalProps) {
+  const { t } = useLanguage();
   const dialog = useRef<HTMLDialogElement>(null);
   const submitting = useRef(false);
   const otp = useSignupCode();
@@ -167,7 +169,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
     >
       <div className="mb-3 flex items-center justify-between">
         <h2 id="auth-title" className="text-lg font-extrabold text-white">
-          {recovery ? 'Choose a new password' : mode === 'register' ? 'Join BottleForMe' : mode === 'forgot' ? 'Reset password' : mode === 'verify' ? 'Confirm your email' : 'Log in to BottleForMe'}
+          {recovery ? t("Choose a new password") : mode === 'register' ? 'Join BottleForMe' : mode === 'forgot' ? 'Reset password' : mode === 'verify' ? 'Confirm your email' : 'Log in to BottleForMe'}
         </h2>
         <button type="button" onClick={onClose} aria-label="Close account dialog" disabled={loading} className={buttonClass}>
           <X className="size-4" />
@@ -175,9 +177,9 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
       </div>
       {!recovery && (
         <div className="mb-3 flex flex-wrap gap-1">
-          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>Log in</button>
-          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'register'} onClick={() => changeMode('register')}>Register</button>
-          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'forgot'} onClick={() => changeMode('forgot')}>Forgot password</button>
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>{t("Log in")}</button>
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'register'} onClick={() => changeMode('register')}>{t("Register")}</button>
+          <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'forgot'} onClick={() => changeMode('forgot')}>{t("Forgot password")}</button>
 
         </div>
       )}
@@ -185,39 +187,39 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         if (event.target instanceof HTMLInputElement && event.target.name === notice?.field) setNotice(null);
       }} className="space-y-3 text-sm">
         {!recovery && mode === 'register' && (
-          <label className="block">Full name<input name="name" autoComplete="name" maxLength={100} required {...fieldFeedback('name')} className={inputClass} /></label>
+          <label className="block">{t("Full name")}<input name="name" autoComplete="name" maxLength={100} required {...fieldFeedback('name')} className={inputClass} /></label>
         )}
         {!recovery && (
-          <label className="block">Email address<input name="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} type="email" autoComplete="email" required {...fieldFeedback('email')} className={inputClass} /></label>
+          <label className="block">{t("Email address")}<input name="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} type="email" autoComplete="email" required {...fieldFeedback('email')} className={inputClass} /></label>
         )}
         {(recovery || (mode !== 'forgot' && mode !== 'verify')) && (
-          <label className="block">Password<input name="password" type="password" required minLength={recovery || mode === 'register' ? 6 : undefined} autoComplete={recovery || mode === 'register' ? 'new-password' : 'current-password'} {...fieldFeedback('password')} className={inputClass} /></label>
+          <label className="block">{t("Password")}<input name="password" type="password" required minLength={recovery || mode === 'register' ? 6 : undefined} autoComplete={recovery || mode === 'register' ? 'new-password' : 'current-password'} {...fieldFeedback('password')} className={inputClass} /></label>
         )}
-        {recovery && <label className="block">Confirm new password<input name="confirm" type="password" required autoComplete="new-password" {...fieldFeedback('confirm')} className={inputClass} /></label>}
+        {recovery && <label className="block">{t("Confirm new password")}<input name="confirm" type="password" required autoComplete="new-password" {...fieldFeedback('confirm')} className={inputClass} /></label>}
         {!recovery && mode === 'register' && (
           <>
-            <label className="block">Starting role<select name="role" className={inputClass}><option value="giver">Giver</option><option value="taker">Taker</option></select></label>
-            <label className="block">Country calling code<select name="phoneCountry" defaultValue="MT" autoComplete="tel-country-code" className={inputClass}>
+            <label className="block">{t("Starting role")}<select name="role" className={inputClass}><option value="giver">{t("Giver")}</option><option value="taker">{t("Taker")}</option></select></label>
+            <label className="block">{t("Country calling code")}<select name="phoneCountry" defaultValue="MT" autoComplete="tel-country-code" className={inputClass}>
               {phoneCountries.map((country) => <option value={country.value} key={country.value}>{country.label}</option>)}
             </select></label>
-            <label className="block">Phone (optional)<input name="phone" type="tel" autoComplete="tel-national" maxLength={40} className={inputClass} /></label>
-            <label className="block">Revolut tag (optional)<input name="revolut" maxLength={51} {...fieldFeedback('revolut')} className={inputClass} /></label>
-            <label className="block">Locality<select name="locality" className={inputClass}>{MALTA_LOCALITIES.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
+            <label className="block">{t("Phone (optional)")}<input name="phone" type="tel" autoComplete="tel-national" maxLength={40} className={inputClass} /></label>
+            <label className="block">{t("Revolut tag (optional)")}<input name="revolut" maxLength={51} {...fieldFeedback('revolut')} className={inputClass} /></label>
+            <label className="block">{t("Locality")}<select name="locality" className={inputClass}>{MALTA_LOCALITIES.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
           </>
         )}
         {mode === 'verify' && !recovery && <>
-          <label className="block">Six-digit code<input name="code" inputMode="numeric" autoComplete="one-time-code"
+          <label className="block">{t("Six-digit code")}<input name="code" inputMode="numeric" autoComplete="one-time-code"
             maxLength={6} {...fieldFeedback('code')} className={inputClass} /></label>
-          <button type="button" disabled={loading || otp.resendSeconds > 0} className={buttonClass} onClick={() => void resend()}>{otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : 'Resend code'}</button>
+          <button type="button" disabled={loading || otp.resendSeconds > 0} className={buttonClass} onClick={() => void resend()}>{otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : t("Resend code")}</button>
           {otp.verifySeconds > 0 && <p role="status">Try another code in {otp.verifySeconds}s.</p>}
         </>}
         {notice && <p id="account-notice" role={notice.error ? 'alert' : 'status'} className={notice.error ? 'text-red-300' : 'text-emerald-300'}>{notice.text}</p>}
         {!recovery && mode === 'register' && <div className="space-y-2">
-          <Link href="/terms" target="_blank" rel="noreferrer" className="text-blue-300 underline">Read the draft Terms &amp; Conditions</Link>
-          <label className="flex items-start gap-2"><input type="checkbox" name="terms" {...fieldFeedback('terms')} /> I accept the draft Terms &amp; Conditions.</label>
+          <Link href="/terms" target="_blank" rel="noreferrer" className="text-blue-300 underline">{t("Read the draft Terms & Conditions")}</Link>
+          <label className="flex items-start gap-2"><input type="checkbox" name="terms" {...fieldFeedback('terms')} />{' ' + t("I accept the draft Terms & Conditions.")}</label>
         </div>}
         <button type="submit" disabled={loading || (!recovery && ((mode === 'verify' && otp.verifySeconds > 0) || (mode === 'forgot' && otp.resetSeconds > 0)))} className="blue-btn w-full rounded-xl px-3 py-3 font-extrabold text-white disabled:opacity-50">
-          {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link' : mode === 'verify' ? 'Verify code' : 'Sign in'}
+          {loading ? 'Please wait…' : recovery ? 'Save password' : mode === 'register' ? 'Create account' : mode === 'forgot' ? otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link' : mode === 'verify' ? t("Verify code") : 'Sign in'}
         </button>
       </form>
     </dialog>

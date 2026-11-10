@@ -1,3 +1,4 @@
+import { useLanguage } from '../../lib/language-context';
 import { useRef, useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
@@ -14,7 +15,7 @@ import { formatPhone, phoneCountries } from '../../lib/phone';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import type { PickupOffer, UserProfile } from '../../lib/types';
 import { errorMessage, register, resendSignupCode, resetPassword, signIn, supabase, verifySignupCode } from './backend';
-import { Badge, Button, Card, colors, Dialog, ErrorText, Field, localityOptions, Loading, Metric, Segmented, Select, styles, Text } from './ui';
+import { Badge, Button, Card, Dialog, ErrorText, Field, localityOptions, Loading, Metric, Segmented, Select, Text, useUi } from './ui';
 
 type Mode = 'signin' | 'register' | 'reset' | 'verify';
 const modes = [
@@ -23,6 +24,8 @@ const modes = [
 const roles = [{ value: 'giver', label: 'Giver' }, { value: 'taker', label: 'Taker' }] as const;
 
 export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; onSignedIn: (verified?: boolean) => void }) {
+  const { t } = useLanguage();
+  const { colors, styles } = useUi();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -138,70 +141,73 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     onClose={() => { if (!pending.current) onClose(); }}>
     {mode !== 'verify' && <Segmented options={modes} value={mode} onChange={switchMode} />}
 
-    {mode === 'verify' && <Button label="Back to log in" kind="quiet" onPress={() => switchMode('signin')} disabled={busy} />}
-    {mode === 'register' && <Field label="Full name" value={name} onChangeText={setName} maxLength={100}
+    {mode === 'verify' && <Button label={t("Back to log in")} kind="quiet" onPress={() => switchMode('signin')} disabled={busy} />}
+    {mode === 'register' && <Field label={t("Full name")} value={name} onChangeText={setName} maxLength={100}
       autoComplete="name" editable={!busy} error={attempted ? nameError : ''} />}
-    <Field label="Email address" value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
+    <Field label={t("Email address")} value={email} onChangeText={setEmail} autoCapitalize="none" autoCorrect={false}
       keyboardType="email-address" autoComplete="email" editable={!busy} error={attempted ? emailError : ''} />
-    {mode !== 'reset' && mode !== 'verify' && <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry
+    {mode !== 'reset' && mode !== 'verify' && <Field label={t("Password")} value={password} onChangeText={setPassword} secureTextEntry
       autoCapitalize="none" autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
       editable={!busy} error={attempted ? passwordError : ''} />}
     {mode === 'register' && <>
       <View style={{ gap: 4 }}>
-        <Text style={styles.small}>Starting role</Text>
+        <Text style={styles.small}>{t("Starting role")}</Text>
         <Segmented options={roles} value={role} onChange={(value) => { if (!busy) setRole(value); }} />
       </View>
-      <Select label="Country calling code" value={phoneCountry} options={phoneCountries} onChange={setPhoneCountry} disabled={busy} />
-      <Field label="Phone (optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={40} editable={!busy} />
-      <Field label="Revolut tag (optional)" value={tag} onChangeText={setTag} autoCapitalize="none" autoCorrect={false}
+      <Select label={t("Country calling code")} value={phoneCountry} options={phoneCountries} onChange={setPhoneCountry} disabled={busy} />
+      <Field label={t("Phone (optional)")} value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={40} editable={!busy} />
+      <Field label={t("Revolut tag (optional)")} value={tag} onChangeText={setTag} autoCapitalize="none" autoCorrect={false}
         maxLength={51} editable={!busy} error={attempted ? tagError : ''} />
       <View style={{ gap: 4 }}>
-        <Text style={styles.small}>Locality</Text>
-        <Select label="Locality" value={locality} onChange={setLocality} options={localityOptions} disabled={busy} inline />
+        <Text style={styles.small}>{t("Locality")}</Text>
+        <Select label={t("Locality")} value={locality} onChange={setLocality} options={localityOptions} disabled={busy} inline />
       </View>
     </>}
     {mode === 'verify' && <>
-      <Field label="Six-digit code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+      <Field label={t("Six-digit code")} value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
         keyboardType="number-pad" autoComplete="one-time-code" maxLength={6} editable={!busy} error={attempted ? codeError : ''} />
-      <Button label={otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : 'Resend code'} kind="secondary" onPress={resend} disabled={busy || otp.resendSeconds > 0} />
+      <Button label={otp.resendSeconds ? 'Resend in ' + otp.resendSeconds + 's' : t("Resend code")} kind="secondary" onPress={resend} disabled={busy || otp.resendSeconds > 0} />
       {otp.verifySeconds > 0 && <Text style={styles.small}>Try another code in {otp.verifySeconds}s.</Text>}
     </>}
     {notice ? <Text accessibilityLiveRegion="polite" style={[styles.small, { color: colors.green }]}>{notice}</Text> : null}
     <ErrorText message={error || (supabase ? '' : 'Account service is unavailable in this build.')} />
     {mode === 'register' && <>
-      <Button label={showTerms ? 'Hide draft terms' : 'Read the draft Terms & Conditions'} kind="quiet" onPress={() => setShowTerms(!showTerms)} />
+      <Button label={showTerms ? 'Hide draft terms' : t("Read the draft Terms & Conditions")} kind="quiet" onPress={() => setShowTerms(!showTerms)} />
       {showTerms && draftTerms.map((term) => <Text key={term} style={styles.small}>{term}</Text>)}
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: termsAccepted }} disabled={busy}
         onPress={() => setTermsAccepted(!termsAccepted)} style={styles.inset}>
-        <Text style={styles.small}>{termsAccepted ? '☑' : '☐'} I accept the draft Terms &amp; Conditions.</Text>
+        <Text style={styles.small}>{termsAccepted ? '☑' : '☐'}{' ' + t("I accept the draft Terms & Conditions.")}</Text>
       </Pressable>
     </>}
-    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? 'Verify code' : otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link'}
+    <Button label={busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : mode === 'register' ? 'Create account' : mode === 'verify' ? t("Verify code") : otp.resetSeconds ? 'Send again in ' + otp.resetSeconds + 's' : 'Send reset link'}
       disabled={busy || !supabase || (mode === 'verify' && otp.verifySeconds > 0) || (mode === 'reset' && otp.resetSeconds > 0)} onPress={submit} />
   </Dialog>;
 }
 
 export function Avatar({ uri, size = 40 }: { uri?: string; size?: number }) {
+  const { colors } = useUi();
   return <Image source={uri && /^data:image\/(jpeg|png|webp);base64,/i.test(uri) ? { uri } : require('../assets/logo.jpg')}
     style={{ width: size, height: size, borderRadius: size * 0.38, borderWidth: 2, borderColor: '#315b94', backgroundColor: colors.panel }} />;
 }
 
 function Balance({ userId, offers, loading }: { userId: string; offers: PickupOffer[]; loading: boolean }) {
+  const { t } = useLanguage();
+  const { colors, styles } = useUi();
   const [open, setOpen] = useState(false);
   const balance = pickupBalance(offers, userId);
   return <>
-    <Button label="Balance" kind="secondary" onPress={() => setOpen(true)}><Wallet size={16} color={colors.sky} /></Button>
-    {open && <Dialog title="Balance" onClose={() => setOpen(false)}>
+    <Button label={t("Balance")} kind="secondary" onPress={() => setOpen(true)}><Wallet size={16} color={colors.sky} /></Button>
+    {open && <Dialog title={t("Balance")} onClose={() => setOpen(false)}>
       {loading ? <Loading label="Loading pickup estimates…" /> : <>
-        <Text style={styles.body}>Estimated earnings {formatEuro(balance.earnings)}</Text>
-        <Text style={styles.body}>Total deposit value {formatEuro(balance.deposit)}</Text>
+        <Text style={styles.body}>{t("Estimated earnings") + ' '}{formatEuro(balance.earnings)}</Text>
+        <Text style={styles.body}>{t("Total deposit value") + ' '}{formatEuro(balance.deposit)}</Text>
         <Text style={styles.small}>{balanceNote}</Text>
-        <Text weight="bold" style={styles.body}>Completed pickup history</Text>
-        {!balance.entries.length && <Text style={styles.small}>No completed pickups yet.</Text>}
+        <Text weight="bold" style={styles.body}>{t("Completed pickup history")}</Text>
+        {!balance.entries.length && <Text style={styles.small}>{t("No completed pickups yet.")}</Text>}
         {balance.entries.map((entry) => <View key={entry.id} style={styles.inset}>
           <Text weight="bold" style={styles.small}>{entry.locality} · {entry.role}</Text>
           <Text style={styles.small}>{new Date(entry.date).toLocaleDateString('en-MT', { timeZone: 'Europe/Malta' })}</Text>
-          <Text style={styles.small}>Estimated earnings {formatEuro(entry.earnings)} · Deposit {formatEuro(entry.deposit)}</Text>
+          <Text style={styles.small}>{t("Estimated earnings") + ' '}{formatEuro(entry.earnings)} · Deposit {formatEuro(entry.deposit)}</Text>
         </View>)}
       </>}
     </Dialog>}
@@ -209,31 +215,35 @@ function Balance({ userId, offers, loading }: { userId: string; offers: PickupOf
 }
 
 export function GettingStartedDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
+  const { styles } = useUi();
   const [step, setStep] = useState(0);
   const item = gettingStarted[step];
   const last = step === gettingStarted.length - 1;
-  return <Dialog title="Getting started" onClose={onClose}>
+  return <Dialog title={t("Getting started")} onClose={onClose}>
     <Text style={styles.small}>Step {step + 1} of {gettingStarted.length}</Text>
-    <Text accessibilityRole="header" weight="bold" style={styles.body}>{item.title}</Text>
-    <Text accessibilityLiveRegion="polite" style={styles.small}>{item.description}</Text>
-    {step > 0 && <Button label="Back" kind="secondary" onPress={() => setStep(step - 1)} />}
-    <Button label={last ? 'Done' : 'Next'} onPress={() => last ? onClose() : setStep(step + 1)} />
-    {!last && <Button label="Skip" kind="quiet" onPress={onClose} />}
+    <Text accessibilityRole="header" weight="bold" style={styles.body}>{t(item.title)}</Text>
+    <Text accessibilityLiveRegion="polite" style={styles.small}>{t(item.description)}</Text>
+    {step > 0 && <Button label={t("Back")} kind="secondary" onPress={() => setStep(step - 1)} />}
+    <Button label={last ? t("Done") : t("Next")} onPress={() => last ? onClose() : setStep(step + 1)} />
+    {!last && <Button label={t("Skip")} kind="quiet" onPress={onClose} />}
   </Dialog>;
 }
 
 function HelpFaq() {
+  const { t } = useLanguage();
+  const { colors, styles } = useUi();
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<string>();
   return <>
-    <Button label="Help & FAQ" kind="secondary" onPress={() => setOpen(true)}><CircleHelp size={16} color={colors.sky} /></Button>
-    {open && <Dialog title="Help & FAQ" onClose={() => setOpen(false)}>
+    <Button label={t("Help & FAQ")} kind="secondary" onPress={() => setOpen(true)}><CircleHelp size={16} color={colors.sky} /></Button>
+    {open && <Dialog title={t("Help & FAQ")} onClose={() => setOpen(false)}>
       {supportFaq.map(({ question, answer }) => <View key={question} style={styles.inset}>
         <Pressable accessibilityRole="button" accessibilityState={{ expanded: expanded === question }}
           onPress={() => setExpanded(expanded === question ? undefined : question)}>
-          <Text weight="bold" style={styles.small}>{question}</Text>
+          <Text weight="bold" style={styles.small}>{t(question)}</Text>
         </Pressable>
-        {expanded === question && <Text style={styles.small}>{answer}</Text>}
+        {expanded === question && <Text style={styles.small}>{t(answer)}</Text>}
       </View>)}
     </Dialog>}
   </>;
@@ -243,6 +253,8 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
   profile: UserProfile | null; signedIn: boolean; loading: boolean; error: string; offers: PickupOffer[]; pickupsLoading: boolean;
   onSignIn: () => void; onRefresh: () => void; onSwitch: () => void; onAvatar: (url: string) => Promise<void>; onSignOut: () => void; onGuide: () => void; onSettings: () => void;
 }) {
+  const { t } = useLanguage();
+  const { colors, styles } = useUi();
   const [uploading, setUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
   const completed = offers.filter((offer) => offer.status === 'completed');
@@ -271,17 +283,20 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
 
   return <ScrollView contentContainerStyle={styles.scroll}>
     {!profile ? <Card>
-      <Text accessibilityRole="header" weight="bold" style={styles.title}>Your profile</Text>
-      {loading && <Loading label="Loading your profile…" />}
+      <Text accessibilityRole="header" weight="bold" style={styles.title}>{t("Your profile")}</Text>
+      {loading && <Loading label={t("Loading your profile…")} />}
       <ErrorText message={error} />
-      {!signedIn && <HelpFaq />}
-      {!signedIn && <Button label="Sign in or register" onPress={onSignIn} style={{ alignSelf: 'flex-start' }} />}
+      {!signedIn && <>
+        <Button label={t('Settings')} kind="secondary" onPress={onSettings} />
+        <HelpFaq />
+      </>}
+      {!signedIn && <Button label={t("Sign in or register")} onPress={onSignIn} style={{ alignSelf: 'flex-start' }} />}
       {signedIn && !loading && <Button label="Reload profile" onPress={onRefresh} style={{ alignSelf: 'flex-start' }} />}
-      {signedIn && <Button label="Log out" kind="quiet" onPress={onSignOut} />}
+      {signedIn && <Button label={t("Log out")} kind="quiet" onPress={onSignOut} />}
     </Card> : <>
       <Card>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Update profile photo" disabled={uploading} onPress={choosePhoto}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t("Update profile photo")} disabled={uploading} onPress={choosePhoto}>
             <Avatar uri={profile.avatar_url} size={64} />
             <View style={{
               position: 'absolute', right: -3, bottom: -3, width: 24, height: 24, borderRadius: 12,
@@ -301,36 +316,36 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
         <ErrorText message={avatarError} />
         <View style={[styles.between, styles.rule]}>
           <View style={{ flex: 1 }}>
-            <Text weight="bold" style={styles.small}>Switch Active Role</Text>
+            <Text weight="bold" style={styles.small}>{t("Switch Active Role")}</Text>
             <Text style={styles.muted}>Currently acting as {taker ? 'Taker (Collector)' : 'Giver (Resident)'}</Text>
           </View>
-          <Button label={taker ? 'Switch to Giver' : 'Switch to Taker'} kind="secondary" onPress={onSwitch} disabled={uploading} />
+          <Button label={taker ? t("Switch to Giver") : t("Switch to Taker")} kind="secondary" onPress={onSwitch} disabled={uploading} />
         </View>
       </Card>
       <Card>
-        <Text weight="bold" style={styles.small}>Your Recycling Impact</Text>
+        <Text weight="bold" style={styles.small}>{t("Your Recycling Impact")}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Metric label="Containers handed over" value={pickupsLoading && !offers.length ? '—' : String(recycledContainers)}
+          <Metric label={t("Containers handed over")} value={pickupsLoading && !offers.length ? '—' : String(recycledContainers)}
             caption="Plastic, cans & glass" />
-          <Metric label="Recorded handovers" value={pickupsLoading && !offers.length ? '—' : String(completed.length)} caption="Pickups marked complete" green />
+          <Metric label={t("Recorded handovers")} value={pickupsLoading && !offers.length ? '—' : String(completed.length)} caption="Pickups marked complete" green />
         </View>
       </Card>
       <ImpactAchievement userId={profile.id} containers={recycledContainers} completed={completed.length} />
       <Card>
-        <Text weight="bold" style={styles.small}>Payment & Contact Info</Text>
+        <Text weight="bold" style={styles.small}>{t("Payment & Contact Info")}</Text>
         {[
           ['Revolut Handle', profile.revolut_tag], ['Phone Number', profile.phone],
           ['Default Locality', profile.locality && profile.locality + ', Malta'],
         ].map(([label, value]) => <View key={label} style={[styles.inset, styles.between, { borderColor: colors.subtle }]}>
-          <Text style={styles.muted}>{label}</Text>
+          <Text style={styles.muted}>{t(label)}</Text>
           <Text weight="semibold" style={styles.small}>{value || '—'}</Text>
         </View>)}
       </Card>
-      <Button label="Settings" kind="secondary" onPress={onSettings}><Settings size={16} color={colors.sky} /></Button>
+      <Button label={t("Settings")} kind="secondary" onPress={onSettings}><Settings size={16} color={colors.sky} /></Button>
       <Balance userId={profile.id} offers={offers} loading={pickupsLoading} />
       <HelpFaq />
-      <Button label="Getting started" kind="secondary" onPress={onGuide} />
-      <Button label="Log out" kind="quiet" onPress={onSignOut} disabled={uploading}>
+      <Button label={t("Getting started")} kind="secondary" onPress={onGuide} />
+      <Button label={t("Log out")} kind="quiet" onPress={onSignOut} disabled={uploading}>
         <LogOut size={13} color={colors.muted} />
       </Button>
     </>}

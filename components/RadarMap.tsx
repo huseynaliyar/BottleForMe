@@ -1,5 +1,6 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { MALTA_LOCALITIES, PickupOffer } from '@/lib/types';
@@ -8,6 +9,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
   offers: PickupOffer[];
   onSelectOffer?: (offer: PickupOffer) => void;
 }) {
+  const { t } = useLanguage();
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const layerRef = useRef<L.LayerGroup | null>(null);
@@ -91,9 +93,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div ref={container} className="h-full w-full" role="region" aria-label="Radar map by locality" />
-      <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">
-        Pins show locality centers.
-      </p>
+      <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">{t("Pins show locality centers.")}</p>
     </div>
   );
 }

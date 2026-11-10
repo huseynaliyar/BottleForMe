@@ -1,7 +1,8 @@
 'use client';
 
+import { useLanguage } from '@/lib/language-context';
 import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restriction';
-import { pickupStatusColor } from '@/lib/pickup-status';
+import { pickupStatusCss } from '@/lib/pickup-status';
 
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
@@ -27,28 +28,30 @@ function ScheduleButton({ children, onClick, busy, main = false }: {
 export function AvailabilityEditor({ drafts, onChange, disabled }: {
   drafts: WindowDraft[]; onChange: (drafts: WindowDraft[]) => void; disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   return <fieldset disabled={disabled} className="min-w-0 space-y-2 rounded-xl border border-blue-400/20 p-3">
-    <legend className="px-1 font-bold text-white">Pickup availability · Malta time</legend>
+    <legend className="px-1 font-bold text-white">{t("Pickup availability · Malta time")}</legend>
     {drafts.map((draft, index) => <div key={index} className="grid min-w-0 grid-cols-1 gap-2">
       {(['date', 'start', 'end'] as const).map((key) => <label key={key} className="text-sm text-blue-100">
-        {key === 'date' ? 'Date' : key === 'start' ? 'From' : 'Until'}
+        {key === 'date' ? 'Date' : key === 'start' ? t("From") : t("Until")}
         <input type={key === 'date' ? 'date' : 'time'} min={key === 'date' ? maltaToday() : undefined}
           aria-label={'Window ' + (index + 1) + ' ' + key} value={draft[key]} className={field}
           onChange={(event) => onChange(drafts.map((item, i) => i === index ? { ...item, [key]: event.target.value } : item))} />
       </label>)}
-      {drafts.length > 1 && <ScheduleButton onClick={() => onChange(drafts.filter((_, i) => i !== index))}>Remove</ScheduleButton>}
+      {drafts.length > 1 && <ScheduleButton onClick={() => onChange(drafts.filter((_, i) => i !== index))}>{t("Remove")}</ScheduleButton>}
     </div>)}
-    <ScheduleButton busy={drafts.length >= maxPickupWindows} onClick={() => onChange([...drafts, newWindow()])}>Add a window</ScheduleButton>
+    <ScheduleButton busy={drafts.length >= maxPickupWindows} onClick={() => onChange([...drafts, newWindow()])}>{t("Add a window")}</ScheduleButton>
   </fieldset>;
 }
 
 export function PickupAvailability({ offer }: { offer: PickupOffer }) {
+  const { t } = useLanguage();
   const windows = offer.availability ?? [];
   if (!windows.length && !offer.confirmed_at) return null;
   return <div className="space-y-1 text-sm text-blue-100">
-    <p className="flex items-center gap-2 font-bold"><CalendarDays size={16} /> Pickup schedule · Malta time</p>
+    <p className="flex items-center gap-2 font-bold"><CalendarDays size={16} />{' ' + t("Pickup schedule · Malta time")}</p>
     {offer.confirmed_at && offer.status !== 'cancelled'
-      ? <p>Confirmed for {formatAppointment(offer.confirmed_at)}</p>
+      ? <p>{t("Confirmed for") + ' '}{formatAppointment(offer.confirmed_at)}</p>
       : <ul className="space-y-1">{windows.map((window) => <li key={window.start}>{formatPickupWindow(window)}</li>)}</ul>}
   </div>;
 }
@@ -56,9 +59,10 @@ export function PickupAvailability({ offer }: { offer: PickupOffer }) {
 function DateAndTime({ date, time, setDate, setTime }: {
   date: string; time: string; setDate: (value: string) => void; setTime: (value: string) => void;
 }) {
+  const { t } = useLanguage();
   return <div className="grid min-w-0 grid-cols-1 gap-2">
-    <label className="text-sm">Pickup date<input className={field} type="date" min={maltaToday()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    <label className="text-sm">Pickup time<input className={field} type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
+    <label className="text-sm">{t("Pickup date")}<input className={field} type="date" min={maltaToday()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+    <label className="text-sm">{t("Pickup time")}<input className={field} type="time" value={time} onChange={(event) => setTime(event.target.value)} /></label>
   </div>;
 }
 
@@ -102,6 +106,7 @@ function Feedback({ error, notice }: { error: string; notice: string }) {
 export function RequestPickupTime({ offer, onSaved, onRestriction }: {
   offer: PickupOffer; onSaved: () => void; onRestriction?: (value: PickupRestriction) => void;
 }) {
+  const { t } = useLanguage();
   const [mode, setMode] = useState<'available' | 'alternative'>('available');
   const [availableDate, setAvailableDate] = useState('');
   const [selected, setSelected] = useState('');
@@ -126,31 +131,32 @@ export function RequestPickupTime({ offer, onSaved, onRestriction }: {
   }
 
   return <details className="w-full rounded-xl border border-blue-400/25 p-3 text-blue-100">
-    <summary className="cursor-pointer font-bold text-white">Request pickup</summary>
+    <summary className="cursor-pointer font-bold text-white">{t("Request pickup")}</summary>
     <fieldset disabled={busy} className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
-        <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>Available time</ScheduleButton>
-        <ScheduleButton onClick={() => setMode('alternative')} main={mode === 'alternative'}>Propose another time</ScheduleButton>
+        <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>{t("Available time")}</ScheduleButton>
+        <ScheduleButton onClick={() => setMode('alternative')} main={mode === 'alternative'}>{t("Propose another time")}</ScheduleButton>
       </div>
-      <p className="text-sm">Times are in Europe/Malta.</p>
+      <p className="text-sm">{t("Times are in Europe/Malta.")}</p>
       {mode === 'available' ? dates.length ? <div className="grid min-w-0 grid-cols-1 gap-2">
-        <label className="text-sm">Available date<select className={field} value={day}
+        <label className="text-sm">{t("Available date")}<select className={field} value={day}
           onChange={(event) => { setAvailableDate(event.target.value); setSelected(''); }}>
           {dates.map((value) => <option key={value}>{value}</option>)}
         </select></label>
-        <label className="text-sm">Available time<select className={field} value={daySlots.includes(selected) ? selected : ''} onChange={(event) => setSelected(event.target.value)}>
-          <option value="">Choose a time</option>
+        <label className="text-sm">{t("Available time")}<select className={field} value={daySlots.includes(selected) ? selected : ''} onChange={(event) => setSelected(event.target.value)}>
+          <option value="">{t("Choose a time")}</option>
           {daySlots.map((value) => <option key={value} value={value}>{formatPickupTime(value)}</option>)}
         </select></label>
-      </div> : <p className="text-sm">No upcoming windows. You can propose another time.</p>
+      </div> : <p className="text-sm">{t("No upcoming windows. You can propose another time.")}</p>
         : <DateAndTime date={date} time={time} setDate={setDate} setTime={setTime} />}
-      <ScheduleButton onClick={() => void requestTime()} main>Send request</ScheduleButton>
+      <ScheduleButton onClick={() => void requestTime()} main>{t("Send request")}</ScheduleButton>
       <Feedback error={error} notice={notice} />
     </fieldset>
   </details>;
 }
 
 export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer; onSaved: () => void }) {
+  const { t } = useLanguage();
   const [drafts, setDrafts] = useState(() => {
     const current = windowDrafts(offer.availability ?? []);
     return current.length ? current : [newWindow()];
@@ -162,16 +168,17 @@ export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer;
     void submit({ action: 'availability', availability, version: offer.availability_version ?? 0 }, 'Availability saved.');
   }
   return <details className="rounded-xl border border-blue-400/25 p-3">
-    <summary className="cursor-pointer font-bold text-white">Edit availability</summary>
+    <summary className="cursor-pointer font-bold text-white">{t("Edit availability")}</summary>
     <div className="mt-3 space-y-2">
       <AvailabilityEditor drafts={drafts} onChange={setDrafts} disabled={busy} />
-      <ScheduleButton busy={busy} onClick={save} main>Save availability</ScheduleButton>
+      <ScheduleButton busy={busy} onClick={save} main>{t("Save availability")}</ScheduleButton>
       <Feedback error={error} notice={notice} />
     </div>
   </details>;
 }
 
 function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId: string; onSaved: () => void }) {
+  const { t } = useLanguage();
   const [counter, setCounter] = useState(false);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -188,18 +195,18 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   const canCancel = pending || (item.status === 'accepted' && ['reserved', 'en_route', 'arrived'].includes(item.pickup?.status ?? ''));
   const base = { id: item.id, version: item.version };
   return <li className="space-y-2 rounded-xl bg-[#0b1220] p-3">
-    <p className="font-bold">{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? 'Pending' : item.status === 'rejected' ? 'Declined' : 'Cancelled'}</p>
+    <p className="font-bold">{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? t("Pending") : item.status === 'rejected' ? 'Declined' : t("Cancelled")}</p>
     <p className="text-sm">{formatAppointment(item.proposed_at)} · Malta time</p>
     {pending && <p className="text-sm">{future ? (canRespond ? 'Your response is needed.' : 'Waiting for the other person.') : 'This proposed time has passed.'}</p>}
     <div className="flex flex-wrap gap-2">
       {canRespond && <>
-        <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>Accept</ScheduleButton>
-        <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>Decline</ScheduleButton>
-        <ScheduleButton busy={busy} onClick={() => setCounter(!counter)}>Suggest another time</ScheduleButton>
+        <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>{t("Accept")}</ScheduleButton>
+        <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>{t("Decline")}</ScheduleButton>
+        <ScheduleButton busy={busy} onClick={() => setCounter(!counter)}>{t("Suggest another time")}</ScheduleButton>
       </>}
       {canCancel && <ScheduleButton busy={busy} onClick={() => {
         if (window.confirm('Cancel this pickup arrangement?')) void submit({ ...base, action: 'cancel' }, 'Arrangement cancelled.');
-      }}>Cancel arrangement</ScheduleButton>}
+      }}>{t("Cancel arrangement")}</ScheduleButton>}
     </div>
     {canRespond && counter && <fieldset disabled={busy} className="space-y-2">
       <DateAndTime date={date} time={time} setDate={setDate} setTime={setTime} />
@@ -207,7 +214,7 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
         const at = maltaDateTime(date, time);
         if (!at || Date.parse(at) <= Date.now()) { setError('Choose a valid future time in Malta.'); return; }
         void submit({ ...base, action: 'counter', at }, 'New time proposed. Waiting for a response.').then((saved) => { if (saved) setCounter(false); });
-      }}>Send new time</ScheduleButton>
+      }}>{t("Send new time")}</ScheduleButton>
     </fieldset>}
     <Feedback error={error} notice={notice} />
   </li>;
@@ -217,6 +224,7 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
   userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
   excludeAcceptedFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
 }) {
+  const { t } = useLanguage();
   const [requests, setRequests] = useState<ScheduleRequest[]>();
   const [error, setError] = useState('');
   useEffect(() => {
@@ -233,18 +241,18 @@ export function PickupArrangements({ userId, listingId, revision, onSaved, onOpe
   const belongsToOtherRole = Boolean(listingId && requests?.length && !inRole?.length);
   return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
     <div className="flex items-center justify-between gap-2">
-      <h3 className="font-bold text-white">Pickup arrangements</h3>
-      <ScheduleButton onClick={onSaved}>Refresh</ScheduleButton>
+      <h3 className="font-bold text-white">{t("Pickup arrangements")}</h3>
+      <ScheduleButton onClick={onSaved}>{t("Refresh")}</ScheduleButton>
     </div>
     <Feedback error={error} notice="" />
     {visible?.length ? <ul className="space-y-2">{visible.map((item) =>
       onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="block w-full rounded-lg bg-white/5 p-2 text-left hover:bg-white/10">
-        <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusColor[item.status] }}>{item.status}</span></strong>
+        <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusCss(item.status) }}>{t(item.status.charAt(0).toUpperCase() + item.status.slice(1))}</span></strong>
         <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
       </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
       : !error && (belongsToOtherRole ? <p className="text-sm">
         This time request belongs to your other role.{' '}
-        <button type="button" onClick={onSwitchRole} className="font-bold text-blue-300 underline">Switch role</button>
+        <button type="button" onClick={onSwitchRole} className="font-bold text-blue-300 underline">{t("Switch role")}</button>
       </p> : <p className="text-sm">{requests ? 'No requests yet in this role.' : 'Loading arrangements…'}</p>)}
   </section>;
 }

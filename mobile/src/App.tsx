@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import MobileLanguageProvider from './MobileLanguageProvider';
+import { useLanguage } from '../../lib/language-context';
+import { isRtl } from '../../lib/locale';
+import { AppearanceProvider } from './appearance';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -21,7 +25,7 @@ import { apiOrigin, changePickup, errorMessage, loadAccountLifecycle, loadProfil
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
 import SettingsScreen from './SettingsScreen';
-import { Badge, Button, Card, colors, Dialog, ErrorText, Loading, Segmented, styles, Text } from './ui';
+import { Badge, Button, Card, darkPalette, Dialog, ErrorText, lightPalette, Loading, Segmented, Text, useUi } from './ui';
 
 const primaryTabs = [
   { value: 'give', label: 'List Empties' },
@@ -37,19 +41,29 @@ const tabs = [
 type Tab = (typeof tabs)[number]['value'] | 'settings';
 
 export default function App() {
+  return <MobileLanguageProvider><AppearanceProvider><AppShell /></AppearanceProvider></MobileLanguageProvider>;
+}
+
+function AppShell() {
+  const { locale } = useLanguage();
+  const { styles, theme } = useUi();
+  const appStyles = appStylesByTheme[theme];
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
   });
   return <SafeAreaProvider>
-    <SafeAreaView style={styles.screen}>
-      <StatusBar style="light" />
+    <SafeAreaView style={[styles.screen, { direction: isRtl(locale) ? 'rtl' : 'ltr' }]}>
+      <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       {fontsLoaded || fontError ? <Marketplace /> : <View style={appStyles.frame} />}
     </SafeAreaView>
   </SafeAreaProvider>;
 }
 
 function Marketplace() {
+  const { t } = useLanguage();
+  const { styles, colors, theme } = useUi();
+  const appStyles = appStylesByTheme[theme];
   const maintenance = useMarketplaceStatus(apiOrigin);
   const [showGuide, setShowGuide] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
@@ -100,7 +114,7 @@ function Marketplace() {
   const currentProfile = profile?.id === userId ? profile : null;
   const taker = currentProfile?.role === 'taker';
   const tab = requestedTab === 'give' && taker ? 'radar' : requestedTab === 'radar' && !taker ? 'give'
-    : requestedTab === 'settings' && !userId ? 'profile' : requestedTab;
+    : requestedTab;
   const canSeeTab = ({ value }: { value: Tab }) => value === 'give' ? !taker : value === 'radar' ? taker : true;
   const handovers = usePickupFeed({
     userId: tab === 'handover' || tab === 'profile' ? userId : undefined, mine: true, revision,
@@ -249,28 +263,28 @@ function Marketplace() {
   }
 
   return <View style={appStyles.frame}>
-    <LinearGradient pointerEvents="none" colors={['#0d1a32', colors.background]} style={appStyles.ambient} />
+    <LinearGradient pointerEvents="none" colors={[colors.ambient, colors.background]} style={appStyles.ambient} />
     <View style={appStyles.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open profile" onPress={() => setTab('profile')}>
+        <Pressable accessibilityRole="button" accessibilityLabel={t("Open profile")} onPress={() => setTab('profile')}>
           <Avatar uri={currentProfile?.avatar_url} />
           <View style={[appStyles.dot, { backgroundColor: taker ? colors.green : colors.blue }]} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
             <Text accessibilityRole="header" weight="heavy" style={appStyles.brand}>BottleForMe</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Switch active role' : 'Log in'} onPress={toggleRole}>
+            <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Switch active role' : t("Log in")} onPress={toggleRole}>
               <Badge tone={taker ? 'green' : 'blue'} style={appStyles.role}>{taker ? '🚛 TAKER' : session ? '🎁 GIVER' : 'GUEST'}</Badge>
             </Pressable>
           </View>
-          <Text weight="medium" style={styles.muted}>Plastic · Cans · Glass Collection</Text>
+          <Text weight="medium" style={styles.muted}>{t("Plastic · Cans · Glass Collection")}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 4 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Notifications" style={appStyles.iconButton} onPress={() => openInbox()}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t("Notifications")} style={appStyles.iconButton} onPress={() => openInbox()}>
             <Bell size={16} color={colors.lightBlue} />
             {notifications.some((item) => !item.read) && <View style={appStyles.unread} />}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Profile' : 'Log in'} style={appStyles.iconButton}
+          <Pressable accessibilityRole="button" accessibilityLabel={session ? t("Profile") : t("Log in")} style={appStyles.iconButton}
             onPress={session ? () => setTab('profile') : openAccount}><User size={16} color={colors.lightBlue} /></Pressable>
         </View>
       </View>
@@ -278,13 +292,13 @@ function Marketplace() {
     </View>
     {accountState.lifecycle?.paused && <View style={appStyles.alert}>
       <Text style={styles.body}>Your account is {accountState.lifecycle.deleting ? 'pending deletion' : 'deactivated'}.</Text>
-      <Button label="Open Settings" kind="secondary" onPress={() => setTab('settings')} />
+      <Button label={t("Open Settings")} kind="secondary" onPress={() => setTab('settings')} />
     </View>}
     {maintenance && <View style={appStyles.alert}><ErrorText message="BottleForMe is under maintenance. Pickup changes are paused. Please try again shortly." /></View>}
     {actionError ? <View style={appStyles.alert}><ErrorText message={actionError} /></View> : null}
     {toast ? <View style={appStyles.toast} accessibilityLiveRegion="polite">
       <Check size={16} color={colors.green} />
-      <Text weight="semibold" style={[styles.small, { flex: 1, color: '#b9f8d7' }]}>{toast}</Text>
+      <Text weight="semibold" style={[styles.small, { flex: 1, color: colors.green }]}>{toast}</Text>
     </View> : null}
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={tab === 'give' ? { flex: 1 } : { display: 'none' }}>
@@ -295,9 +309,9 @@ function Marketplace() {
         onRestriction={showPickupRestriction} onReserve={(offer) => void updatePickup(offer, 'reserved')} />}
       {tab === 'radar' && !taker && <View style={styles.scroll}>
         <Card>
-          <Text weight="heavy" style={styles.title}>Radar is for Takers</Text>
-          <Text style={styles.small}>Switch to Taker to see and reserve pickups from other accounts.</Text>
-          <Button label={session ? 'Switch to Taker' : 'Sign in to use Radar'} onPress={toggleRole} />
+          <Text weight="heavy" style={styles.title}>{t("Radar is for Takers")}</Text>
+          <Text style={styles.small}>{t("Switch to Taker to see and reserve pickups from other accounts.")}</Text>
+          <Button label={session ? t("Switch to Taker") : 'Sign in to use Radar'} onPress={toggleRole} />
         </Card>
       </View>}
       {tab === 'handover' && <HandoverScreen key={(userId ?? 'guest') + ':' + taker} userId={userId} taker={taker} revision={revision} offers={offers} loading={handovers.loading}
@@ -306,7 +320,7 @@ function Marketplace() {
         onSelect={(id) => { setSelectedId(id); setChatPickupId(undefined); }} onSignIn={openAccount}
         onSwitchRole={() => void updateProfile({ role: taker ? 'giver' : 'taker' }, true).catch((cause) => setActionError(errorMessage(cause)))}
         onRefresh={refresh} onChange={(offer, status, code) => void updatePickup(offer, status, code)} />}
-      {tab === 'settings' && userId && <SettingsScreen key={userId} push={push} onBack={() => setTab('profile')}
+      {tab === 'settings' && <SettingsScreen key={userId ?? 'guest'} signedIn={!!userId} push={push} onBack={() => setTab('profile')}
         lifecycle={accountState.lifecycle} lifecycleError={accountState.error}
         onUpdate={(value) => { accountState.update(value); refresh(); }}
         onDeleted={() => { void signOut().catch(() => {}); setTab('profile'); }} />}
@@ -321,35 +335,36 @@ function Marketplace() {
       {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
         accessibilityState={{ selected: tab === value }} onPress={() => setTab(value)} style={appStyles.tab}>
         <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
-        <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{label}</Text>
+        <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{t(label)}</Text>
       </Pressable>)}
     </View>
     {showGuide && <GettingStartedDialog onClose={() => setShowGuide(false)} />}
     {dialog === 'account' && <AccountDialog onClose={() => setDialog(undefined)} onSignedIn={(verified) => { setDialog(undefined); if (verified) { setToast('Email verified. Signed in.'); setShowGuide(true); } }} />}
-    {dialog === 'activity' && <Dialog title="Recent activity" onClose={() => setDialog(undefined)}>
+    {dialog === 'activity' && <Dialog title={t("Recent activity")} onClose={() => setDialog(undefined)}>
       {userId && push.supported && <>
-        <Button label={push.enabled ? 'Turn off lock screen alerts' : 'Enable lock screen alerts'} kind="secondary"
+        <Button label={push.enabled ? t("Turn off lock screen alerts") : t("Enable lock screen alerts")} kind="secondary"
           disabled={push.busy} onPress={push.toggle} />
         <ErrorText message={push.error ?? ''} />
       </>}
       <ErrorText message={inbox.error ?? ''} />
-      {notifications.some((item) => !item.read && !item.pickupChat) && <Button label="Mark all as read" kind="secondary"
+      {notifications.some((item) => !item.read && !item.pickupChat) && <Button label={t("Mark all as read")} kind="secondary"
         onPress={() => {
           setNotifications((items) => items.map((item) => ({ ...item, read: true })));
           void inbox.markRead();
         }} />}
       {notifications.length ? notifications.map((item) => <Pressable key={item.id} disabled={!item.pickupId}
         accessibilityRole={item.pickupId ? 'button' : undefined} onPress={() => openInbox(item.pickupId, item.pickupChat)}
-        style={[styles.inset, !item.read && { backgroundColor: '#102242' }]}>
+        style={[styles.inset, !item.read && { backgroundColor: colors.chip }]}>
         <Text weight="bold" style={styles.small}>{item.title}</Text>
         <Text style={styles.small}>{item.message}</Text>
         <Text style={styles.muted}>{item.timestamp}</Text>
-      </Pressable>) : <Text style={styles.small}>No activity yet.</Text>}
+      </Pressable>) : <Text style={styles.small}>{t("No activity yet.")}</Text>}
     </Dialog>}
   </View>;
 }
 
-const appStyles = StyleSheet.create({
+function makeAppStyles(colors: typeof darkPalette) {
+  return StyleSheet.create({
   frame: { flex: 1, width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: colors.background, overflow: 'hidden' },
   ambient: { position: 'absolute', top: 0, left: 0, right: 0, height: 225 },
   header: { paddingHorizontal: 16, paddingTop: 13, paddingBottom: 12, gap: 12 },
@@ -358,14 +373,17 @@ const appStyles = StyleSheet.create({
   dot: { position: 'absolute', width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background, bottom: -1, right: -1 },
   iconButton: {
     width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: '#11203a', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center',
   },
   unread: { position: 'absolute', width: 8, height: 8, borderRadius: 4, top: 4, right: 4, backgroundColor: colors.blue },
-  alert: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: '#350f1a' },
+  alert: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: colors.redTint },
   toast: {
     marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 16, borderWidth: 1,
     borderColor: colors.greenBorder, backgroundColor: colors.greenTint, flexDirection: 'row', alignItems: 'center', gap: 8,
   },
   footer: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 3, backgroundColor: colors.bar, borderTopWidth: 1, borderTopColor: colors.border },
   tab: { flex: 1, minHeight: 43, gap: 3, alignItems: 'center', justifyContent: 'center' },
-});
+  });
+}
+
+const appStylesByTheme = { dark: makeAppStyles(darkPalette), light: makeAppStyles(lightPalette) };
