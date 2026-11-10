@@ -160,12 +160,12 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
     assert.equal((await send(assigned, randomUUID())).rows[0].result, 'unavailable');
 
-    const mobile = await db.query<{ title: string; message: string; pickup_id: string }>('SELECT * FROM public.claim_mobile_push()');
+    const mobile = await db.query<{ title: string; message: string; pickup_id: string; pickup_chat: boolean }>('SELECT * FROM public.claim_mobile_push()');
     assert.ok(mobile.rows.some((job) => job.title === 'Pickup completed' && job.pickup_id === legacy && /verified your handover code/.test(job.message)));
     assert.ok(mobile.rows.some((job) => job.title === 'Pickup time requested' && job.pickup_id === offer));
-    assert.ok(mobile.rows.every((job) => job.title !== 'New pickup message'));
+    assert.ok(mobile.rows.some((job) => job.title === 'New pickup message' && job.pickup_id === offer && job.pickup_chat));
     const claimed = await db.query<{ endpoint: string; lease_id: string; title: string; message: string; pickup_chat: boolean }>('SELECT * FROM public.claim_web_push()');
-    assert.equal(claimed.rows.filter((job) => job.pickup_chat).length, 1, 'only Web Push is queued for a chat message');
+    assert.equal(claimed.rows.filter((job) => job.pickup_chat).length, 1, 'web push is queued for a chat message');
     assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup time requested'));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup completed' && /verified your handover code/.test(job.message)));

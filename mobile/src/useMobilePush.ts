@@ -47,7 +47,7 @@ async function notificationToken(prompt: boolean) {
   return (await api.getExpoPushTokenAsync({ projectId })).data;
 }
 
-export function useMobilePush(userId: string | undefined, openInbox: (pickupId?: string) => void) {
+export function useMobilePush(userId: string | undefined, openInbox: (pickupId?: string, pickupChat?: boolean) => void) {
   const [state, setState] = useState<{ userId: string; enabled: boolean; error?: string }>();
   const [busy, setBusy] = useState(false);
   const operation = useRef<Promise<void> | null>(null);
@@ -67,7 +67,8 @@ export function useMobilePush(userId: string | undefined, openInbox: (pickupId?:
       const openMessage = (response: Awaited<ReturnType<typeof api.getLastNotificationResponseAsync>>) => {
         if (!active || response?.notification.request.content.data?.type !== 'admin_message') return;
         const pickupId = response.notification.request.content.data.pickupId;
-        openInbox(typeof pickupId === 'string' && /^[0-9a-f-]{36}$/i.test(pickupId) ? pickupId : undefined);
+        openInbox(typeof pickupId === 'string' && /^[0-9a-f-]{36}$/i.test(pickupId) ? pickupId : undefined,
+          response.notification.request.content.data.pickupChat === true);
         void api.clearLastNotificationResponseAsync().catch(() => {});
       };
       subscription = api.addNotificationResponseReceivedListener(openMessage);

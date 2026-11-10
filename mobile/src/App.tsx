@@ -127,12 +127,14 @@ function Marketplace() {
     const { data: { subscription } } = auth.onAuthStateChange((_event, nextSession) => {
       const id = nextSession?.user.id;
       if (id !== accountId.current) {
-        if (accountId.current) setDraftReset((previous) => previous + 1);
+        if (accountId.current) {
+          setDraftReset((previous) => previous + 1);
+          setSelectedId(undefined);
+          setChatPickupId(undefined);
+        }
         accountId.current = id;
         setProfile(null);
         setProfileError('');
-        if (id === undefined) setSelectedId(undefined);
-        setChatPickupId(undefined);
         setRecentPickup(undefined);
         setNotifications([]);
         setToast('');

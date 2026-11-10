@@ -1,6 +1,6 @@
 import { after } from 'next/server';
 import { failure, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
-import { drainWebPush } from '@/lib/web-push-server';
+import { drainPush } from '@/lib/push-server';
 
 export const maxDuration = 60;
 
@@ -60,6 +60,6 @@ export async function POST(request: Request) {
   if (error) return failure('Could not send your message. Try again.', 503);
   if (data === 'limited') return failure('Too many messages. Try again in a minute.', 429);
   if (data !== 'sent') return failure('This pickup chat is closed or unavailable.', 409);
-  after(() => drainWebPush(body.id).catch(() => { console.error('Could not process pickup chat web push.'); }));
+  after(() => drainPush(body.id).catch(() => { console.error('Could not process pickup chat push.'); }));
   return response({ ok: true });
 }

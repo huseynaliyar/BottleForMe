@@ -12,6 +12,7 @@ type Job = {
   title: string;
   message: string;
   pickup_id: string | null;
+  pickup_chat?: boolean;
 };
 type ExpoResult = { status: 'ok' | 'error'; id?: string; details?: { error?: string } };
 
@@ -77,7 +78,7 @@ async function send(jobs: Job[]) {
       to: job.token,
       title: job.title,
       body: job.message,
-      data: { type: 'admin_message', pickupId: job.pickup_id },
+      data: { type: 'admin_message', pickupId: job.pickup_id, pickupChat: job.pickup_chat === true },
       channelId: 'bottleforme-messages',
       sound: 'default',
       ttl: 86_400,
