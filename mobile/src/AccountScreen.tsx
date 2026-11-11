@@ -187,7 +187,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
 export function Avatar({ uri, size = 40 }: { uri?: string; size?: number }) {
   const { colors } = useUi();
   return <Image source={uri && /^data:image\/(jpeg|png|webp);base64,/i.test(uri) ? { uri } : require('../assets/logo.jpg')}
-    style={{ width: size, height: size, borderRadius: size * 0.38, borderWidth: 2, borderColor: '#315b94', backgroundColor: colors.panel }} />;
+    style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.panel }} />;
 }
 
 function Balance({ userId, offers, loading }: { userId: string; offers: PickupOffer[]; loading: boolean }) {
@@ -199,8 +199,11 @@ function Balance({ userId, offers, loading }: { userId: string; offers: PickupOf
     <Button label={t("Balance")} kind="secondary" onPress={() => setOpen(true)}><Wallet size={16} color={colors.sky} /></Button>
     {open && <Dialog title={t("Balance")} onClose={() => setOpen(false)}>
       {loading ? <Loading label="Loading pickup estimates…" /> : <>
-        <Text style={styles.body}>{t("Estimated earnings") + ' '}{formatEuro(balance.earnings)}</Text>
-        <Text style={styles.body}>{t("Total deposit value") + ' '}{formatEuro(balance.deposit)}</Text>
+        <Card style={{ backgroundColor: colors.quiet }}>
+          <Text style={styles.small}>{t('Estimated earnings')}</Text>
+          <Text weight="bold" style={[styles.pageTitle, styles.tabular]}>{formatEuro(balance.earnings)}</Text>
+          <Text style={[styles.body, styles.tabular]}>{t('Total deposit value') + ' · ' + formatEuro(balance.deposit)}</Text>
+        </Card>
         <Text style={styles.small}>{balanceNote}</Text>
         <Text weight="bold" style={styles.body}>{t("Completed pickup history")}</Text>
         {!balance.entries.length && <Text style={styles.small}>{t("No completed pickups yet.")}</Text>}
@@ -283,7 +286,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
 
   return <ScrollView contentContainerStyle={styles.scroll}>
     {!profile ? <Card>
-      <Text accessibilityRole="header" weight="bold" style={styles.title}>{t("Your profile")}</Text>
+      <Text accessibilityRole="header" weight="bold" style={styles.pageTitle}>{t('Your profile')}</Text>
       {loading && <Loading label={t("Loading your profile…")} />}
       <ErrorText message={error} />
       {!signedIn && <>

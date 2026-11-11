@@ -5,12 +5,7 @@ import { useLanguage } from '../../lib/language-context';
 import { isRtl } from '../../lib/locale';
 import { AppearanceProvider } from './appearance';
 import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
-import {
-  PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
-  PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold, useFonts,
-} from '@expo-google-fonts/plus-jakarta-sans';
-import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react-native';
+import { Bell, Check, Compass, MessageSquare, Package, Recycle, User } from 'lucide-react-native';
 import { Alert, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { pickupRestriction, type PickupRestriction } from '../../lib/pickup-restriction';
@@ -20,18 +15,13 @@ import { useInbox } from '../../lib/use-inbox';
 import { useMobilePush } from './useMobilePush';
 import type { NotificationItem, PickupOffer, PickupStatus, UserProfile } from '../../lib/types';
 import { usePickupUnread } from './PickupChat';
-import { AccountDialog, Avatar, GettingStartedDialog, ProfileScreen } from './AccountScreen';
+import { AccountDialog, GettingStartedDialog, ProfileScreen } from './AccountScreen';
 import { apiOrigin, changePickup, errorMessage, loadAccountLifecycle, loadProfile, saveProfile, signOut, supabase } from './backend';
 import { HandoverScreen, RadarScreen, usePickupFeed } from './Pickups';
 import { PostScreen } from './PostScreen';
 import SettingsScreen from './SettingsScreen';
-import { Badge, Button, Card, darkPalette, Dialog, ErrorText, lightPalette, Loading, Segmented, Text, useUi } from './ui';
+import { Button, Card, darkPalette, Dialog, ErrorText, lightPalette, Loading, Text, useUi } from './ui';
 
-const primaryTabs = [
-  { value: 'give', label: 'List Empties' },
-  { value: 'radar', label: 'Radar' },
-  { value: 'handover', label: 'Pickups' },
-] as const;
 const tabs = [
   { value: 'give', label: 'Give', Icon: Package },
   { value: 'radar', label: 'Radar', Icon: Compass },
@@ -47,15 +37,10 @@ export default function App() {
 function AppShell() {
   const { locale } = useLanguage();
   const { styles, theme } = useUi();
-  const appStyles = appStylesByTheme[theme];
-  const [fontsLoaded, fontError] = useFonts({
-    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold,
-    PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold,
-  });
   return <SafeAreaProvider>
     <SafeAreaView style={[styles.screen, { direction: isRtl(locale) ? 'rtl' : 'ltr' }]}>
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
-      {fontsLoaded || fontError ? <Marketplace /> : <View style={appStyles.frame} />}
+      <Marketplace />
     </SafeAreaView>
   </SafeAreaProvider>;
 }
@@ -266,21 +251,16 @@ function Marketplace() {
 
   const conversationOpen = tab === 'handover' && !!selectedId && chatPickupId === selectedId;
   return <View style={appStyles.frame}>
-    <LinearGradient pointerEvents="none" colors={[colors.ambient, colors.background]} style={appStyles.ambient} />
     {!conversationOpen && <View style={appStyles.header}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={t("Open profile")} onPress={() => setTab('profile')}>
-          <Avatar uri={currentProfile?.avatar_url} />
-          <View style={[appStyles.dot, { backgroundColor: taker ? colors.green : colors.blue }]} />
+        <Pressable accessibilityRole="button" accessibilityLabel={t("Open profile")} onPress={() => setTab('profile')} style={appStyles.brandMark}>
+          <Recycle size={19} color={colors.onAccent} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <Text accessibilityRole="header" weight="heavy" style={appStyles.brand}>BottleForMe</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Switch active role' : t("Log in")} onPress={toggleRole}>
-              <Badge tone={taker ? 'green' : 'blue'} style={appStyles.role}>{taker ? '🚛 TAKER' : session ? '🎁 GIVER' : 'GUEST'}</Badge>
-            </Pressable>
-          </View>
-          <Text weight="medium" style={styles.muted}>{t("Plastic · Cans · Glass Collection")}</Text>
+          <Text accessibilityRole="header" weight="bold" style={appStyles.brand}>BottleForMe</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={session ? t('Switch active role') : t('Log in')} onPress={toggleRole} style={appStyles.roleButton}>
+            <Text weight="semibold" style={appStyles.role}>{session ? t('Active role') + ' · ' + t(taker ? 'Taker' : 'Giver') : 'Malta · ' + t('Guest')}</Text>
+          </Pressable>
         </View>
         <View style={{ flexDirection: 'row', gap: 4 }}>
           <Pressable accessibilityRole="button" accessibilityLabel={t("Notifications")} style={appStyles.iconButton} onPress={() => openInbox()}>
@@ -291,7 +271,6 @@ function Marketplace() {
             onPress={session ? () => setTab('profile') : openAccount}><User size={16} color={colors.lightBlue} /></Pressable>
         </View>
       </View>
-      <Segmented options={primaryTabs.filter(canSeeTab)} value={tab} onChange={setTab} />
     </View>}
     {accountState.lifecycle?.paused && <View style={appStyles.alert}>
       <Text style={styles.body}>Your account is {accountState.lifecycle.deleting ? 'pending deletion' : 'deactivated'}.</Text>
@@ -337,8 +316,8 @@ function Marketplace() {
     </KeyboardAvoidingView>
     <View accessibilityRole="tablist" style={appStyles.footer}>
       {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
-        accessibilityState={{ selected: tab === value }} onPress={() => { setTab(value); if (value === 'handover') { setSelectedId(undefined); setChatPickupId(undefined); } }} style={appStyles.tab}>
-        <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
+        accessibilityState={{ selected: tab === value || (value === 'profile' && tab === 'settings') }} onPress={() => { setTab(value); if (value === 'handover') { setSelectedId(undefined); setChatPickupId(undefined); } }} style={[appStyles.tab, (tab === value || (value === 'profile' && tab === 'settings')) && appStyles.activeTab]}>
+        <Icon size={19} color={tab === value ? colors.blue : colors.muted} />
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{t(label)}</Text>
       </Pressable>)}
     </View>
@@ -370,14 +349,13 @@ function Marketplace() {
 function makeAppStyles(colors: typeof darkPalette) {
   return StyleSheet.create({
   frame: { flex: 1, width: '100%', maxWidth: 420, alignSelf: 'center', backgroundColor: colors.background, overflow: 'hidden' },
-  ambient: { position: 'absolute', top: 0, left: 0, right: 0, height: 225 },
-  header: { paddingHorizontal: 16, paddingTop: 13, paddingBottom: 12, gap: 12 },
+  header: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.panel, borderBottomWidth: 1, borderBottomColor: colors.border },
+  brandMark: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.blue, alignItems: 'center', justifyContent: 'center' },
   brand: { color: colors.white, fontSize: 16, letterSpacing: -0.45 },
-  role: { fontSize: 9, letterSpacing: 0.5, paddingVertical: 2, paddingHorizontal: 7 },
-  dot: { position: 'absolute', width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background, bottom: -1, right: -1 },
+  role: { color: colors.muted, fontSize: 10, lineHeight: 14, letterSpacing: 0.7, textTransform: 'uppercase' },
+  roleButton: { minHeight: 26, alignSelf: 'flex-start', justifyContent: 'center' },
   iconButton: {
-    width: 38, height: 38, borderRadius: 19, borderWidth: 1, borderColor: colors.border,
-    backgroundColor: colors.chip, alignItems: 'center', justifyContent: 'center',
+    width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
   },
   unread: { position: 'absolute', width: 8, height: 8, borderRadius: 4, top: 4, right: 4, backgroundColor: colors.blue },
   alert: { marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: colors.redTint },
@@ -385,8 +363,9 @@ function makeAppStyles(colors: typeof darkPalette) {
     marginHorizontal: 16, marginBottom: 8, padding: 10, borderRadius: 16, borderWidth: 1,
     borderColor: colors.greenBorder, backgroundColor: colors.greenTint, flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  footer: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 3, backgroundColor: colors.bar, borderTopWidth: 1, borderTopColor: colors.border },
-  tab: { flex: 1, minHeight: 43, gap: 3, alignItems: 'center', justifyContent: 'center' },
+  footer: { flexDirection: 'row', gap: 4, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: colors.bar, borderTopWidth: 1, borderTopColor: colors.border },
+  tab: { flex: 1, minHeight: 48, paddingHorizontal: 3, borderRadius: 10, gap: 4, alignItems: 'center', justifyContent: 'center' },
+  activeTab: { backgroundColor: colors.quiet },
   });
 }
 

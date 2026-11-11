@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react';
 import { canShowPickupMap } from './map-support';
 import { pickupMapUrl, pickupStep, pickupSteps, radarPins } from '../../lib/pickup-location';
 import { pickupConversationTitle } from '../../lib/pickup-conversation';
+import { MessageSquare, Package } from 'lucide-react-native';
 import { Alert, Image, Linking, RefreshControl, ScrollView, useWindowDimensions, View } from 'react-native';
 import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { blockPickupExplanation } from '../../lib/marketplace-blocks';
 import { usePickupPartner } from '../../lib/use-pickup-partner';
 import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
-import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-status';
 import MapView, { Marker } from 'react-native-maps';
 import { formatAppointment } from '../../lib/pickup-schedule';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
@@ -18,22 +18,22 @@ import PickupChat, { PickupChatFallback } from './PickupChat';
 import PickupConversationCard, { PickupAvatar } from './PickupConversationCard';
 import { EditPickupAvailability, PickupArrangements, PickupAvailability, RequestPickupTime } from './PickupSchedule';
 import { blockPickupPartner, errorMessage, getHandoverCode, getListingPhoto, getPickupPartner, listPickups, loadFavorites, reportPickup, saveFavorite, setListingArchived, submitPickupReview } from './backend';
-import { Badge, Button, Card, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, Text, Field, useUi } from './ui';
+import { Badge, Button, Card, Dialog, ErrorText, localityOptions, Loading, Segmented, Select, StatusPill, Text, Field, useUi } from './ui';
 
 type NextStatus = Exclude<PickupStatus, 'open'>;
 
 const statusNames: Record<PickupStatus, string> = {
-  open: 'Open', reserved: 'Reserved', en_route: 'On the way', arrived: 'Arrived', completed: 'Completed', cancelled: 'Cancelled',
+  open: 'Awaiting a Taker', reserved: 'Confirmed', en_route: 'On the way', arrived: 'Arrived', completed: 'Completed', cancelled: 'Cancelled',
 };
 const maltaRegion = { latitude: 35.97, longitude: 14.42, latitudeDelta: 0.23, longitudeDelta: 0.33 };
-const radarOptions = [{ label: 'Feed', value: 'list' }, { label: '🗺️ Map', value: 'map' }] as const;
+const radarOptions = [{ label: 'List', value: 'list' }, { label: 'Map', value: 'map' }] as const;
 const radarLocalities = [{ label: 'All localities', value: '' }, ...localityOptions];
 const mapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#172337' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#a6bbd2' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#172337' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#081326' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#39495f' }] },
+  { elementType: 'geometry', stylers: [{ color: '#23352b' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#adbdaf' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#23352b' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#111c17' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#445b4a' }] },
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ];
 
@@ -192,11 +192,12 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
 
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={loading} onRefresh={onRefresh}
     tintColor={colors.sky} colors={[colors.blue]} progressBackgroundColor={colors.panel} />}>
-    <Card>
+    <View style={{ gap: 10 }}>
       <View style={styles.between}>
         <View style={{ flexShrink: 1 }}>
           <Text weight="bold" style={styles.eyebrow}>{t("Malta Collector Radar")}</Text>
-          <Text accessibilityRole="header" weight="bold" style={[styles.title, { fontSize: 16 }]}>{offers.length}{' ' + t("Live Pickup Requests")}</Text>
+          <Text accessibilityRole="header" weight="bold" style={styles.pageTitle}>{t('Radar')}</Text>
+          <Text style={styles.muted}>{offers.length}{' ' + t("Live Pickup Requests")}</Text>
         </View>
         {canShowPickupMap && <Segmented options={radarOptions} value={view} onChange={setView} compact />}
       </View>
@@ -218,15 +219,16 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
             onPress={() => { setGroupId(matching.length > 1 ? key : undefined); setMapOfferId(matching.length === 1 ? matching[0].id : undefined); }} />)}
         </MapView>
       </View>}
-    </Card>
+    </View>
     {view === 'map' && !mapOfferId && group && <Card>
       <Text weight="bold" style={styles.body}>{group.name}</Text>
       {group.offers.map((offer) => <Button key={offer.id} kind="secondary" label={offer.estimated_bottles + ' containers · €' + offer.collector_profit.toFixed(2)} onPress={() => setMapOfferId(offer.id)} />)}
     </Card>}
-    {shownOffers.map((offer) => <Card key={offer.id} style={{ borderRadius: 24, padding: 14 }}>
+    {shownOffers.map((offer) => <Card key={offer.id}>
       {view === 'map' && <View style={styles.between}><View><Badge tone="green">{t('Available')}</Badge><Text weight="bold" style={styles.body}>{offer.locality} {t('pickup')}</Text></View><Button label={t('Close')} kind="quiet" onPress={() => { setMapOfferId(undefined); setGroupId(undefined); }} /></View>}
-      <View style={styles.between}>
-        <View style={{ flexShrink: 1, gap: 5 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {view === 'list' && <View style={{ width: 56, height: 56, backgroundColor: colors.chip, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }}><Package size={25} color={colors.sky} /></View>}
+        <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
           <View style={styles.row}>
             <Badge>{offer.locality}</Badge>
             <Badge tone={offer.split_percentage === 0 ? 'green' : 'neutral'}>
@@ -235,15 +237,18 @@ export function RadarScreen({ userId, revision, busy, onReserve, onRefresh, onRe
           </View>
           <Text weight="bold" style={styles.body}>{offer.containers ? '' : 'About '}{offer.estimated_bottles} containers · {offer.bag_count} {offer.bag_count === 1 ? 'bag' : 'bags'}</Text>
         </View>
-        <View>
-          <Text weight="medium" style={styles.muted}>{t(view === 'map' ? 'Est. you earn' : 'Collector’s estimated net value')}</Text>
-          <Text weight="heavy" style={{ color: colors.green, fontSize: 16 }}>€{offer.collector_profit.toFixed(2)}</Text>
+      </View>
+      <View style={[styles.rule, { flexDirection: 'row', gap: 12 }]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.muted}>{t('Est. you earn')}</Text>
+          <Text weight="bold" style={[styles.tabular, { color: colors.green, fontSize: 20 }]}>€{offer.collector_profit.toFixed(2)}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-end' }}>
+          <Text style={styles.muted}>{t('Pay Giver:')}</Text>
+          <Text weight="bold" style={[styles.tabular, { fontSize: 20 }]}>€{offer.seller_payout.toFixed(2)}</Text>
         </View>
       </View>
-      <View style={[styles.between, styles.rule]}>
-        <Text style={styles.muted}>{t("Pay Giver:") + ' '}<Text weight="bold">€{offer.seller_payout.toFixed(2)}</Text></Text>
-        {!offer.availability?.length && <Button label={t("Reserve pickup →")} kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
-      </View>
+      {!offer.availability?.length && <Button label={t("Reserve pickup →")} kind="secondary" onPress={() => onReserve(offer)} disabled={busy || loading} />}
       {view === 'map' && <Text style={styles.small}>{t(offer.exact_pin ? 'Exact pin shared · Address after confirmation' : 'Approximate location · Address after confirmation')}</Text>}
       <Text style={styles.small}>{t(bagPolicyLabel(offer.bag_policy))}</Text>
       <Button label={favorites.ids?.includes(offer.id) ? t("Remove favorite") : t("Save favorite")} kind="secondary"
@@ -265,7 +270,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
   onSelect: (id?: string) => void; onSignIn: () => void; onRefresh: () => void; onSwitchRole: () => void; onChange: (offer: PickupOffer, status: NextStatus, code?: string) => void;
 }) {
   const { t } = useLanguage();
-  const { colors, styles, theme } = useUi();
+  const { colors, styles } = useUi();
   const [linkError, setLinkError] = useState('');
   const [handoverCode, setHandoverCode] = useState<{ id: string; value: string }>();
   const [typedCode, setTypedCode] = useState<{ id: string; value: string }>();
@@ -308,11 +313,14 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
 
   return <ScrollView contentContainerStyle={styles.scroll} refreshControl={userId
     ? <RefreshControl refreshing={loading} onRefresh={onRefresh} tintColor={colors.sky} /> : undefined}>
-    <View style={selectedId ? undefined : { gap: 10 }}>
-      <Text accessibilityRole="header" weight="heavy" style={[styles.title, { textAlign: 'center', marginVertical: 6 }]}>
+    <View style={{ gap: 10 }}>
+      <Text accessibilityRole="header" weight="heavy" style={styles.pageTitle}>
         {t(active ? 'Manage pickup' : selectedId ? 'Pickup details' : 'Pickups')}
       </Text>
-      {!userId ? <Button label={t("Sign in to view pickups")} onPress={onSignIn} style={{ alignSelf: 'flex-start' }} /> : <>
+      {!userId ? <View style={{ alignItems: 'center', gap: 14, paddingVertical: 32 }}>
+        <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: colors.quiet, alignItems: 'center', justifyContent: 'center' }}><MessageSquare size={24} color={colors.sky} /></View>
+        <Button label={t('Sign in to view pickups')} onPress={onSignIn} />
+      </View> : <>
         {selectedId ? <Button label={t('← All pickups')} kind="secondary" onPress={backToPickups} /> : null}
         {loading && <Loading label={t("Loading your pickups…")} />}
         <ErrorText message={error} />
@@ -333,7 +341,7 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
             {!!selected.collector_id && !!selected.seller_id && <PickupAvatar name={pickupConversationTitle(selected, taker, t)} pickupId={selected.id} />}
             <Text weight="semibold" style={[styles.body, { flex: 1 }]}>{selected.collector_id ? pickupConversationTitle(selected, taker, t) : selected.locality}</Text>
           </View>
-          <Text style={[styles.small, { color: selected.overdue ? colors.red : theme === 'light' ? pickupStatusLightColor[selected.status] : pickupStatusColor[selected.status] }]}>Status · {!taker && selected.archived_at ? t("Archived") : selected.overdue ? t("Overdue") : t(statusNames[selected.status])}</Text>
+          <StatusPill status={selected.overdue ? 'overdue' : selected.status}>{!taker && selected.archived_at ? t('Archived') : selected.overdue ? t('Overdue') : t(statusNames[selected.status])}</StatusPill>
           {!taker && !active && selected.seller_id === userId && <Button label={selected.archived_at ? t("Restore listing") : t("Archive listing")}
             kind="secondary" disabled={archiving} onPress={() => void toggleArchive(selected)} />}
           {!!selected.confirmed_at && <Text style={styles.body}>{formatAppointment(selected.confirmed_at)} · Malta time</Text>}
@@ -341,12 +349,13 @@ export function HandoverScreen({ userId, taker, revision, offers, loading, error
           {mapUrl && <Button label={t('Open in Maps')} kind="quiet" onPress={() => void Linking.openURL(mapUrl).catch(() => setLinkError('Could not open the map.'))} />}
           {active && <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
             {pickupSteps.map((label, index) => <View key={label} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-              <Badge tone={index <= pickupStep(selected.status) ? undefined : 'neutral'}>{index + 1}</Badge>
+              <View accessible={false} style={{ width: '100%', height: 4, borderRadius: 2, backgroundColor: index <= pickupStep(selected.status) ? colors.blue : colors.border }} />
               <Text style={[styles.small, { textAlign: 'center' }]}>{t(label)}</Text>
             </View>)}
           </View>}
-          {active && <Card style={{ gap: 8 }}>
-            <Text weight="bold" style={styles.body}>{t('Next step')}</Text>
+          {active && <Card style={{ gap: 8, backgroundColor: colors.quiet, borderColor: 'transparent' }}>
+            <Text weight="bold" style={styles.eyebrow}>{t('Next step')}</Text>
+            <Text weight="bold" style={styles.title}>{t(!collector ? 'Handover code' : selected.status === 'reserved' ? 'Heading to the pickup?' : selected.status === 'en_route' ? 'At the pickup address?' : 'Ready to complete the pickup?')}</Text>
             <Text style={styles.small}>{t(!collector ? 'Show the handover code to the Taker at the pickup.' : selected.status === 'reserved' ? 'Let the Giver know when you leave.' : selected.status === 'en_route' ? 'Let the Giver know when you reach the address.' : 'Ask the Giver for the six-digit code to complete your pickup.')}</Text>
             {collector && selected.status === 'reserved' && <Button label={t('I’m on my way')} disabled={busy} onPress={() => onChange(selected, 'en_route')} />}
             {collector && selected.status === 'en_route' && <Button label={t('I’ve arrived')} onPress={() => onChange(selected, 'arrived')} />}

@@ -80,8 +80,10 @@ export function AvailabilityEditor({ drafts, onChange, disabled }: {
         onChange(drafts.map((item, i) => i === index ? { ...item, [key]: value } : item));
       return <View key={index} style={styles.inset}>
         <Calendar date={draft.date} onChange={(value) => change('date', value)} disabled={disabled} />
-        <TimeField label={t("From")} value={draft.start} onChange={(value) => change('start', value)} disabled={disabled} />
-        <TimeField label={t("Until")} value={draft.end} onChange={(value) => change('end', value)} disabled={disabled} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1, minWidth: 0 }}><TimeField label={t('From')} value={draft.start} onChange={(value) => change('start', value)} disabled={disabled} /></View>
+          <View style={{ flex: 1, minWidth: 0 }}><TimeField label={t('Until')} value={draft.end} onChange={(value) => change('end', value)} disabled={disabled} /></View>
+        </View>
         {drafts.length > 1 && <Button label={t("Remove window")} kind="quiet" disabled={disabled}
           onPress={() => onChange(drafts.filter((_, i) => i !== index))} />}
       </View>;

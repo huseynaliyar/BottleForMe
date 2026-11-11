@@ -23,7 +23,7 @@ export default function SettingsScreen({ push, onBack, signedIn, lifecycle, life
   const { locale, setLocale, t } = useLanguage();
   return <ScrollView contentContainerStyle={styles.scroll}>
     <Button label={t("‹ Profile")} kind="quiet" onPress={onBack} />
-    <Text accessibilityRole="header" weight="bold" style={styles.title}>{t("Settings")}</Text>
+    <Text accessibilityRole="header" weight="bold" style={styles.pageTitle}>{t('Settings')}</Text>
     <Card>
       <Text weight="bold" style={styles.body}>{t("Appearance")}</Text>
       <Segmented options={themes} value={theme} onChange={setTheme} />

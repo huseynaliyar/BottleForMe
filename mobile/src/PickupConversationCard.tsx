@@ -5,9 +5,8 @@ import { ChevronLeft, ChevronRight, Package, Wine } from 'lucide-react-native';
 import { useLanguage } from '../../lib/language-context';
 import { isRtl } from '../../lib/locale';
 import { pickupCardDate, pickupConversationTitle, pickupInitials, pickupMoney } from '../../lib/pickup-conversation';
-import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-status';
 import type { PickupOffer } from '../../lib/types';
-import { Card, Text, useUi } from './ui';
+import { StatusPill, Text, useUi } from './ui';
 
 export function PickupAvatar({ name, listing = false, pickupId }: { name: string; listing?: boolean; pickupId?: string }) {
   const { colors } = useUi();
@@ -31,13 +30,13 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
   offer: PickupOffer; taker: boolean; status: string; unread?: number; onOpen: () => void;
 }) {
   const { locale, t } = useLanguage();
-  const { colors, styles, theme } = useUi();
+  const { colors, styles } = useUi();
   const assigned = !!(offer.collector_id && offer.seller_id);
   const title = pickupConversationTitle(offer, taker, t);
   const Chevron = isRtl(locale) ? ChevronLeft : ChevronRight;
   return <Pressable accessibilityRole="button" accessibilityHint={t(assigned ? 'Open chat' : 'Pickup details')} onPress={onOpen}
     style={({ pressed }) => ({ opacity: pressed ? 0.75 : 1 })}>
-    <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 24, padding: 12 }}>
+    <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border }}>
       <PickupAvatar name={title} listing={!assigned} pickupId={assigned ? offer.id : undefined} />
       <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
         <Text weight="heavy" style={styles.body} numberOfLines={1}>{title}</Text>
@@ -49,7 +48,7 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
             {pickupMoney(locale, assigned ? (taker ? offer.collector_profit : offer.seller_payout) : offer.total_bcrs_value)}
           </Text>
         </View>
-        <Text style={[styles.small, { color: offer.overdue ? colors.red : (theme === 'light' ? pickupStatusLightColor : pickupStatusColor)[offer.status] }]}>{status}</Text>
+        <StatusPill status={offer.overdue ? 'overdue' : offer.status}>{status}</StatusPill>
       </View>
       <View style={{ alignItems: 'flex-end', gap: 6 }}>
         <Text style={styles.muted}>{pickupCardDate(locale, offer)}</Text>
@@ -58,6 +57,6 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
           {unread}
         </Text> : <Chevron size={16} color={colors.sky} />}
       </View>
-    </Card>
+    </View>
   </Pressable>;
 }

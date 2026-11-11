@@ -137,14 +137,16 @@ export default function PickupChat({ offer, taker, onRead, onBack, onDetails }: 
         {!chat.messages.length && <Text style={[styles.small, { alignSelf: 'center', backgroundColor: colors.panel, borderRadius: 14,
           overflow: 'hidden', paddingVertical: 6, paddingHorizontal: 12 }]}>{t('No messages yet.')}</Text>}
         {chat.messages.map((item) => <View key={item.seq} style={[styles.inset, { maxWidth: '85%',
-          alignSelf: item.mine ? 'flex-end' : 'flex-start', backgroundColor: item.mine ? colors.chip : colors.panel }]}>
+          alignSelf: item.mine ? 'flex-end' : 'flex-start', backgroundColor: item.mine ? colors.quiet : colors.panel,
+          borderBottomStartRadius: item.mine ? 14 : 4, borderBottomEndRadius: item.mine ? 4 : 14,
+          borderColor: item.mine ? 'transparent' : colors.border }]}>
           <Text weight="bold" style={styles.muted}>{item.mine ? t('You') : title} · {messageTime.format(new Date(item.created_at))}</Text>
           <Text style={styles.body}>{item.body}</Text>
         </View>)}
       </ScrollView>
       {chat.current.canSend ? <View style={{ padding: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 6, borderWidth: 1, borderColor: colors.border,
-          backgroundColor: colors.panel, borderRadius: 26, padding: 4 }}>
+          backgroundColor: colors.panel, borderRadius: 14, padding: 4 }}>
           <TextInput accessibilityLabel={t('Message')} placeholder={t('Type your message…')} placeholderTextColor={colors.placeholder}
             keyboardAppearance={theme} multiline value={chat.draft} onChangeText={chat.setDraft} editable={!chat.sending} maxLength={1000}
             style={{ flex: 1, color: colors.ink, minHeight: 44, maxHeight: 104, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 }} />

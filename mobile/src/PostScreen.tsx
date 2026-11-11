@@ -8,7 +8,7 @@ import { isPickupPin, mapCenter, type PickupPin } from '../../lib/pickup-locatio
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import Slider from '@react-native-community/slider';
-import { ArrowRight, MapPin } from 'lucide-react-native';
+import { ArrowRight, Cylinder, MapPin, Milk } from 'lucide-react-native';
 import { Image, Keyboard, Linking, Pressable, ScrollView, TextInput, View, type ScrollViewInstance } from 'react-native';
 import { bagPolicies, isBagPolicy } from '../../lib/bag-policy';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '../../lib/pickup-validation';
@@ -19,45 +19,45 @@ import { pickupAddressText, type AddressSuggestion } from '../../lib/pickup-addr
 import { newWindow, parseWindowDrafts } from '../../lib/pickup-schedule';
 import { AvailabilityEditor } from './PickupSchedule';
 import { PickupAddressField } from './PickupAddressField';
-import { Badge, Button, Card, ErrorText, Field, Metric, Select, Text, useUi } from './ui';
+import { Badge, Button, Card, ErrorText, Field, SectionTitle, Select, Text, useUi } from './ui';
 
 const containerFields = [
-  { key: 'plastic_bottles', label: 'Plastic', icon: '🧴' },
-  { key: 'cans', label: 'Cans', icon: '🥫' },
-  { key: 'glass_bottles', label: 'Glass', icon: '🍾' },
+  { key: 'plastic_bottles', label: 'Plastic', Icon: Milk },
+  { key: 'cans', label: 'Cans', Icon: Cylinder },
+  { key: 'glass_bottles', label: 'Glass', Icon: Milk },
 ] as const;
 const zeroCounts = { plastic_bottles: '0', cans: '0', glass_bottles: '0' };
 const localities = MALTA_LOCALITIES.map(({ name, region }) => ({ value: name, label: name + ' (' + region + ')' }));
 const whole = (value: string) => /^\d+$/.test(value) ? Number(value) : NaN;
 
-function Counter({ label, icon, value, onChange, busy }: {
-  label: string; icon: string; value: string; onChange: (value: string) => void; busy: boolean;
+function Counter({ label, Icon, value, onChange, busy }: {
+  label: string; Icon: typeof Milk; value: string; onChange: (value: string) => void; busy: boolean;
 }) {
   const { t } = useLanguage();
-  const { colors, styles, theme } = useUi();
+  const { colors, theme } = useUi();
   const count = whole(value);
   function step(amount: number) {
     onChange(String(Math.max(0, Math.min(MAX_CONTAINERS, (Number.isFinite(count) ? count : 0) + amount))));
   }
-  return <View style={[styles.inset, { flex: 1, alignItems: 'center', padding: 6 }]}>
-    <Text style={{ fontSize: 16 }}>{icon}</Text>
+  return <View style={{ flex: 1, minWidth: 0, alignItems: 'center', gap: 4, borderRadius: 12, backgroundColor: colors.quiet, paddingHorizontal: 3, paddingTop: 10, paddingBottom: 4 }}>
+    <Icon size={22} color={colors.ink} strokeWidth={1.5} />
     <Text weight="bold" style={{ fontSize: 10 }}>{label}</Text>
     <TextInput accessibilityLabel={label + ' container count'} value={value} onChangeText={onChange}
       maxLength={6} selectTextOnFocus keyboardType="number-pad" keyboardAppearance={theme} editable={!busy}
       style={{
-        minHeight: 36, width: '100%', padding: 0, fontSize: 16, fontFamily: 'PlusJakartaSans_800ExtraBold',
-        textAlign: 'center', borderBottomWidth: 1, borderColor: colors.border, color: colors.lightBlue,
+        minHeight: 36, width: '100%', padding: 0, fontSize: 23, fontWeight: '600', fontVariant: ['tabular-nums'],
+        textAlign: 'center', color: colors.ink,
       }} />
-    <View style={{ flexDirection: 'row', gap: 5 }}>
+    <View style={{ flexDirection: 'row', gap: 4, width: '100%' }}>
       {[-1, 1].map((amount) => {
         const disabled = busy || (amount < 0 ? !(count > 0) : count >= MAX_CONTAINERS);
-        const text = amount < 0 ? '−1' : '+1';
+        const text = amount < 0 ? '−' : '+';
         return <Pressable key={amount} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled}
           accessibilityLabel={(amount < 0 ? t("Remove") : 'Add') + ' one ' + label.toLowerCase() + ' container'}
           onPress={() => step(amount)} style={{
-            minWidth: 32, minHeight: 38, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
-            backgroundColor: amount < 0 ? colors.quiet : colors.blue, opacity: disabled ? 0.45 : 1,
-          }}><Text weight="bold" style={{ fontSize: 12, color: amount < 0 ? colors.ink : colors.onAccent }}>{text}</Text></Pressable>;
+            flex: 1, minHeight: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+            backgroundColor: colors.panel, opacity: disabled ? 0.45 : 1,
+          }}><Text weight="bold" style={{ fontSize: 16, color: colors.ink }}>{text}</Text></Pressable>;
       })}
     </View>
   </View>;
@@ -236,22 +236,18 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   }
 
   return <ScrollView ref={scroll} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+    <View style={{ gap: 8 }}>
+      <Text weight="semibold" style={styles.eyebrow}>{t("Zero Queues · Doorstep Pickup")}</Text>
+      <Text accessibilityRole="header" weight="bold" style={styles.pageTitle}>{t("Arrange an empties pickup.")}</Text>
+      <Text style={[styles.body, { color: colors.muted }]}>{t('Give your empties a second life. A Taker collects them from you.')}</Text>
+      <Badge tone="green">{t("€0.10 per eligible item")}</Badge>
+    </View>
     <Card>
-      <View style={styles.between}>
-        <View>
-          <Text weight="bold" style={styles.eyebrow}>{t("Zero Queues · Doorstep Pickup")}</Text>
-          <Text accessibilityRole="header" weight="bold" style={styles.title}>{t("Arrange an empties pickup.")}</Text>
-        </View>
-        <Badge tone="green" style={{ fontSize: 12 }}>{t("€0.10 per eligible item")}</Badge>
-      </View>
-      <View style={[styles.rule, { gap: 8 }]}>
-        <View style={styles.between}>
-          <Text weight="bold" style={[styles.eyebrow, { color: colors.muted }]}>{t("Containers to hand over")}</Text>
-          <Text weight="semibold" style={{ fontSize: 10, color: colors.lightBlue }}>{t("Type exact count or tap − / +")}</Text>
-        </View>
+      <SectionTitle number={1}>{t('Containers and bags')}</SectionTitle>
+      <View style={{ gap: 10 }}>
         <Text style={styles.muted}>{t("Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.")}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          {containerFields.map(({ key, label, icon }) => <Counter key={key} label={t(label)} icon={icon}
+          {containerFields.map(({ key, label, Icon }) => <Counter key={key} label={t(label)} Icon={Icon}
             value={counts[key]} busy={busy} onChange={(value) => setCounts((previous) => ({ ...previous, [key]: value }))} />)}
         </View>
         <Text style={styles.small}>{t("Total:") + ' '}<Text weight="bold">{countsValid ? totals.totalContainers : '—'}{' ' + t("eligible items")}</Text></Text>
@@ -266,34 +262,38 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       </View>
     </Card>
     <Card>
+      <SectionTitle number={2}>{t('Deposit split')}</SectionTitle>
       <View style={styles.between}>
-        <View style={{ flexShrink: 1 }}>
-          <Text weight="bold" style={styles.small}>{t("Deposit Split Ratio")}</Text>
-          <Text style={styles.muted}>{t("Estimated BCRS voucher value") + ' '}<Text weight="semibold">{money(totals.totalDepositValue)}</Text></Text>
-        </View>
         <Badge tone={split === 0 ? 'green' : split === 50 ? 'blue' : 'neutral'}>
           {split === 0 ? '100% Free Gift' : split === 50 ? '50/50 Fair Split' : split + '% to You'}
         </Badge>
       </View>
       <Slider accessibilityLabel={t("Seller share of estimated voucher value")} value={split} minimumValue={0}
         maximumValue={MAX_SELLER_SPLIT} step={5} disabled={busy} onValueChange={setSplit}
-        minimumTrackTintColor={colors.blue} maximumTrackTintColor="#243652" thumbTintColor={colors.white}
+        minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.border} thumbTintColor={colors.blue}
         style={{ height: 36, marginHorizontal: -4 }} />
       <View style={styles.between}>
         <Text style={styles.muted}>0% (Free Gift)</Text>
         <Text style={[styles.muted, { color: colors.lightBlue }]}>50% (Recommended)</Text>
         <Text style={styles.muted}>70%</Text>
       </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Metric label={t("You Get (At Door)")} value={money(totals.sellerPayout)} caption={t("Direct Revolut / Cash")} />
-        <Metric label={t("Collector’s estimated net value")} value={money(totals.collectorProfit)} caption={t("Voucher value minus seller payment")} green />
+      <View style={{ backgroundColor: colors.blue, padding: 16, borderRadius: 14, gap: 8 }}>
+        <Text style={[styles.small, { color: colors.onAccent }]}>{t('Estimated BCRS voucher value')}</Text>
+        <Text weight="bold" style={[styles.tabular, { fontSize: 29, color: colors.onAccent }]}>{money(totals.totalDepositValue)}</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {[
+            { label: 'You Get (At Door)', value: totals.sellerPayout, caption: 'Direct Revolut / Cash' },
+            { label: 'Collector’s estimated net value', value: totals.collectorProfit, caption: 'Voucher value minus seller payment' },
+          ].map(({ label, value, caption }, index) => <View key={label} style={{ flex: 1, minWidth: 0, gap: 3, borderStartWidth: index ? 1 : 0, borderColor: colors.onAccent, paddingStart: index ? 8 : 0 }}>
+            <Text style={[styles.small, { color: colors.onAccent }]}>{t(label)}</Text>
+            <Text weight="bold" style={[styles.tabular, { fontSize: 20, color: colors.onAccent }]}>{money(value)}</Text>
+            <Text style={[styles.muted, { color: colors.onAccent }]}>{t(caption)}</Text>
+          </View>)}
+        </View>
       </View>
     </Card>
     <Card>
-      <View style={styles.between}>
-        <Text weight="bold" style={styles.small}>{t("Location & Contact Details")}</Text>
-        <Text weight="semibold" style={[styles.muted, { color: colors.sky }]}>Malta</Text>
-      </View>
+      <SectionTitle number={3}>{t('Pickup location')}</SectionTitle>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Select label={t("Pickup locality")} options={localities} value={locality} placeholder={t("Choose a locality")}
           onChange={(value) => { setLocality(value); setLocationMessage(''); setLocationError(''); }} disabled={busy || locating} style={{ flex: 1 }} />
@@ -345,8 +345,11 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       {errors.map((message) => <ErrorText key={message} message={'• ' + message} />)}
     </View>}
     <ErrorText message={serverError} />
-    <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={busy} />
     <Card>
+      <SectionTitle number={4}>{t('Availability and photo')}</SectionTitle>
+      <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={busy} />
+    </Card>
+    <Card style={{ backgroundColor: colors.quiet, borderStyle: 'dashed' }}>
       <Text weight="bold" style={styles.body}>{t("Photo of the bottles or bags (required)")}</Text>
       {photo ? <>
         <Image source={{ uri: 'data:image/jpeg;base64,' + photo }} accessibilityLabel={t("Listing photo preview")}
@@ -359,7 +362,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       <ErrorText message={photoError} />
     </Card>
     <Button label={busy ? t("Publishing…") : t("Publish Collection Request")} disabled={!authReady || busy || locating || choosingPhoto} onPress={submit}>
-      <ArrowRight size={16} color={colors.white} />
+      <ArrowRight size={16} color={colors.onAccent} />
     </Button>
   </ScrollView>;
 }
