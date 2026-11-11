@@ -32,8 +32,8 @@ export default function AccountBottomNav() {
   ] as const;
   return <>
     <div className="h-[calc(3.75rem+env(safe-area-inset-bottom))]" aria-hidden="true" />
-    <nav aria-label={t('Main navigation')} className="fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-lg justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-blue-200/70">
-      {tabs.filter(([, href]) => href !== '/' || !supabase || role !== null).map(([label, href, Icon]) => <Link key={label} href={href} className="flex flex-col items-center gap-1 text-[10px] font-semibold hover:text-white">
+    <nav aria-label={t('Main navigation')} className="bf-phone bf-nav fixed inset-x-0 bottom-0 z-30 mx-auto flex max-w-lg justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-blue-200/70">
+      {tabs.filter(([, href]) => href !== '/' || !supabase || role !== null).map(([label, href, Icon]) => <Link key={label} href={href} aria-current={label === 'Profile' ? 'page' : undefined} className="flex flex-col items-center gap-1 text-[10px] font-semibold hover:text-white">
         <Icon className="size-4" aria-hidden="true" />{t(label)}
       </Link>)}
     </nav>

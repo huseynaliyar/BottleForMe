@@ -30,7 +30,7 @@ export default function SettingsPage() {
     });
     return () => data.subscription.unsubscribe();
   }, []);
-  return <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-white">
+  return <main className="bf-phone bf-reading mx-auto max-w-lg space-y-4 px-4 py-8 text-white">
     <Link href="/?view=profile" className="text-blue-300">{t("← Profile")}</Link>
     <h1 className="text-2xl font-bold">{t("Settings")}</h1>
     <ThemeSetting />

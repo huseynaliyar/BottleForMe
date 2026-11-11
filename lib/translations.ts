@@ -9,6 +9,14 @@ Dark|Scuro|Тёмная|داكن|गहरा|گہری
 Light|Chiaro|Светлая|فاتح|हल्का|ہلکی
 Settings|Impostazioni|Настройки|الإعدادات|सेटिंग्स|ترتیبات
 Profile|Profilo|Профиль|الملف الشخصي|प्रोफ़ाइल|پروفائل
+Guest|Ospite|Гость|زائر|अतिथि|مہمان
+Active role|Ruolo attivo|Активная роль|الدور النشط|सक्रिय भूमिका|فعال کردار
+Switch active role|Cambia ruolo attivo|Сменить активную роль|غيّر الدور النشط|सक्रिय भूमिका बदलें|فعال کردار بدلیں
+Containers and bags|Contenitori e sacchi|Тара и пакеты|العبوات والأكياس|बोतलें, डिब्बे और थैले|بوتلیں، ڈبے اور تھیلے
+Deposit split|Ripartizione della cauzione|Распределение залога|تقسيم مبلغ الوديعة|जमा राशि का बँटवारा|جمع شدہ رقم کی تقسیم
+Pickup location|Luogo del ritiro|Место вывоза|مكان الاستلام|पिकअप की जगह|پک اپ کی جگہ
+Availability and photo|Disponibilità e foto|Доступное время и фото|أوقات التوفر والصورة|उपलब्ध समय और फ़ोटो|دستیاب اوقات اور تصویر
+Give your empties a second life. A Taker collects them from you.|Dai una seconda vita ai tuoi vuoti. Un raccoglitore verrà a ritirarli.|Дайте пустой таре вторую жизнь. Сборщик заберёт её у вас.|امنح عبواتك الفارغة حياة ثانية. سيأتي جامع لاستلامها منك.|खाली बोतलों और डिब्बों को फिर से उपयोग में लाएँ। एक कलेक्टर उन्हें आपसे ले जाएगा।|اپنی خالی بوتلوں اور ڈبوں کو دوبارہ استعمال میں لائیں۔ ایک جمع کرنے والا انہیں آپ سے لے جائے گا۔
 Your profile|Il tuo profilo|Ваш профиль|ملفك الشخصي|आपकी प्रोफ़ाइल|آپ کا پروفائل
 Open profile|Apri il profilo|Открыть профиль|افتح الملف الشخصي|प्रोफ़ाइल खोलें|پروفائل کھولیں
 ← Profile|← Profilo|← Профиль|الملف الشخصي|प्रोफ़ाइल पर लौटें|پروفائل پر واپس جائیں

@@ -34,14 +34,14 @@ export default function BalancePage() {
 
   const current = state?.userId === userId ? state : undefined;
   const balance = current?.offers && userId ? pickupBalance(current.offers, userId) : undefined;
-  return <main className="mx-auto max-w-lg space-y-4 px-4 py-8 text-white">
+  return <main className="bf-phone bf-reading mx-auto max-w-lg space-y-4 px-4 py-8 text-white">
     <Link href="/" className="text-blue-300">{t("← BottleForMe")}</Link>
     <h1 className="text-2xl font-bold">{t("Balance")}</h1>
     {(!supabase || userId === null) && <p>Log in to see your pickup estimates.</p>}
     {supabase && userId !== null && !balance && !current?.error && <p role="status">Loading pickup estimates…</p>}
     {current?.error && <p role="alert">{current.error}</p>}
     {balance && <>
-      <div className="glass-navy space-y-2 rounded-xl p-4">
+      <div className="bf-balance-total glass-navy space-y-2 rounded-xl p-4">
         <p>{t("Estimated earnings") + ' '}<strong>{formatEuro(balance.earnings)}</strong></p>
         <p>{t("Total deposit value") + ' '}<strong>{formatEuro(balance.deposit)}</strong></p>
       </div>

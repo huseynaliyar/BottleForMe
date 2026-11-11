@@ -176,7 +176,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
         </button>
       </div>
       {!recovery && (
-        <div className="mb-3 flex flex-wrap gap-1">
+        <div className="bf-dialog-tabs mb-3 flex flex-wrap gap-1">
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>{t("Log in")}</button>
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'register'} onClick={() => changeMode('register')}>{t("Register")}</button>
           <button type="button" disabled={loading} className={buttonClass} aria-pressed={mode === 'forgot'} onClick={() => changeMode('forgot')}>{t("Forgot password")}</button>

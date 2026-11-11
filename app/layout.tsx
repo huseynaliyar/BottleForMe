@@ -3,6 +3,7 @@ import { themeKey } from '@/lib/appearance';
 import { languages, localeKey } from '@/lib/locale';
 import WebLanguageProvider from '@/components/WebLanguageProvider';
 import './globals.css';
+import './phone.css';
 import 'leaflet/dist/leaflet.css';
 import AccountBottomNav from '@/components/AccountBottomNav';
 

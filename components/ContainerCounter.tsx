@@ -1,3 +1,4 @@
+import { Cylinder, Milk } from 'lucide-react';
 import { MAX_CONTAINERS } from '@/lib/pickup-validation';
 
 export function parseCount(value: string) {
@@ -11,10 +12,12 @@ export default function ContainerCounter({ name, icon, value, onChange }: {
   onChange: (value: string) => void;
 }) {
   const count = parseCount(value);
+  const Icon = icon === '🥫' ? Cylinder : Milk;
   return (
-    <div className="min-w-0 rounded-2xl border border-blue-500/20 bg-[#0b1220] p-2 text-center">
+    <div className="bf-count min-w-0 rounded-2xl border border-blue-500/20 bg-[#0b1220] p-2 text-center">
       <label className="block text-[10px] font-bold text-white">
-        <span className="block text-base" aria-hidden="true">{icon}</span>
+        <span className="bf-desktop-only block text-base" aria-hidden="true">{icon}</span>
+        <span className="bf-phone-only" aria-hidden="true"><Icon className="mx-auto mb-1 size-5" strokeWidth={1.5} /></span>
         {name}
         <input type="text" inputMode="numeric" value={value} onChange={(event) => onChange(event.target.value)}
           maxLength={6} aria-invalid={count === null}

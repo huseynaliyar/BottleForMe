@@ -29,9 +29,9 @@ export function AvailabilityEditor({ drafts, onChange, disabled }: {
   drafts: WindowDraft[]; onChange: (drafts: WindowDraft[]) => void; disabled?: boolean;
 }) {
   const { t } = useLanguage();
-  return <fieldset disabled={disabled} className="min-w-0 space-y-2 rounded-xl border border-blue-400/20 p-3">
+  return <fieldset disabled={disabled} className="bf-panel min-w-0 space-y-2 rounded-xl border border-blue-400/20 p-3">
     <legend className="px-1 font-bold text-white">{t("Pickup availability · Malta time")}</legend>
-    {drafts.map((draft, index) => <div key={index} className="grid min-w-0 grid-cols-1 gap-2">
+    {drafts.map((draft, index) => <div key={index} className="bf-window grid min-w-0 grid-cols-1 gap-2">
       {(['date', 'start', 'end'] as const).map((key) => <label key={key} className="text-sm text-blue-100">
         {key === 'date' ? 'Date' : key === 'start' ? t("From") : t("Until")}
         <input type={key === 'date' ? 'date' : 'time'} min={key === 'date' ? maltaToday() : undefined}
@@ -131,7 +131,7 @@ export function RequestPickupTime({ offer, onSaved, onRestriction, triggerLabel 
   }
 
   return <details className="w-full rounded-xl border border-blue-400/25 p-3 text-blue-100">
-    <summary className={triggerLabel ? 'blue-btn cursor-pointer rounded-xl px-3 py-2 font-bold text-white' : 'cursor-pointer font-bold text-white'}>{t(triggerLabel ?? 'Request pickup')}</summary>
+    <summary className={triggerLabel ? 'bf-inline-summary blue-btn cursor-pointer rounded-xl px-3 py-2 font-bold text-white' : 'bf-inline-summary cursor-pointer font-bold text-white'}>{t(triggerLabel ?? 'Request pickup')}</summary>
     <fieldset disabled={busy} className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
         <ScheduleButton onClick={() => setMode('available')} main={mode === 'available'}>{t("Available time")}</ScheduleButton>
@@ -195,7 +195,7 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   const canCancel = pending || (item.status === 'accepted' && ['reserved', 'en_route', 'arrived'].includes(item.pickup?.status ?? ''));
   const base = { id: item.id, version: item.version };
   return <li className="space-y-2 rounded-xl bg-[#0b1220] p-3">
-    <p className="font-bold">{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? t("Pending") : item.status === 'rejected' ? 'Declined' : t("Cancelled")}</p>
+    <p className="font-bold"><span className="bf-status" data-state={item.status}>{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? t("Pending") : item.status === 'rejected' ? 'Declined' : t("Cancelled")}</span></p>
     <p className="text-sm">{formatAppointment(item.proposed_at)} · Malta time</p>
     {pending && <p className="text-sm">{future ? (canRespond ? 'Your response is needed.' : 'Waiting for the other person.') : 'This proposed time has passed.'}</p>}
     <div className="flex flex-wrap gap-2">

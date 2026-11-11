@@ -6,9 +6,10 @@ import L from 'leaflet';
 import { radarPins } from '@/lib/pickup-location';
 import { PickupOffer } from '@/lib/types';
 
-export default function RadarMap({ offers, onSelectOffer }: {
+export default function RadarMap({ offers, onSelectOffer, selectedId }: {
   offers: PickupOffer[];
   onSelectOffer?: (offer: PickupOffer) => void;
+  selectedId?: string;
 }) {
   const { t } = useLanguage();
   const container = useRef<HTMLDivElement>(null);
@@ -29,7 +30,9 @@ export default function RadarMap({ offers, onSelectOffer }: {
     L.control.zoom({ position: 'topright' }).addTo(map);
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
-    const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+    const resize = new ResizeObserver(() => {
+      map.invalidateSize({ pan: window.matchMedia('(max-width: 639px)').matches });
+    });
     resize.observe(container.current);
 
     return () => {
@@ -52,7 +55,7 @@ export default function RadarMap({ offers, onSelectOffer }: {
       const position = L.latLng(pin.lat, pin.lng);
       bounds.extend(position);
       const label = document.createElement('span');
-      label.className = 'grid size-8 place-items-center rounded-full border-2 border-blue-400 bg-slate-950 font-bold text-white';
+      label.className = 'bf-map-pin grid size-8 place-items-center rounded-full border-2 border-blue-400 bg-slate-950 font-bold text-white';
       label.textContent = String(matching.length);
       const icon = L.divIcon({ className: 'custom-radar-pin', html: label, iconSize: [32, 32], iconAnchor: [16, 16] });
       const marker = L.marker(position, { icon, title: name, alt: name }).addTo(layer);
@@ -92,10 +95,19 @@ export default function RadarMap({ offers, onSelectOffer }: {
     if (bounds.isValid()) map.fitBounds(bounds, { maxZoom: 13, padding: [24, 24], animate: false });
   }, [offers, canSelect]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedId || !window.matchMedia('(max-width: 639px)').matches) return;
+    const group = radarPins(offers).find(([, item]) => item.offers.some(({ id }) => id === selectedId))?.[1];
+    if (!group) return;
+    map.invalidateSize({ pan: true });
+    map.panInside([group.pin.lat, group.pin.lng], { padding: [22, 22], animate: false });
+  }, [selectedId, offers]);
+
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div ref={container} className="h-full w-full" role="region" aria-label="Radar map by locality" />
-      <p className="pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">{t("Exact pins are shown when shared by the giver.")}</p>
+      <p className="bf-map-note pointer-events-none absolute bottom-5 left-2 z-[500] rounded-full bg-[#080b12]/90 px-2.5 py-1 text-[10px] text-blue-200">{t("Exact pins are shown when shared by the giver.")}</p>
     </div>
   );
 }

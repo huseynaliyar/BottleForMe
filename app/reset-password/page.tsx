@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
     }
   }
 
-  return <main className="mx-auto max-w-sm space-y-4 p-5 text-white">
+  return <main className="bf-phone bf-reading mx-auto max-w-sm space-y-4 p-5 text-white">
     <h1 className="text-xl font-bold">{t("Choose a new password")}</h1>
     {valid === false && !saved && <p role="alert">{t("This password reset link is no longer valid. Request a new link.")}</p>}
     {valid === undefined && !message && <p role="status">Checking your password reset link…</p>}

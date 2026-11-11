@@ -16,7 +16,7 @@ import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
 import {
   Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
-  Check, Bell, LogOut, Wallet, CircleHelp, Settings,
+  Check, Bell, LogOut, Wallet, CircleHelp, Settings, Recycle,
 } from 'lucide-react';
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
@@ -565,25 +565,26 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const conversationLoading = !authReady || !!sessionUser && !actionError && (!currentUser || handoverStatus === 'Loading your pickups…');
 
   return (
-    <div className={fullscreenRadar ? 'bg-[#05070c]' : conversationOpen
-      ? 'flex h-dvh justify-center bg-[#05070c]'
-      : 'flex h-dvh justify-center bg-[#05070c] sm:p-4'}>
+    <div className={fullscreenRadar ? 'bf-phone bg-[#05070c]' : conversationOpen
+      ? 'bf-phone flex h-dvh justify-center bg-[#05070c]'
+      : 'bf-phone flex h-dvh justify-center bg-[#05070c] sm:p-4'}>
       {/* Mobile Frame Container */}
       <div className={fullscreenRadar
-        ? 'relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
-        : conversationOpen ? 'relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
-        : 'relative flex h-full w-full flex-col overflow-hidden sm:rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
+        ? 'bf-frame relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
+        : conversationOpen ? 'bf-frame relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
+        : 'bf-frame relative flex h-full w-full flex-col overflow-hidden sm:rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
           (selectedId ? 'max-w-3xl' : 'max-w-[420px]')}>
         {/* Ambient Lighting */}
-        <div className="absolute top-0 left-1/4 -translate-x-1/2 w-64 h-40 bg-blue-600/20 blur-[70px] pointer-events-none" />
-        <div className="absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
+        <div className="bf-glow absolute top-0 left-1/4 -translate-x-1/2 w-64 h-40 bg-blue-600/20 blur-[70px] pointer-events-none" />
+        <div className="bf-glow absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
 
         {/* Header */}
-        {!conversationOpen && <header className={fullscreenRadar ? 'relative z-10 shrink-0 px-4 py-2' : 'relative z-10 px-4 pb-3 pt-5'}>
-          <div className={fullscreenRadar ? 'flex items-center justify-between' : 'mb-3 flex items-center justify-between'}>
+        {!conversationOpen && <header className={fullscreenRadar ? 'bf-header relative z-10 shrink-0 px-4 py-2' : 'bf-header relative z-10 px-4 pb-3 pt-5'}>
+          <div className={fullscreenRadar ? 'bf-header-row flex items-center justify-between' : 'bf-header-row mb-3 flex items-center justify-between'}>
             {/* Logo & Brand Title */}
-            <div className="flex items-center space-x-2.5">
-              <button type="button" aria-label={t("Open profile")} className="relative cursor-pointer" onClick={() => setActiveTab('profile')}>
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="bf-phone-only bf-brand-mark" aria-hidden="true"><Recycle className="size-5" /></span>
+              <button type="button" aria-label={t("Open profile")} className="bf-desktop-only relative cursor-pointer" onClick={() => setActiveTab('profile')}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- avatars are private data URLs */}
                 <img
                   src={currentUser?.avatar_url || '/logo.jpg'}
@@ -598,13 +599,13 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               </button>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-base font-extrabold tracking-tight text-white leading-none">
+                  <h1 className="bf-brand-name text-base font-extrabold tracking-tight text-white leading-none">
                     BottleForMe
                   </h1>
                   <button
                     type="button"
                     onClick={() => void handleToggleRole()}
-                    className={`text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border cursor-pointer transition ${
+                    className={`bf-desktop-only text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border cursor-pointer transition ${
                       currentUser?.role === 'taker'
                         ? 'bg-emerald-500/15 text-[#00e599] border-emerald-500/30'
                         : 'bg-blue-500/15 text-[#60a5fa] border-blue-500/30'
@@ -613,12 +614,15 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     {currentUser?.role === 'taker' ? '🚛 Taker' : currentUser ? '🎁 Giver' : 'Guest'}
                   </button>
                 </div>
-                <p className="text-[11px] text-blue-200/60 font-medium mt-0.5">{t("Plastic · Cans · Glass Collection")}</p>
+                <button type="button" aria-label={currentUser ? t('Switch active role') : t('Sign in or register')} className="bf-phone-only bf-role" onClick={() => void handleToggleRole()}>
+                  {currentUser ? t('Active role') + ' · ' + t(canUseRadar ? 'Taker' : 'Giver') : 'Malta · ' + t('Guest')}
+                </button>
+                <p className="bf-desktop-only text-[11px] text-blue-200/60 font-medium mt-0.5">{t("Plastic · Cans · Glass Collection")}</p>
               </div>
             </div>
 
             {/* Header Action Buttons */}
-            <div className="flex items-center gap-1.5">
+            <div className="bf-header-actions flex items-center gap-1.5">
               {/* Notifications Bell */}
               <button
                 onClick={() => setIsNotifOpen(true)}
@@ -643,7 +647,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           </div>
 
           {/* Top Segmented Switcher */}
-          {!fullscreenRadar && <div className="bg-[#0e1626] p-1 rounded-2xl flex text-xs font-semibold border border-blue-500/20 shadow-inner">
+          {!fullscreenRadar && <div className="bf-desktop-only bg-[#0e1626] p-1 rounded-2xl flex text-xs font-semibold border border-blue-500/20 shadow-inner">
             {!canUseRadar && (<button
               onClick={() => setActiveTab('resident')}
               className={`flex-1 py-2 rounded-xl transition-all duration-200 font-bold ${
@@ -685,23 +689,25 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         )}
 
         {/* Scrollable Content Viewport */}
-        <main ref={contentRef} className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'}>
+        <main ref={contentRef} className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'bf-content relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
             <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
               {/* Hero Card */}
-              <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
-                <div className="flex flex-wrap justify-between gap-2">
+              <div className="bf-give-start glass-navy rounded-[28px] p-4 relative overflow-hidden">
+                <div className="bf-give-title flex flex-wrap justify-between gap-2">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Zero Queues · Doorstep Pickup")}</span>
-                    <h2 className="text-lg font-bold text-white tracking-tight mt-0.5">{t("Arrange an empties pickup.")}</h2>
+                    <span className="bf-eyebrow text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Zero Queues · Doorstep Pickup")}</span>
+                    <h2 className="bf-page-title text-lg font-bold text-white tracking-tight mt-0.5">{t("Arrange an empties pickup.")}</h2>
+                    <p className="bf-phone-only bf-lead">{t('Give your empties a second life. A Taker collects them from you.')}</p>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#00e599]/10 border border-[#00e599]/25 text-[#00e599]">{t("€0.10 per eligible item")}</span>
                 </div>
 
                 {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) with 1-by-1 increments & direct input */}
-                <div className="mt-3.5 pt-3 border-t border-white/[0.08] space-y-2.5">
-                  <div className="flex justify-between items-center">
+                <div className="bf-count-panel bf-panel mt-3.5 pt-3 border-t border-white/[0.08] space-y-2.5">
+                  <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">1</span><h3 className="bf-section-title">{t('Containers and bags')}</h3></div>
+                  <div className="bf-desktop-only flex justify-between items-center">
                     <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider">{t("Containers to Hand Over:")}</span>
                     <span className="text-[10px] text-blue-300 font-semibold">{t("Type exact count or tap − / +")}</span>
                   </div>
@@ -727,8 +733,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
               {/* Deposit Split Slider Card */}
               <div className="glass-navy rounded-[28px] p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
+                <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">2</span><h3 className="bf-section-title">{t('Deposit split')}</h3></div>
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <div className="bf-desktop-only">
                     <span className="text-xs font-bold text-white tracking-tight">{t("Deposit Split Ratio")}</span>
                     <p className="text-[11px] text-blue-200/60">{t("Estimated BCRS voucher value")}{' '}
                       <span className="text-white font-semibold">€{countsValid ? totalDepositValue.toFixed(2) : '—'}</span>
@@ -770,7 +777,12 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 </div>
 
                 {/* Split Metrics */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="bf-estimate">
+                <div className="bf-phone-only">
+                  <p className="text-xs">{t('Estimated BCRS voucher value')}</p>
+                  <strong className="bf-estimate-total">€{countsValid ? totalDepositValue.toFixed(2) : '—'}</strong>
+                </div>
+                <div className="bf-estimate-metrics grid grid-cols-2 gap-2 pt-1">
                   <div className="bg-[#0b1220] rounded-2xl p-2.5 border border-blue-500/20">
                     <span className="text-[10px] text-blue-300 font-medium block">{t("You Get (At Door)")}</span>
                     <span className="text-lg font-extrabold text-white mt-0.5 block">
@@ -788,9 +800,11 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 </div>
               </div>
 
+              </div>
               {/* Location & contact details */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
-                <div className="flex justify-between items-center">
+                <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">3</span><h3 className="bf-section-title">{t('Pickup location')}</h3></div>
+                <div className="bf-desktop-only flex justify-between items-center">
                   <span className="text-xs font-bold text-white tracking-tight">{t("Location & Contact Details")}</span>
                   <span className="text-[10px] text-blue-400 font-semibold">Malta</span>
                 </div>
@@ -909,8 +923,9 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 </div>
               </div>
 
+              <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">4</span><h3 className="bf-section-title">{t('Availability and photo')}</h3></div>
               <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
-              <div className="glass-navy space-y-2 rounded-2xl p-3 text-sm text-white">
+              <div className="bf-photo-field glass-navy space-y-2 rounded-2xl p-3 text-sm text-white">
                 <label className="block font-semibold" htmlFor="listing-photo">{t("Photo of the bottles or bags (required)")}</label>
                 <input id="listing-photo" type="file" accept="image/jpeg,image/png,image/webp"
                   disabled={isPublishing || readingListingPhoto} className="block w-full max-w-full text-blue-100"
@@ -964,10 +979,11 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           )}
           {activeTab === 'driver' && canUseRadar && (
             <section className={fullscreenRadar ? 'relative flex min-h-0 flex-1 flex-col' : 'space-y-3.5'}>
-              <div className={fullscreenRadar ? 'shrink-0 space-y-1 border-t border-blue-500/20 bg-[#0e1626] px-3 py-2' : 'glass-navy relative overflow-hidden rounded-[28px] p-4'}>
-                <div className="flex justify-between items-center mb-2.5">
+              <div className={fullscreenRadar ? 'bf-radar-bar shrink-0 space-y-1 border-t border-blue-500/20 bg-[#0e1626] px-3 py-2' : 'bf-radar-bar glass-navy relative overflow-hidden rounded-[28px] p-4'}>
+                <div className="bf-radar-controls flex justify-between items-center mb-2.5">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Malta Collector Radar")}</span>
+                    <span className="bf-eyebrow text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Malta Collector Radar")}</span>
+                    <h2 className="bf-phone-only bf-page-title">{t('Radar')}</h2>
                     <h3 className="text-base font-bold text-white tracking-tight mt-0.5">
                       {offers.length}{' ' + t("Live Pickup Requests")}</h3>
                   </div>
@@ -993,7 +1009,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="bf-radar-filters flex flex-wrap gap-2">
                   <select aria-label={t("Filter Radar by locality")} value={radarLocality} onChange={(event) => { setOffers([]); setMapOfferId(null); setRadarStatus('Loading Radar…'); setRadarLocality(event.target.value); }} className="min-w-0 flex-1 rounded-xl border border-blue-500/25 bg-[#0b1220] p-2 text-xs text-white">
                     <option value="">{t("All localities")}</option>
                     {MALTA_LOCALITIES.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
@@ -1011,7 +1027,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               </div>
               {fullscreenRadar && (
                 <div className="relative min-h-0 flex-1">
-                  <RadarMap offers={radarOffers} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
+                  <RadarMap offers={radarOffers} selectedId={mapOfferId ?? undefined} onSelectOffer={(offer) => setMapOfferId(offer.id)} />
                 </div>
               )}
 
@@ -1021,20 +1037,21 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 {radarOffers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
-                    className={fullscreenRadar ? 'glass-navy flex max-h-[48dvh] flex-col overflow-y-auto rounded-t-[24px] shadow-2xl'
+                    className={fullscreenRadar ? 'bf-listing-sheet glass-navy flex max-h-[48dvh] flex-col overflow-y-auto rounded-t-[24px] shadow-2xl'
                       : 'glass-navy pointer-events-auto space-y-2.5 rounded-[24px] p-3.5 transition hover:border-blue-400/50'}
                   >
                     <div className={fullscreenRadar ? 'space-y-2.5 p-3.5' : 'space-y-2.5'}>
                       {fullscreenRadar && <>
                         <div aria-hidden="true" className="mx-auto h-1 w-8 rounded-full bg-blue-200/30" />
                         <div className="flex items-center justify-between gap-2">
-                          <div><span className="text-xs font-bold text-emerald-300">{t('Available')}</span><h3 className="text-lg font-extrabold text-white">{offer.locality} {t('pickup')}</h3></div>
+                          <div><span className="bf-status text-xs font-bold text-emerald-300">{t('Available')}</span><h3 className="text-lg font-extrabold text-white">{offer.locality} {t('pickup')}</h3></div>
                           <button type="button" onClick={() => setMapOfferId(null)} aria-label={t('Close pickup details')}
                             className="grid size-9 shrink-0 place-items-center rounded-full border border-blue-400/30 text-xl text-blue-200">×</button>
                         </div>
                         <p className="flex items-center gap-1 text-xs text-blue-200"><MapPin className="size-3.5 shrink-0" />{t(offer.exact_pin ? 'Exact pin shared · Address after confirmation' : 'Approximate location · Address after confirmation')}</p>
                       </>}
-                      <div className="flex flex-wrap justify-between gap-2">
+                      <div className={fullscreenRadar ? 'flex flex-wrap justify-between gap-2' : 'bf-listing-summary flex flex-wrap justify-between gap-2'}>
+                        {!fullscreenRadar && <span className="bf-phone-only bf-listing-mark" aria-hidden="true"><Package className="size-6" /></span>}
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {!fullscreenRadar && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
@@ -1055,7 +1072,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           </h4>
 
                         </div>
-                        <div className="shrink-0">
+                        <div className={fullscreenRadar ? 'shrink-0' : 'bf-desktop-only shrink-0'}>
                           <span className="text-[10px] text-slate-400 font-medium block">{t(fullscreenRadar ? 'Est. you earn' : 'Collector’s estimated net value')}</span>
                           <span className="text-base font-extrabold text-[#00e599]">
                             €{offer.collector_profit.toFixed(2)}
@@ -1063,7 +1080,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+                      <div className="bf-listing-values flex items-center justify-between pt-2 border-t border-white/[0.08]">
+                        {!fullscreenRadar && <span className="bf-phone-only text-[11px] text-slate-300">{t('Est. you earn')}<strong>€{offer.collector_profit.toFixed(2)}</strong></span>}
                         <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
                           <strong className="text-white">
                             €{offer.seller_payout.toFixed(2)}{' '}
@@ -1073,7 +1091,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         {!fullscreenRadar && !offer.availability?.length && <button
                           disabled={isUpdating}
                           onClick={() => changePickup(offer, 'reserved')}
-                          className="px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
+                          className="bf-reserve px-3.5 py-1.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 hover:text-white text-blue-300 text-xs font-bold border border-blue-500/40 transition shadow-sm"
                         >{t("Reserve pickup →")}</button>}
                       </div>
                       <details open={!fullscreenRadar} className="space-y-2 text-xs text-blue-200">
@@ -1090,7 +1108,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                       </details>
                     </div>
                     {(fullscreenRadar || !!offer.availability?.length) && <div className={fullscreenRadar
-                      ? 'sticky bottom-0 shrink-0 has-[details[open]]:static border-t border-blue-400/25 bg-[#0e1626] p-3.5' : undefined}>
+                      ? 'bf-sticky-action sticky bottom-0 shrink-0 has-[details[open]]:static border-t border-blue-400/25 bg-[#0e1626] p-3.5' : undefined}>
                       {offer.availability?.length ? <RequestPickupTime offer={offer} triggerLabel={fullscreenRadar ? 'Choose pickup time' : undefined} onRestriction={setRestriction}
                         onSaved={() => setRevision((value) => value + 1)} /> : <button type="button" disabled={isUpdating}
                         onClick={() => void changePickup(offer, 'reserved')}
@@ -1112,10 +1130,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             action={conversationLoading ? undefined : !sessionUser ? { label: t('Log in'), run: () => setIsAuthOpen(true) }
               : selectedOffer || selectedInOtherRole ? { label: t('Pickup details'), run: () => openActivity(selectedId ?? undefined) } : undefined} />}
           {activeTab === 'chat' && !conversationOpen && (
-            <section className={selectedId ? 'glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
-              <h2 className="py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedId ? 'Pickup details' : 'Pickups')}</h2>
+            <section className={selectedId ? 'bf-pickup-detail glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
+              <h2 className="bf-page-title py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedId ? 'Pickup details' : 'Pickups')}</h2>
               {!currentUser ? (
-                <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button>
+                <div className="bf-signin-gate"><span className="bf-phone-only bf-empty-icon" aria-hidden="true"><MessageSquare className="size-6" /></span><button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button></div>
               ) : (
                 <>
                   {selectedId ? <>
@@ -1134,7 +1152,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                     ) : <>
                       {selectedOffer && <>
                         <header className="space-y-1">
-                          <span className="text-xs font-semibold text-blue-300" style={{ color: pickupStatusCss(selectedOffer.overdue ? 'overdue' : selectedOffer.status) }}>{!canUseRadar && selectedOffer.archived_at ? t("Archived") : selectedOffer.overdue ? t("Overdue") : t(pickupStatus[selectedOffer.status])}</span>
+                          <span className="bf-status text-xs font-semibold text-blue-300" style={{ color: pickupStatusCss(selectedOffer.overdue ? 'overdue' : selectedOffer.status) }}>{!canUseRadar && selectedOffer.archived_at ? t("Archived") : selectedOffer.overdue ? t("Overdue") : t(pickupStatus[selectedOffer.status])}</span>
                           <h3 className="flex items-center gap-3 text-lg font-bold text-white">
                             {selectedOffer.collector_id && selectedOffer.seller_id && <PickupAvatar name={pickupConversationTitle(selectedOffer, canUseRadar, t)} pickupId={selectedOffer.id} />}
                             {selectedOffer.collector_id ? pickupConversationTitle(selectedOffer, canUseRadar, t) : selectedOffer.locality}
@@ -1145,19 +1163,19 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           onClick={() => void toggleArchive(selectedOffer)} className="rounded-lg bg-white/10 px-3 py-2 text-blue-100 disabled:opacity-50">
                           {selectedOffer.archived_at ? t("Restore listing") : t("Archive listing")}
                         </button>}
-                        {handoverActive && <div className="rounded-xl bg-white/5 p-3">
+                        {handoverActive && <div className="bf-panel rounded-xl bg-white/5 p-3">
                           <h4 className="font-semibold text-white">{selectedOffer.confirmed_at ? formatAppointment(selectedOffer.confirmed_at) + ' · Malta time' : t('Pickup address')}</h4>
                           {selectedOffer.address_notes && <p className="whitespace-pre-line break-words text-blue-200">{selectedOffer.address_notes}</p>}
                           {pickupMapUrl(selectedOffer) && <a href={pickupMapUrl(selectedOffer)!} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold text-blue-300"><MapPin className="size-4" />{t('Open in Maps')}</a>}
                         </div>}
 
                         {handoverActive && <>
-                          <ol aria-label={t('Pickup progress')} className="grid grid-cols-4 gap-1 py-2 text-center text-xs text-blue-200">
+                          <ol aria-label={t('Pickup progress')} className="bf-progress grid grid-cols-4 gap-1 py-2 text-center text-xs text-blue-200">
                             {pickupSteps.map((step, index) => <li key={step} aria-current={pickupStep(selectedOffer.status) === index ? 'step' : undefined}>
-                              <span className={'mx-auto mb-1 grid size-7 place-items-center rounded-full ' + (index <= pickupStep(selectedOffer.status) ? 'bg-blue-600 text-white' : 'bg-white/10')}>{index + 1}</span>{t(step)}
+                              <span aria-hidden="true" data-reached={index <= pickupStep(selectedOffer.status)} className={'bf-progress-mark mx-auto mb-1 grid size-7 place-items-center rounded-full ' + (index <= pickupStep(selectedOffer.status) ? 'bg-blue-600 text-white' : 'bg-white/10')}>{index + 1}</span>{t(step)}
                             </li>)}
                           </ol>
-                          <div className="space-y-2 rounded-2xl border border-blue-400/30 bg-blue-950/45 p-4">
+                          <div className="bf-next space-y-2 rounded-2xl border border-blue-400/30 bg-blue-950/45 p-4">
                           <p className="text-xs font-bold uppercase tracking-wide text-blue-300">{t('Next step')}</p>
                           <h4 className="text-base font-bold text-white">{t(!isCollector ? 'Handover code' : selectedOffer.status === 'reserved' ? 'Heading to the pickup?' : selectedOffer.status === 'en_route' ? 'At the pickup address?' : 'Ready to complete the pickup?')}</h4>
                           <p className="text-blue-100">{t(!isCollector ? 'Show the handover code to the Taker at the pickup.' : selectedOffer.status === 'reserved' ? 'Let the Giver know when you leave.' : selectedOffer.status === 'en_route' ? 'Let the Giver know when you reach the address.' : 'Ask the Giver for the six-digit code to complete your pickup.')}</p>
@@ -1241,8 +1259,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
           {/* ================= 4. PROFILE & SETTINGS TAB ================= */}
           {activeTab === 'profile' && !currentUser && (
-            <section className="glass-navy rounded-3xl p-4 text-sm">
-              <h2 className="mb-2 font-bold text-white">{t("Your profile")}</h2>
+            <section className="bf-guest-profile glass-navy rounded-3xl p-4 text-sm">
+              <h2 className="bf-page-title mb-2 font-bold text-white">{t("Your profile")}</h2>
               <Link href="/settings" className="mb-3 flex items-center gap-2 text-blue-200"><Settings className="size-4" aria-hidden="true" /> {t('Settings')}</Link>
               <Link href="/help" className="mb-3 flex items-center gap-2 text-blue-200"><CircleHelp className="size-4" aria-hidden="true" />{' ' + t("Help & FAQ")}</Link>
               <button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in or register")}</button>
@@ -1250,6 +1268,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           )}
           {activeTab === 'profile' && currentUser && (
             <section className="space-y-3.5">
+              <h2 className="bf-phone-only bf-page-title">{t('Your profile')}</h2>
               {/* Profile Card with Photo Upload */}
               <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
                 <div className="flex items-center gap-3.5">
@@ -1372,7 +1391,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 onClick={() => setShowGuide(true)}>{t("Getting started")}</button>
 
               {/* Account management */}
-              <div className="space-y-2 pt-1">
+              <div className="bf-profile-links space-y-2 pt-1">
                 <Link href="/settings" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
                   <Settings className="size-4 text-blue-300" aria-hidden="true" />{' ' + t("Settings")}</Link>
                 <Link href="/balance" className="flex min-h-11 items-center gap-2 rounded-xl bg-blue-950/40 px-3 text-sm font-semibold text-blue-100 hover:bg-blue-900/40">
@@ -1392,9 +1411,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </main>
 
         {/* Bottom Navigation Bar */}
-        <footer className="relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
+        <footer aria-label={t('Main navigation')} className="bf-nav relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
           {!canUseRadar && (<button
             onClick={() => setActiveTab('resident')}
+            aria-current={activeTab === 'resident' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
               activeTab === 'resident' ? 'text-white' : 'hover:text-white'
             }`}
@@ -1404,6 +1424,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           </button>)}
           {canUseRadar && (<button
             onClick={() => setActiveTab('driver')}
+            aria-current={activeTab === 'driver' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
               activeTab === 'driver' ? 'text-white' : 'hover:text-white'
             }`}
@@ -1413,6 +1434,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           </button>)}
           <button
             onClick={() => setActiveTab('chat')}
+            aria-current={activeTab === 'chat' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
               activeTab === 'chat' ? 'text-white' : 'hover:text-white'
             }`}
@@ -1422,6 +1444,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           </button>
           <button
             onClick={() => setActiveTab('profile')}
+            aria-current={activeTab === 'profile' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
               activeTab === 'profile' ? 'text-white' : 'hover:text-white'
             }`}

@@ -42,7 +42,7 @@ export default function NotificationModal({ isOpen, onClose, notifications, erro
       {notifications.length ? (
         <ul className="space-y-2">
           {notifications.map((item) => (
-            <li key={item.id} className={`rounded-xl border p-3 text-xs ${item.read ? 'border-white/10' : 'border-blue-500/40 bg-blue-950'}`}>
+            <li key={item.id} className={`bf-activity-row rounded-xl border p-3 text-xs ${item.read ? 'border-white/10' : 'border-blue-500/40 bg-blue-950'}`}>
               <strong>{item.title}</strong>
               <p>{item.message}</p>
               <small className="text-blue-200">{item.timestamp}</small>
