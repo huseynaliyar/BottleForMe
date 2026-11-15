@@ -31,7 +31,7 @@ export default function RadarMap({ offers, onSelectOffer, selectedId }: {
     mapRef.current = map;
     layerRef.current = L.layerGroup().addTo(map);
     const resize = new ResizeObserver(() => {
-      map.invalidateSize({ pan: window.matchMedia('(max-width: 639px)').matches });
+      map.invalidateSize();
     });
     resize.observe(container.current);
 
@@ -97,7 +97,7 @@ export default function RadarMap({ offers, onSelectOffer, selectedId }: {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedId || !window.matchMedia('(max-width: 639px)').matches) return;
+    if (!map || !selectedId) return;
     const group = radarPins(offers).find(([, item]) => item.offers.some(({ id }) => id === selectedId))?.[1];
     if (!group) return;
     map.invalidateSize({ pan: true });

@@ -16,7 +16,7 @@ import { readPickupPhoto } from '@/lib/read-pickup-photo';
 import { usePickupFavorites } from '@/lib/use-pickup-favorites';
 import GettingStarted from '@/components/GettingStarted';
 import {
-  Package, Compass, MessageSquare, User, MapPin, Camera, ArrowRight,
+  Package, Compass, Cylinder, MessageSquare, User, MapPin, Camera, ArrowRight,
   Check, Bell, LogOut, Wallet, CircleHelp, Settings,
 } from 'lucide-react';
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
@@ -579,62 +579,26 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const conversationLoading = !authReady || !!sessionUser && !actionError && (!currentUser || handoverStatus === 'Loading your pickups…');
 
   return (
-    <div className={fullscreenRadar ? 'bf-phone bg-[#05070c]' : conversationOpen
-      ? 'bf-phone flex h-dvh justify-center bg-[#05070c]'
-      : 'bf-phone flex h-dvh justify-center bg-[#05070c] sm:p-4'}>
-      {/* Mobile Frame Container */}
-      <div className={fullscreenRadar
-        ? 'bf-frame relative flex h-dvh w-full flex-col overflow-hidden bg-[#080b12]'
-        : conversationOpen ? 'bf-frame relative flex h-full w-full max-w-3xl flex-col overflow-hidden bg-[#080b12]'
-        : 'bf-frame relative flex h-full w-full flex-col overflow-hidden sm:rounded-[36px] border border-white/[0.08] bg-[#080b12] shadow-[0_25px_60px_-15px_rgba(0,102,255,0.2)] ' +
-          (selectedId ? 'max-w-3xl' : 'max-w-[420px]')}>
-        {/* Ambient Lighting */}
-        <div className="bf-glow absolute top-0 left-1/4 -translate-x-1/2 w-64 h-40 bg-blue-600/20 blur-[70px] pointer-events-none" />
-        <div className="bf-glow absolute top-10 right-0 w-48 h-40 bg-emerald-500/10 blur-[70px] pointer-events-none" />
-
+    <div className="bf-phone h-dvh">
+      <div className="bf-frame relative flex h-full min-w-0 flex-col overflow-hidden">
         {/* Header */}
-        <header className={conversationOpen ? 'bf-phone-only bf-chat-brand bf-header relative z-10 shrink-0' : fullscreenRadar ? 'bf-header relative z-10 shrink-0 px-4 py-2' : 'bf-header relative z-10 px-4 pb-3 pt-5'}>
-          <div className={fullscreenRadar ? 'bf-header-row flex items-center justify-between' : 'bf-header-row mb-3 flex items-center justify-between'}>
+        <header className={conversationOpen ? 'bf-chat-brand bf-header relative z-10 shrink-0' : 'bf-header relative z-10 shrink-0'}>
+          <div className="bf-header-row flex items-center justify-between">
             {/* Logo & Brand Title */}
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="bf-phone-only bf-brand-mark" aria-hidden="true">
+              <span className="bf-brand-mark" aria-hidden="true">
                 {/* eslint-disable-next-line @next/next/no-img-element -- the existing logo is sized by the header */}
                 <img src="/logo.jpg" alt="" width={34} height={34} />
               </span>
-              <button type="button" aria-label={t("Open profile")} className="bf-desktop-only relative cursor-pointer" onClick={() => setActiveTab('profile')}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- avatars are private data URLs */}
-                <img
-                  src="/logo.jpg"
-                  alt="BottleForMe"
-                  className="w-10 h-10 rounded-2xl border-2 border-blue-500/40 object-cover shadow-lg"
-                />
-                <span
-                  className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#080b12] ${
-                    currentUser?.role === 'taker' ? 'bg-[#00e599]' : 'bg-[#0066ff]'
-                  }`}
-                />
-              </button>
               <div>
                 <div className="flex items-center gap-1.5">
                   <h1 className="bf-brand-name text-base font-extrabold tracking-tight text-white leading-none">
                     BottleForMe
                   </h1>
-                  <button
-                    type="button"
-                    onClick={() => void handleToggleRole()}
-                    className={`bf-desktop-only text-[9px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border cursor-pointer transition ${
-                      currentUser?.role === 'taker'
-                        ? 'bg-emerald-500/15 text-[#00e599] border-emerald-500/30'
-                        : 'bg-blue-500/15 text-[#60a5fa] border-blue-500/30'
-                    }`}
-                  >
-                    {currentUser?.role === 'taker' ? '🚛 Taker' : currentUser ? '🎁 Giver' : 'Guest'}
-                  </button>
                 </div>
-                <button type="button" aria-label={currentUser ? t('Switch active role') : t('Sign in or register')} className="bf-phone-only bf-role" onClick={() => void handleToggleRole()}>
+                <button type="button" aria-label={currentUser ? t('Switch active role') : t('Sign in or register')} className="bf-role" onClick={() => void handleToggleRole()}>
                   {currentUser ? t('Active role') + ' · ' + t(canUseRadar ? 'Taker' : 'Giver') : 'Malta · ' + t('Guest')}
                 </button>
-                <p className="bf-desktop-only text-[11px] text-blue-200/60 font-medium mt-0.5">{t("Plastic · Cans · Glass Collection")}</p>
               </div>
             </div>
 
@@ -648,7 +612,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               >
                 <Bell className="w-4 h-4" />
                 {unreadNotifCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-[#080b12]" />
+                  <span className="bf-notification-dot absolute top-1 right-1 size-2 rounded-full" />
                 )}
               </button>
 
@@ -662,34 +626,6 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               </button>
             </div>
           </div>
-
-          {/* Top Segmented Switcher */}
-          {!fullscreenRadar && !conversationOpen && <div className="bf-desktop-only bg-[#0e1626] p-1 rounded-2xl flex text-xs font-semibold border border-blue-500/20 shadow-inner">
-            {!canUseRadar && (<button
-              onClick={() => setActiveTab('resident')}
-              className={`flex-1 py-2 rounded-xl transition-all duration-200 font-bold ${
-                activeTab === 'resident'
-                  ? 'bg-[#0066ff] text-white shadow'
-                  : 'text-blue-200/70 hover:text-white'
-              }`}
-            >{t("List Empties")}</button>)}
-            {canUseRadar && (<button
-              onClick={() => setActiveTab('driver')}
-              className={`flex-1 py-2 rounded-xl transition-all duration-200 ${
-                activeTab === 'driver'
-                  ? 'bg-[#0066ff] text-white shadow font-bold'
-                  : 'text-blue-200/70 hover:text-white'
-              }`}
-            >{t("Radar")}</button>)}
-            <button
-              onClick={() => setActiveTab('chat')}
-              className={`flex-1 py-2 rounded-xl transition-all duration-200 relative ${
-                activeTab === 'chat'
-                  ? 'bg-[#0066ff] text-white shadow font-bold'
-                  : 'text-blue-200/70 hover:text-white'
-              }`}
-            >{t("Pickups")}</button>
-          </div>}
         </header>
 
         {/* Toast Notification Banner */}
@@ -706,58 +642,49 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         )}
 
         {/* Scrollable Content Viewport */}
-        <main ref={contentRef} className={fullscreenRadar || conversationOpen ? 'relative z-10 flex min-h-0 flex-1 flex-col' : 'bf-content relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4'}>
+        <main ref={contentRef} className={fullscreenRadar || conversationOpen
+          ? 'relative z-10 flex min-h-0 flex-1 flex-col' + (conversationOpen ? ' bf-chat-layout' : '')
+          : 'bf-content relative z-10 min-h-0 flex-1 space-y-4 overflow-y-auto'}>
           {/* ================= 1. GIVER / RESIDENT VIEW ================= */}
           {activeTab === 'resident' && (
-            <form noValidate className="space-y-3.5" onSubmit={handlePublishOffer}>
+            <form noValidate className="bf-give-form grid min-w-0 gap-3.5" onSubmit={handlePublishOffer}>
               {/* Hero Card */}
               <div className="bf-give-start glass-navy rounded-[28px] p-4 relative overflow-hidden">
                 <div className="bf-give-title flex flex-wrap justify-between gap-2">
                   <div>
                     <span className="bf-eyebrow text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Zero Queues · Doorstep Pickup")}</span>
                     <h2 className="bf-page-title text-lg font-bold text-white tracking-tight mt-0.5">{t("Arrange an empties pickup.")}</h2>
-                    <p className="bf-phone-only bf-lead">{t('Give your empties a second life. A Taker collects them from you.')}</p>
+                    <p className="bf-lead">{t('Give your empties a second life. A Taker collects them from you.')}</p>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#00e599]/10 border border-[#00e599]/25 text-[#00e599]">{t("€0.10 per eligible item")}</span>
                 </div>
+              </div>
 
-                {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) with 1-by-1 increments & direct input */}
-                <div className="bf-count-panel bf-panel mt-3.5 pt-3 border-t border-white/[0.08] space-y-2.5">
-                  <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">1</span><h3 className="bf-section-title">{t('Containers and bags')}</h3></div>
-                  <div className="bf-desktop-only flex justify-between items-center">
-                    <span className="text-[11px] font-bold text-blue-200/70 uppercase tracking-wider">{t("Containers to Hand Over:")}</span>
-                    <span className="text-[10px] text-blue-300 font-semibold">{t("Type exact count or tap − / +")}</span>
-                  </div>
-
-                  <p className="text-[11px] text-blue-200/70">{t("Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.")}</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    <ContainerCounter name="Plastic" icon="🧴" value={plasticCount} onChange={setPlasticCount} />
-                    <ContainerCounter name="Cans" icon="🥫" value={canCount} onChange={setCanCount} />
-                    <ContainerCounter name="Glass" icon="🍾" value={glassCount} onChange={setGlassCount} />
-                  </div>
-                  <p className="text-xs text-blue-200/70">{t("Total:") + ' '}<strong className="text-white">{countsValid ? totalContainers : '—'}{' ' + t("eligible items")}</strong>
-                  </p>
-                  {!countsValid && <p className="text-xs text-red-300">{countError}</p>}
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <span className="text-xs text-blue-200/70">{t("Pickup bags ·") + ' '}{bags || 'Choose a quantity'}</span>
-                    <div className="flex gap-1.5">
-                      <button type="button" disabled={bags <= 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("−1 Bag")}</button>
-                      <button type="button" disabled={bags === MAX_BAGS} onClick={() => setBags((count) => count + 1)} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("+1 Bag")}</button>
-                    </div>
+              {/* 3 Container Categories Breakdown (Plastic, Cans, Glass) with 1-by-1 increments & direct input */}
+              <div className="bf-count-panel bf-panel space-y-2.5">
+                <div className="bf-section-heading"><span aria-hidden="true">1</span><h3 className="bf-section-title">{t('Containers and bags')}</h3></div>
+                <p className="text-[11px] text-blue-200/70">{t("Count only empty containers accepted by Malta’s BCRS. Check for an eligible, readable barcode and keep the container intact.")}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <ContainerCounter name="Plastic" value={plasticCount} onChange={setPlasticCount} />
+                  <ContainerCounter name="Cans" icon={Cylinder} value={canCount} onChange={setCanCount} />
+                  <ContainerCounter name="Glass" value={glassCount} onChange={setGlassCount} />
+                </div>
+                <p className="text-xs text-blue-200/70">{t("Total:") + ' '}<strong className="text-white">{countsValid ? totalContainers : '—'}{' ' + t("eligible items")}</strong>
+                </p>
+                {!countsValid && <p className="text-xs text-red-300">{countError}</p>}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-blue-200/70">{t("Pickup bags ·") + ' '}{bags || 'Choose a quantity'}</span>
+                  <div className="flex gap-1.5">
+                    <button type="button" disabled={bags <= 1} onClick={() => setBags((count) => count - 1)} className="rounded-lg bg-white/5 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("−1 Bag")}</button>
+                    <button type="button" disabled={bags === MAX_BAGS} onClick={() => setBags((count) => count + 1)} className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40">{t("+1 Bag")}</button>
                   </div>
                 </div>
               </div>
 
               {/* Deposit Split Slider Card */}
-              <div className="glass-navy rounded-[28px] p-4 space-y-3">
-                <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">2</span><h3 className="bf-section-title">{t('Deposit split')}</h3></div>
+              <div className="bf-deposit-panel glass-navy rounded-[28px] p-4 space-y-3">
+                <div className="bf-section-heading"><span aria-hidden="true">2</span><h3 className="bf-section-title">{t('Deposit split')}</h3></div>
                 <div className="flex flex-wrap justify-between items-center gap-2">
-                  <div className="bf-desktop-only">
-                    <span className="text-xs font-bold text-white tracking-tight">{t("Deposit Split Ratio")}</span>
-                    <p className="text-[11px] text-blue-200/60">{t("Estimated BCRS voucher value")}{' '}
-                      <span className="text-white font-semibold">€{countsValid ? totalDepositValue.toFixed(2) : '—'}</span>
-                    </p>
-                  </div>
                   <span
                     className={`text-xs font-bold px-3 py-1 rounded-full border ${
                       splitPercent === 0
@@ -795,7 +722,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
                 {/* Split Metrics */}
                 <div className="bf-estimate">
-                <div className="bf-phone-only">
+                <div>
                   <p className="text-xs">{t('Estimated BCRS voucher value')}</p>
                   <strong className="bf-estimate-total">€{countsValid ? totalDepositValue.toFixed(2) : '—'}</strong>
                 </div>
@@ -820,12 +747,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
               </div>
               {/* Location & contact details */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
-                <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">3</span><h3 className="bf-section-title">{t('Pickup location')}</h3></div>
-                <div className="bf-desktop-only flex justify-between items-center">
-                  <span className="text-xs font-bold text-white tracking-tight">{t("Location & Contact Details")}</span>
-                  <span className="text-[10px] text-blue-400 font-semibold">Malta</span>
-                </div>
-
+                <div className="bf-section-heading"><span aria-hidden="true">3</span><h3 className="bf-section-title">{t('Pickup location')}</h3></div>
                 {/* Locality Dropdown & Working Pin Button */}
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1 min-w-0">
@@ -928,7 +850,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
               </div>
 
-              <div className="bf-phone-only bf-section-heading"><span aria-hidden="true">4</span><h3 className="bf-section-title">{t('Availability and photo')}</h3></div>
+              <div className="bf-section-heading"><span aria-hidden="true">4</span><h3 className="bf-section-title">{t('Availability and photo')}</h3></div>
               <AvailabilityEditor drafts={availabilityDraft} onChange={setAvailabilityDraft} disabled={isPublishing} />
               <div className="bf-photo-field glass-navy space-y-2 rounded-2xl p-3 text-sm text-white">
                 <label className="block font-semibold" htmlFor="listing-photo">{t("Photo of the bottles or bags (required)")}</label>
@@ -983,12 +905,12 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             </section>
           )}
           {activeTab === 'driver' && canUseRadar && (
-            <section className={fullscreenRadar ? 'relative flex min-h-0 flex-1 flex-col' : 'space-y-3.5'}>
+            <section className={fullscreenRadar ? 'bf-radar-layout relative flex min-h-0 flex-1 flex-col' : 'space-y-3.5'}>
               <div className={fullscreenRadar ? 'bf-radar-bar shrink-0 space-y-1 border-t border-blue-500/20 bg-[#0e1626] px-3 py-2' : 'bf-radar-bar glass-navy relative overflow-hidden rounded-[28px] p-4'}>
                 <div className="bf-radar-controls flex justify-between items-center mb-2.5">
                   <div>
                     <span className="bf-eyebrow text-[10px] font-bold uppercase tracking-wider text-blue-400">{t("Malta Collector Radar")}</span>
-                    <h2 className="bf-phone-only bf-page-title">{t('Radar')}</h2>
+                    <h2 className="bf-page-title">{t('Radar')}</h2>
                     <h3 className="text-base font-bold text-white tracking-tight mt-0.5">
                       {offers.length}{' ' + t("Live Pickup Requests")}</h3>
                   </div>
@@ -1038,7 +960,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
 
               {/* List view or the pickup selected on the map. */}
               <div aria-label={fullscreenRadar && mapOfferId ? t('Pickup details') : undefined} className={fullscreenRadar
-                ? 'relative z-[500] mx-auto w-full max-w-lg shrink-0' : 'space-y-2.5'}>
+                ? 'bf-radar-details relative z-[500] mx-auto w-full max-w-lg shrink-0' : 'space-y-2.5'}>
                 {radarOffers.filter((offer) => radarView === 'list' || offer.id === mapOfferId).map((offer) => (
                   <div
                     key={offer.id}
@@ -1047,7 +969,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   >
                     <div className={fullscreenRadar ? 'space-y-2.5 p-3.5' : 'space-y-2.5'}>
                       {fullscreenRadar && <>
-                        <div aria-hidden="true" className="mx-auto h-1 w-8 rounded-full bg-blue-200/30" />
+                        <div aria-hidden="true" className="bf-listing-handle mx-auto h-1 w-8 rounded-full bg-blue-200/30" />
                         <div className="flex items-center justify-between gap-2">
                           <div><span className="bf-status text-xs font-bold text-emerald-300">{t('Available')}</span><h3 className="text-lg font-extrabold text-white">{offer.locality} {t('pickup')}</h3></div>
                           <button type="button" onClick={() => setMapOfferId(null)} aria-label={t('Close pickup details')}
@@ -1056,7 +978,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         <p className="flex items-center gap-1 text-xs text-blue-200"><MapPin className="size-3.5 shrink-0" />{t(offer.exact_pin ? 'Exact pin shared · Address after confirmation' : 'Approximate location · Address after confirmation')}</p>
                       </>}
                       <div className={fullscreenRadar ? 'flex flex-wrap justify-between gap-2' : 'bf-listing-summary flex flex-wrap justify-between gap-2'}>
-                        {!fullscreenRadar && <span className="bf-phone-only bf-listing-mark" aria-hidden="true"><Package className="size-6" /></span>}
+                        {!fullscreenRadar && <span className="bf-listing-mark" aria-hidden="true"><Package className="size-6" /></span>}
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {!fullscreenRadar && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
@@ -1077,16 +999,16 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                           </h4>
 
                         </div>
-                        <div className={fullscreenRadar ? 'shrink-0' : 'bf-desktop-only shrink-0'}>
-                          <span className="text-[10px] text-slate-400 font-medium block">{t(fullscreenRadar ? 'Est. you earn' : 'Collector’s estimated net value')}</span>
+                        {fullscreenRadar && <div className="shrink-0">
+                          <span className="text-[10px] text-slate-400 font-medium block">{t('Est. you earn')}</span>
                           <span className="text-base font-extrabold text-[#00e599]">
                             €{offer.collector_profit.toFixed(2)}
                           </span>
-                        </div>
+                        </div>}
                       </div>
 
                       <div className="bf-listing-values flex items-center justify-between pt-2 border-t border-white/[0.08]">
-                        {!fullscreenRadar && <span className="bf-phone-only text-[11px] text-slate-300">{t('Est. you earn')}<strong>€{offer.collector_profit.toFixed(2)}</strong></span>}
+                        {!fullscreenRadar && <span className="text-[11px] text-slate-300">{t('Est. you earn')}<strong>€{offer.collector_profit.toFixed(2)}</strong></span>}
                         <span className="text-[11px] text-slate-300">{t("Pay Giver:")}{' '}
                           <strong className="text-white">
                             €{offer.seller_payout.toFixed(2)}{' '}
@@ -1142,7 +1064,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <section className={selectedId && !awaitingTaker ? 'bf-pickup-detail glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
               {!awaitingTaker && <h2 className="bf-page-title py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedOffer?.status === 'open' ? 'Your listing' : selectedId ? 'Pickup details' : 'Pickups')}</h2>}
               {!currentUser ? (
-                <div className="bf-signin-gate"><span className="bf-phone-only bf-empty-icon" aria-hidden="true"><MessageSquare className="size-6" /></span><button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button></div>
+                <div className="bf-signin-gate"><span className="bf-empty-icon" aria-hidden="true"><MessageSquare className="size-6" /></span><button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button></div>
               ) : (
                 <>
                   {selectedId ? <>
@@ -1248,7 +1170,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
           )}
           {activeTab === 'profile' && currentUser && (
             <section className="space-y-3.5">
-              <h2 className="bf-phone-only bf-page-title">{t('Your profile')}</h2>
+              <h2 className="bf-page-title">{t('Your profile')}</h2>
               {/* Profile Card with Photo Upload */}
               <div className="glass-navy rounded-[28px] p-4 relative overflow-hidden">
                 <div className="flex items-center gap-3.5">

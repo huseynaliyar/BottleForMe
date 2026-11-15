@@ -18,7 +18,7 @@ export default function GettingStarted({ onClose }: { onClose: () => void }) {
     onCancel={(event) => { event.preventDefault(); onClose(); }}
     className="m-auto w-[calc(100%-2rem)] max-w-sm space-y-3 rounded-2xl bg-[#0e1626] p-5 text-white backdrop:bg-black/70">
     <p className="text-sm text-blue-200">Getting started · {step + 1} of {gettingStarted.length}</p>
-    <div className="bf-phone-only bf-onboarding-art" aria-hidden="true"><Illustration className="size-12" strokeWidth={1.35} /></div>
+    <div className="bf-onboarding-art" aria-hidden="true"><Illustration className="size-12" strokeWidth={1.35} /></div>
     <h2 id="getting-started-title" className="text-lg font-bold">{t(item.title)}</h2>
     <p aria-live="polite">{t(item.description)}</p>
     <div className="flex flex-wrap gap-3">
