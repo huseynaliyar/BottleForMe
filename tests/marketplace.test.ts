@@ -76,12 +76,13 @@ test('public pickup projection removes private details and uses a locality cente
   assert.equal(participantPickup({ ...row, status: 'completed' }, 'seller').address_notes, 'Door 1');
 });
 
-test('exact pins stay private unless the giver shares them', () => {
+test('Radar exposes available exact pins without exposing street addresses or phone numbers', () => {
   const pickup = { status: 'reserved' as const, seller_id: 'seller', collector_id: 'taker', locality: 'Sliema',
     address_notes: 'Private street address', pickup_lat: 35.9137, pickup_lng: 14.5012 };
-  assert.equal(publicPickup(pickup).lat, 35.9122);
-  assert.equal(Object.hasOwn(publicPickup(pickup), 'pickup_lat'), false);
-  const shared = publicPickup({ ...pickup, share_exact_pin: true });
+  assert.equal(publicPickup({ ...pickup, pickup_lat: null, pickup_lng: null }).lat, 35.9122);
+  const shared = publicPickup({ ...pickup, seller_phone: '+35677000000', share_exact_pin: false });
+  assert.equal(Object.hasOwn(shared, 'pickup_lat'), false);
+  assert.equal(Object.hasOwn(shared, 'seller_phone'), false);
   assert.equal(shared.lat, 35.9137);
   assert.equal(shared.lng, 14.5012);
   assert.equal(shared.address_notes, '');

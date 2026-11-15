@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { accountRequest } from '@/lib/auth';
 import { useBlockedAccounts } from '@/lib/use-blocked-accounts';
-import { pickupPhoneHelp } from '@/lib/pickup-partner';
 import { supabase } from '@/lib/supabase';
 import WebPushControl from '@/components/WebPushControl';
 import ThemeSetting from '@/components/ThemeSetting';
@@ -55,42 +54,8 @@ function Settings({ userId }: { userId: string }) {
 function ActiveSettings({ userId }: { userId: string }) {
   const { t } = useLanguage();
   const blocks = useBlockedAccounts(loadBlocks, unblock);
-  const [sharePhone, setSharePhone] = useState<boolean>();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void accountRequest('/api/account/settings', { signal: controller.signal })
-      .then((result) => { if (!controller.signal.aborted) setSharePhone(result.sharePhone); })
-      .catch((cause) => { if (!controller.signal.aborted) setError(cause.message); });
-    return () => controller.abort();
-  }, []);
-
-  async function change(value: boolean) {
-    setSaving(true);
-    setError('');
-    try {
-      const result = await accountRequest('/api/account/settings', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sharePhone: value }),
-      });
-      setSharePhone(result.sharePhone);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save your settings.');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return <>
-    <section className="glass-navy space-y-2 rounded-xl p-4">
-      <h2 className="font-semibold">{t("Pickup privacy")}</h2>
-      <label className="flex items-center gap-2 text-sm">
-        <input type="checkbox" checked={sharePhone ?? false} disabled={saving || sharePhone === undefined}
-          onChange={(event) => void change(event.target.checked)} />{t("Share my phone number")}</label>
-      <p className="text-sm text-blue-200">{t(pickupPhoneHelp)}</p>
-      {error && <p role="alert" className="text-sm text-red-300">{error}</p>}
-    </section>
     <section className="glass-navy space-y-2 rounded-xl p-4">
       <h2 className="font-semibold">{t("Notifications")}</h2>
       <WebPushControl userId={userId} />

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ReportPickup from '@/components/ReportPickup';
 import PickupPhoto from '@/components/PickupPhoto';
 import PickupCancellation from '@/components/PickupCancellation';
+import ProfileReviews from '@/components/ProfileReviews';
 import { AwaitingListingCard, AwaitingListingSummary, isAwaitingTaker } from '@/components/AwaitingListing';
 import ImpactAchievement from '@/components/ImpactAchievement';
 import { loadAccountLifecycle } from '@/components/AccountLifecycleSettings';
@@ -75,10 +76,14 @@ function saveFavorite(pickupId: string, saved: boolean) {
 
 type Tab = 'resident' | 'driver' | 'chat' | 'profile';
 
-export default function Marketplace({ initialPickup, initialChat = false }: { initialPickup?: string; initialChat?: boolean }) {
+export default function Marketplace({ initialPickup, initialChat = false, initialView }: {
+  initialPickup?: string; initialChat?: boolean; initialView?: 'pickups' | 'profile';
+}) {
   const { t } = useLanguage();
   const maintenance = useMarketplaceStatus();
-  const [requestedTab, setRequestedTab] = useState<Tab>(initialPickup ? 'chat' : 'resident');
+  const [requestedTab, setRequestedTab] = useState<Tab>(
+    initialPickup || initialView === 'pickups' ? 'chat' : initialView === 'profile' ? 'profile' : 'resident',
+  );
   const [selectedId, setSelectedId] = useState<string | null>(initialPickup ?? null);
   const [chatPickupId, setChatPickupId] = useState<string | null>(initialChat ? initialPickup ?? null : null);
   const setActiveTab = useCallback((tab: Tab) => {
@@ -116,7 +121,6 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const [pickupAddress, setPickupAddress] = useState('');
   const [pinChoice, setPinChoice] = useState<{ pin: PickupPin; address: string; locality: string }>();
   const [gpsPin, setGpsPin] = useState<PickupPin>();
-  const [shareExactPin, setShareExactPin] = useState(false);
   const pickupPin = pinChoice?.address === pickupAddress.trim() && pinChoice.locality === locality ? pinChoice.pin : undefined;
   const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
   const [addressLookup, setAddressLookup] = useState(false);
@@ -197,10 +201,6 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
       url.searchParams.delete('chat');
       window.history.replaceState(window.history.state, '', url);
       queueMicrotask(() => openActivity(pickup ?? undefined, chat));
-    } else if (url.searchParams.get('view') === 'profile') {
-      queueMicrotask(() => setRequestedTab('profile'));
-    } else if (url.searchParams.get('view') === 'pickups') {
-      queueMicrotask(() => setRequestedTab('chat'));
     }
     const restore = () => {
       const route = /^\/pickups\/([0-9a-f-]{36})\/?$/i.exec(location.pathname);
@@ -416,7 +416,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
     const input = {
       locality, address_notes: fullAddress, bag_count: bags, bag_policy: bagPolicy, split_percentage: splitPercent,
       pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, availability,
-      pickup_pin: pickupPin, share_exact_pin: shareExactPin,
+      pickup_pin: pickupPin,
       payout_method: payoutMethod, seller_revolut_tag: needsRevolutTag ? revolutTag : null, photo: listingPhoto,
       containers: { plastic_bottles: plastic, cans, glass_bottles: glass },
     };
@@ -450,7 +450,6 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
       setPickupAddress('');
       setAddressSelection(null);
       setPinChoice(undefined);
-      setShareExactPin(false);
       setRadarLocality('');
       setRevision((value) => value + 1);
       openActivity(created.id);
@@ -796,13 +795,10 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                   <summary className="cursor-pointer font-bold">{t(pickupPin ? 'Exact pickup pin saved' : 'Set exact pickup pin')}</summary>
                   <p className="my-2">{t('Zoom in and choose the spot at the address you entered.')}</p>
                   <PickupPinPicker locality={locality} suggested={gpsPin} value={pickupPin} onChange={(pin) => {
-                    if (isPickupPin(pin)) { setPinChoice({ pin, address: pickupAddress.trim(), locality }); setShareExactPin(false); }
+                    if (isPickupPin(pin)) setPinChoice({ pin, address: pickupAddress.trim(), locality });
                     else setActionError('Choose a pickup pin in Malta.');
                   }} />
-                  {pickupPin && <label className="mt-3 flex items-center gap-2"><input type="checkbox" checked={shareExactPin} onChange={(event) => setShareExactPin(event.target.checked)} />
-                    {t('Share this exact pin on Radar')}
-                  </label>}
-                  <p className="mt-1 text-xs text-blue-200">{t('Otherwise, only your confirmed Taker sees the exact pin and street address.')}</p>
+                  <p className="mt-2 text-xs text-blue-200">{t('The exact pin is visible on Radar. Your street address is shown after confirmation.')}</p>
                 </details>}
                 {/* Address Notes Full-Width Row */}
                 <div>
@@ -1238,6 +1234,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                 </div>
               </div>
 
+              <ProfileReviews key={'reviews:' + currentUser.id} userId={currentUser.id} activeRole={canUseRadar ? 'taker' : 'giver'} />
+
               {/* Impact & Recycling Statistics */}
               <div className="glass-navy rounded-[28px] p-4 space-y-2.5">
                 <span className="text-xs font-bold text-white tracking-tight block">{t("Your Recycling Impact")}</span>
@@ -1313,8 +1311,8 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
         </main>
 
         {/* Bottom Navigation Bar */}
-        <footer aria-label={t('Main navigation')} className="bf-nav relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
-          {!canUseRadar && (<button
+        <nav aria-label={t('Main navigation')} className="bf-nav relative z-10 flex shrink-0 justify-around border-t border-blue-500/15 bg-[#090e1a] px-5 pt-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] text-xs font-semibold text-blue-200/60">
+          {!canUseRadar && (<button type="button"
             onClick={() => setActiveTab('resident')}
             aria-current={activeTab === 'resident' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1324,7 +1322,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <Package className={`w-4 h-4 ${activeTab === 'resident' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Give")}</span>
           </button>)}
-          {canUseRadar && (<button
+          {canUseRadar && (<button type="button"
             onClick={() => setActiveTab('driver')}
             aria-current={activeTab === 'driver' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1334,7 +1332,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <Compass className={`w-4 h-4 ${activeTab === 'driver' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Radar")}</span>
           </button>)}
-          <button
+          <button type="button"
             onClick={() => setActiveTab('chat')}
             aria-current={activeTab === 'chat' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1344,7 +1342,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <MessageSquare className={`w-4 h-4 ${activeTab === 'chat' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Pickups")}</span>
           </button>
-          <button
+          <button type="button"
             onClick={() => setActiveTab('profile')}
             aria-current={activeTab === 'profile' ? 'page' : undefined}
             className={`flex flex-col items-center gap-1 transition ${
@@ -1354,7 +1352,7 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             <User className={`w-4 h-4 ${activeTab === 'profile' ? 'text-[#0066ff]' : ''}`} />
             <span className="text-[10px]">{t("Profile")}</span>
           </button>
-        </footer>
+        </nav>
 
         <dialog ref={restrictionDialog} aria-labelledby="pickup-restriction-title"
           onCancel={(event) => { event.preventDefault(); setRestriction(undefined); }}

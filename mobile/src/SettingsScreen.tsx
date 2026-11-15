@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, Switch, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { languages, isLocale } from '../../lib/locale';
 import { useLanguage } from '../../lib/language-context';
 import { themes } from '../../lib/appearance';
@@ -7,8 +6,7 @@ import { useAppearance } from './appearance';
 import type { AccountLifecycle } from '../../lib/account-lifecycle';
 import AccountLifecycleSettings from './AccountLifecycleSettings';
 import { useBlockedAccounts } from '../../lib/use-blocked-accounts';
-import { pickupPhoneHelp } from '../../lib/pickup-partner';
-import { errorMessage, loadBlockedAccounts, loadSettings, saveSettings, unblockAccount } from './backend';
+import { loadBlockedAccounts, unblockAccount } from './backend';
 import { Button, Card, ErrorText, Segmented, Select, Text, useUi } from './ui';
 import type { useMobilePush } from './useMobilePush';
 
@@ -40,39 +38,10 @@ export default function SettingsScreen({ push, onBack, signedIn, lifecycle, life
 
 function ActiveSettings({ push }: Pick<Props, 'push'>) {
   const { t } = useLanguage();
-  const { colors, styles } = useUi();
+  const { styles } = useUi();
   const blocks = useBlockedAccounts(loadBlockedAccounts, unblockAccount);
-  const [sharePhone, setSharePhone] = useState<boolean>();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadSettings(controller.signal)
-      .then((result) => { if (!controller.signal.aborted) setSharePhone(result.sharePhone); })
-      .catch((cause) => { if (!controller.signal.aborted) setError(errorMessage(cause)); });
-    return () => controller.abort();
-  }, []);
-
-  async function change(value: boolean) {
-    setSaving(true);
-    setError('');
-    try { setSharePhone((await saveSettings(value)).sharePhone); }
-    catch (cause) { setError(errorMessage(cause)); }
-    finally { setSaving(false); }
-  }
 
   return <>
-    <Card>
-      <Text weight="bold" style={styles.body}>{t("Pickup privacy")}</Text>
-      <View style={styles.between}>
-        <Text style={styles.small}>{t("Share my phone number")}</Text>
-        <Switch accessibilityLabel={t("Share my phone number")} value={sharePhone ?? false} trackColor={{ true: colors.blue }}
-          disabled={sharePhone === undefined || saving} onValueChange={(value) => void change(value)} />
-      </View>
-      <Text style={styles.small}>{t(pickupPhoneHelp)}</Text>
-      <ErrorText message={error} />
-    </Card>
     <Card>
       <Text weight="bold" style={styles.body}>{t("Notifications")}</Text>
       {push.supported ? <>

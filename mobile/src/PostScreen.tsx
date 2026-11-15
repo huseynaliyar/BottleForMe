@@ -82,11 +82,10 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const [pinChoice, setPinChoice] = useState<{ pin: PickupPin; address: string; locality: string }>();
   const [gpsPin, setGpsPin] = useState<PickupPin>();
   const [pinOpen, setPinOpen] = useState(false);
-  const [shareExactPin, setShareExactPin] = useState(false);
   const pickupPin = pinChoice?.address === pickupAddress.trim() && pinChoice.locality === locality ? pinChoice.pin : undefined;
   const pinCenter = gpsPin ?? mapCenter(locality);
   const selectPin = (pin: PickupPin) => {
-    if (isPickupPin(pin)) { setPinChoice({ pin, address: pickupAddress.trim(), locality }); setShareExactPin(false); }
+    if (isPickupPin(pin)) setPinChoice({ pin, address: pickupAddress.trim(), locality });
     else setLocationError('Choose a pickup pin in Malta.');
   };
   const [addressSelection, setAddressSelection] = useState<AddressSuggestion | null>(null);
@@ -135,7 +134,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
   const needsTag = method === 'revolut' && totals.sellerPayout > 0;
   const tagError = needsTag && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag.' : '';
   const availability = parseWindowDrafts(availabilityDraft);
-  const errors = [countsError, localityError, addressError, canShowPickupMap && !pickupPin ? 'Confirm the exact pickup pin on the map.' : '', tagError, bags < 1 ? 'Specify the number of bags.' : '',
+  const errors = [countsError, localityError, addressError, !pickupPin ? (canShowPickupMap ? 'Confirm the exact pickup pin on the map.' : 'Use GPS to set the exact pickup pin.') : '', tagError, bags < 1 ? 'Specify the number of bags.' : '',
     !isBagPolicy(bagPolicy) ? 'Choose what happens to the bags.' : '',
     !photo ? 'Add a photo of the bottles or bags.' : '',
     availability ? '' : 'Add future, non-overlapping pickup windows in Malta time.'].filter(Boolean);
@@ -200,14 +199,14 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       locality, address_notes: fullAddress, bag_count: bags, split_percentage: split,
       payout_method: method, seller_revolut_tag: tag, containers,
     });
-    if (!values || !photo || !isBagPolicy(bagPolicy) || addressError || !availability || (canShowPickupMap && !pickupPin)) {
+    if (!values || !photo || !isBagPolicy(bagPolicy) || addressError || !availability || !pickupPin) {
       if (countsError) scroll.current?.scrollTo({ y: 0, animated: true });
       return;
     }
     publishing.current = true;
     setBusy(true);
     try {
-      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, pickup_pin: pickupPin, share_exact_pin: !!pickupPin && shareExactPin, availability, photo };
+      const request = { ...values, bag_policy: bagPolicy, pickup_address: pickupAddress.trim(), address_proof: addressSelection?.proof, pickup_pin: pickupPin, availability, photo };
       const payload = JSON.stringify(request);
       const key = requestKeys.current.get(payload) ?? randomUUID();
       requestKeys.current.set(payload, key);
@@ -223,7 +222,6 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
       setPickupAddress('');
       setAddressSelection(null);
       setPinChoice(undefined);
-      setShareExactPin(false);
       setPinOpen(false);
       setAttempted(false);
       onPublished(created);
@@ -324,10 +322,7 @@ export function PostScreen({ profile, signedIn, authReady, onSignIn, onPublished
             </MapView>
           </>}
           {gpsPin && <Button kind="secondary" label={t('Use my GPS pin for this address')} onPress={() => selectPin(gpsPin)} />}
-          {pickupPin && <>
-            <Button kind="secondary" label={t(shareExactPin ? 'Exact pin is shared on Radar' : 'Share this exact pin on Radar')} onPress={() => setShareExactPin(!shareExactPin)} />
-            <Text style={styles.small}>{t('Otherwise, only your confirmed Taker sees the exact pin and street address.')}</Text>
-          </>}
+          <Text style={styles.small}>{t('The exact pin is visible on Radar. Your street address is shown after confirmation.')}</Text>
         </View>}
       </>}
       <Field label={t("Private pickup instructions")} showLabel={false} value={notes} onChangeText={setNotes} maxLength={300}

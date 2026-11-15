@@ -72,7 +72,9 @@ test('signup requires confirmation and delegates code validation and resend to S
   const { supabase } = await import('../lib/supabase');
   t.after(async () => { await supabase?.auth.stopAutoRefresh(); });
 
-  await registerWithSupabase({ ...user.user_metadata, email, password: 'test-password', role: 'giver', phone: '', revolut_tag: '' });
+  const registration = { ...user.user_metadata, email, password: 'test-password', role: 'giver' as const, phone: '+35677000000', revolut_tag: '' };
+  await assert.rejects(registerWithSupabase({ ...registration, phone: '' }), /valid mobile number/i);
+  await registerWithSupabase(registration);
   assert.equal(profileReads, 0);
   await assert.rejects(signInWithSupabase(email, 'test-password'), { code: 'email_not_confirmed' });
   const invalid = (error: unknown) => {
@@ -91,5 +93,5 @@ test('signup requires confirmation and delegates code validation and resend to S
   await requestPasswordReset(email);
   assert.equal(recoveries, 1);
   duplicate = true;
-  await assert.rejects(registerWithSupabase({ ...user.user_metadata, email, password: 'test-password', role: 'giver', phone: '', revolut_tag: '' }), /account.*already exists/i);
+  await assert.rejects(registerWithSupabase(registration), /account.*already exists/i);
 });

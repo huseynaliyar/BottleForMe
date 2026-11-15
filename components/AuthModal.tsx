@@ -9,7 +9,7 @@ import { draftTermsVersion } from '@/lib/draft-terms';
 import { registerWithSupabase, requestPasswordReset, resendSignupCode, signInWithSupabase, updatePassword, verifySignupCode } from '@/lib/auth';
 import { authErrorCode, signupCodeError } from '@/lib/signup-otp';
 import { useSignupCode } from '@/lib/use-signup-code';
-import { formatPhone, phoneCountries } from '@/lib/phone';
+import { formatPhone, isSignupPhone, phoneCountries, signupPhoneError } from '@/lib/phone';
 import { REVOLUT_TAG } from '@/lib/pickup-validation';
 
 interface AuthModalProps {
@@ -22,7 +22,7 @@ interface AuthModalProps {
 
 const inputClass = 'w-full rounded-xl border border-blue-500/25 bg-[#0d1527] px-3 py-2.5 text-white';
 const buttonClass = 'rounded-xl px-3 py-2 text-sm font-bold text-blue-200 hover:bg-blue-900/40 disabled:opacity-50';
-type AccountField = 'name' | 'email' | 'password' | 'confirm' | 'revolut' | 'code' | 'terms';
+type AccountField = 'name' | 'email' | 'password' | 'confirm' | 'phone' | 'revolut' | 'code' | 'terms';
 
 export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, onPasswordUpdated }: AuthModalProps) {
   const { t } = useLanguage();
@@ -82,6 +82,8 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
     if (!recovery && mode === 'register' && revolutTag && !REVOLUT_TAG.test(revolutTag)) {
       return fieldError('revolut', 'Enter a valid Revolut tag or leave it blank.');
     }
+    const phone = formatPhone(String(fields.get('phoneCountry') ?? 'MT'), String(fields.get('phone') ?? ''));
+    if (!recovery && mode === 'register' && !isSignupPhone(phone)) return fieldError('phone', t(signupPhoneError));
     const code = String(fields.get('code') ?? '').trim();
     if (!recovery && mode === 'verify' && !otp.canVerify()) return fieldError('code', 'Wait before trying another code.');
     if (!recovery && mode === 'verify' && !/^\d{6}$/.test(code)) return fieldError('code', 'Enter the six-digit code from your email.');
@@ -108,7 +110,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
           email,
           password,
           role: fields.get('role') as UserRole,
-          phone: formatPhone(String(fields.get('phoneCountry') ?? 'MT'), String(fields.get('phone') ?? '')),
+          phone,
           revolut_tag: revolutTag,
           locality: String(fields.get('locality') ?? ''),
         });
@@ -202,7 +204,7 @@ export default function AuthModal({ isOpen, recovery, onClose, onAuthSuccess, on
             <label className="block">{t("Country calling code")}<select name="phoneCountry" defaultValue="MT" autoComplete="tel-country-code" className={inputClass}>
               {phoneCountries.map((country) => <option value={country.value} key={country.value}>{country.label}</option>)}
             </select></label>
-            <label className="block">{t("Phone (optional)")}<input name="phone" type="tel" autoComplete="tel-national" maxLength={40} className={inputClass} /></label>
+            <label className="block">{t("Mobile number")}<input name="phone" type="tel" autoComplete="tel-national" maxLength={40} required {...fieldFeedback('phone')} className={inputClass} /></label>
             <label className="block">{t("Revolut tag (optional)")}<input name="revolut" maxLength={51} {...fieldFeedback('revolut')} className={inputClass} /></label>
             <label className="block">{t("Locality")}<select name="locality" className={inputClass}>{MALTA_LOCALITIES.map((item) => <option key={item.id}>{item.name}</option>)}</select></label>
           </>

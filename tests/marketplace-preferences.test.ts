@@ -18,6 +18,7 @@ test('archive rules and marketplace preferences keep private data under server c
       create table public.profiles (id uuid primary key);
       create table public.pickups (
         id uuid primary key, status text not null,
+        created_at timestamptz, updated_at timestamptz, confirmed_at timestamptz,
         seller_id uuid references auth.users(id) on delete set null,
         collector_id uuid references auth.users(id) on delete set null,
         seller_name text default 'Giver', seller_phone text, seller_revolut_tag text, address_notes text, photo_jpeg text
@@ -30,7 +31,7 @@ test('archive rules and marketplace preferences keep private data under server c
       create table public.mobile_push_devices (user_id uuid);
       grant select on public.pickups to service_role;
     `);
-    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks', 'account_lifecycle', 'signup_terms_acceptance']) {
+    for (const name of ['favorites_and_reports', 'archive_pickup_listings', 'pickup_reviews_and_contact', 'marketplace_user_blocks', 'account_lifecycle', 'signup_terms_acceptance', 'require_signup_phone', 'profile_reviews_by_role']) {
       const path = new URL('../supabase/migrations/', import.meta.url);
       const filename = readdirSync(path).find((file) => file.endsWith('_' + name + '.sql'));
       assert.ok(filename);
@@ -42,7 +43,9 @@ test('archive rules and marketplace preferences keep private data under server c
     const signup = '00000000-0000-4000-8000-000000000004';
     const signupQuery = "insert into auth.users (id, encrypted_password, raw_user_meta_data, raw_app_meta_data) values ($1,'fixture-hash',$2,'{\"provider\":\"email\"}')";
     await assert.rejects(db.query(signupQuery, [signup, {}]), { code: 'BF010' });
-    await db.query(signupQuery, [signup, { terms_version: 'draft-1' }]);
+    await assert.rejects(db.query(signupQuery, [signup, { terms_version: 'draft-1' }]), { code: 'BF011' });
+    await assert.rejects(db.query(signupQuery, [signup, { terms_version: 'draft-1', phone: '+3561' }]), { code: 'BF011' });
+    await db.query(signupQuery, [signup, { terms_version: 'draft-1', phone: '+35677000000' }]);
     const consent = await db.query('select terms_version from public.signup_terms_acceptances where user_id = $1', [signup]);
     assert.deepEqual(consent.rows, [{ terms_version: 'draft-1' }]);
     await db.exec(`
@@ -68,6 +71,38 @@ test('archive rules and marketplace preferences keep private data under server c
     `);
     const summary = await db.query('select * from public.pickup_review_summary($1)', [seller]);
     assert.deepEqual(summary.rows, [{ average: '5.0', count: 1 }]);
+
+    const [reversed, later] = ['00000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000006'];
+    await db.exec(`
+      begin;
+      reset role;
+      update public.pickups set collector_id = '${taker}', confirmed_at = '2026-01-01' where id = '${pickup}';
+      insert into public.pickups (id,status,seller_id,collector_id,confirmed_at) values
+        ('${reversed}','completed','${taker}','${seller}','2026-01-02'),
+        ('${later}','completed','${seller}','${taker}','2026-01-03');
+      set role service_role;
+      insert into public.pickup_reviews values
+        ('${reversed}','${taker}','${seller}',3,'Review as the Taker'),
+        ('${later}','${taker}','${seller}',4,'Another review as the Giver');
+    `);
+    type ReviewPage = { average: string | null; count: number; reviews: { pickupId: string; stars: number; comment: string }[] };
+    const received = async (user: string, role: string, offset = 0) => (await db.query<ReviewPage>(
+      'select * from public.pickup_profile_reviews($1,$2,$3,1)', [user, role, offset],
+    )).rows[0];
+    const giverReviews = await received(seller, 'giver');
+    assert.equal(giverReviews.average, '4.5');
+    assert.equal(giverReviews.count, 2);
+    assert.equal(giverReviews.reviews[0].pickupId, later);
+    assert.equal((await received(seller, 'giver', 1)).reviews[0].comment, 'Ready on time');
+    const takerReviews = await received(seller, 'taker');
+    assert.equal(takerReviews.average, '3.0');
+    assert.equal(takerReviews.count, 1);
+    assert.equal(takerReviews.reviews[0].pickupId, reversed);
+    assert.deepEqual(await received(signup, 'giver'), { average: null, count: 0, reviews: [] });
+    await db.exec('set role authenticated');
+    await assert.rejects(received(seller, 'giver'), { code: '42501' });
+    await db.exec('rollback');
+
     await db.exec("reset role; update public.pickups set status = 'open'; set role service_role");
     assert.equal((await db.query('select id from public.get_radar_pickups($1)', [taker])).rows.length, 1);
     await db.query('insert into public.marketplace_blocks (blocker_id,blocked_id) values ($1,$2)', [seller, taker]);

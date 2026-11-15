@@ -11,7 +11,7 @@ export function publicPickup(row: Partial<PickupOffer> & PinRow) {
   const locality = MALTA_LOCALITIES.find((item) => item.name === row.locality);
   const fields = Object.fromEntries(PUBLIC_COLUMNS.split(',').map((key) => [key, row[key as keyof PickupOffer]]));
   const pin = { lat: row.pickup_lat, lng: row.pickup_lng };
-  const exact = row.share_exact_pin && isPickupPin(pin);
+  const exact = isPickupPin(pin);
   return { ...fields, seller_name: 'Giver', address_notes: '', exact_pin: !!exact, lat: exact ? pin.lat : locality?.lat, lng: exact ? pin.lng : locality?.lng };
 }
 

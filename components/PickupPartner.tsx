@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { accountRequest, pickupRequest } from '@/lib/auth';
 import { blockPickupExplanation } from '@/lib/marketplace-blocks';
 import { pickupInitials } from '@/lib/pickup-conversation';
-import type { PickupPartner as Partner, Review } from '@/lib/pickup-partner';
+import { maskedPickupPhone, type PickupPartner as Partner, type Review } from '@/lib/pickup-partner';
 import { usePickupPartner } from '@/lib/use-pickup-partner';
 
 const partnerPath = (id: string) => '/' + encodeURIComponent(id) + '/partner';
@@ -49,7 +49,7 @@ export default function PickupPartner({ pickupId }: { pickupId: string }) {
       </div>
       <dl className="bf-fact-rows">
         <div><dt>{t('Rating')}</dt><dd>{partner.count && partner.average !== null ? partner.average + '/5 · ' + partner.count : t('No ratings yet')}</dd></div>
-        <div><dt>{t('Phone')}</dt><dd>{partner.phone && !isBlocked ? <a href={'tel:' + partner.phone.replace(/[^\d+]/g, '')} className="text-blue-300 underline" dir="ltr">{partner.phone}</a> : t('Unavailable')}</dd></div>
+        <div><dt>{t('Phone')}</dt><dd>{partner.phone && !isBlocked ? <a href={'tel:' + partner.phone.replace(/[^\d+]/g, '')} className="text-blue-300 underline" dir="ltr">{partner.phone}</a> : <span aria-label={t('Phone number hidden')}>{maskedPickupPhone}</span>}</dd></div>
       </dl>
       {isBlocked ? <p className="text-xs">You blocked this account. Manage it in Settings.</p>
         : <button type="button" disabled={blocking} onClick={() => void block()}

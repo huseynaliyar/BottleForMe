@@ -39,7 +39,7 @@ export async function GET(request: Request, context: Context) {
   }
   const active = ['reserved', 'en_route', 'arrived'].includes(pickup.status);
   const [profile, aggregate, reviews, blocked, ownBlock] = await Promise.all([
-    db.from('profiles').select('full_name,phone,share_pickup_phone').eq('id', partnerId).maybeSingle(),
+    db.from('profiles').select('full_name,phone').eq('id', partnerId).maybeSingle(),
     db.rpc('pickup_review_summary', { subject: partnerId }).maybeSingle<{ average: number | null; count: number }>(),
     db.from('pickup_reviews').select('author_id,stars,comment').eq('pickup_id', id).in('author_id', [user.id, partnerId]),
     db.rpc('is_marketplace_blocked', { actor: user.id, other_user: partnerId }),
@@ -53,7 +53,7 @@ export async function GET(request: Request, context: Context) {
   };
   const data: PickupPartner = {
     name: profile.data?.full_name?.trim() || (otherIsGiver && pickup.seller_name) || role,
-    role, phone: active && !blocked.data && profile.data?.share_pickup_phone ? profile.data.phone || null : null,
+    role, phone: active && !blocked.data ? profile.data?.phone?.trim() || null : null,
     average: aggregate.data?.average ?? null, count: aggregate.data?.count ?? 0,
     canReview: pickup.status === 'completed', blockedByYou: !!ownBlock.data,
     reviewGiven: review(user.id), reviewReceived: review(partnerId),

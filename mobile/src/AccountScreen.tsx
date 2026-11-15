@@ -11,7 +11,8 @@ import { supportFaq } from '../../lib/support-faq';
 import { draftTerms, draftTermsVersion } from '../../lib/draft-terms';
 import { authErrorCode, signupCodeError } from '../../lib/signup-otp';
 import { useSignupCode } from '../../lib/use-signup-code';
-import { formatPhone, phoneCountries } from '../../lib/phone';
+import { formatPhone, isSignupPhone, phoneCountries, signupPhoneError } from '../../lib/phone';
+import { ProfileReviews } from './ProfileReviews';
 import { REVOLUT_TAG } from '../../lib/pickup-validation';
 import type { PickupOffer, UserProfile } from '../../lib/types';
 import { errorMessage, register, resendSignupCode, resetPassword, signIn, supabase, verifySignupCode } from './backend';
@@ -50,6 +51,8 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
   const passwordError = mode === 'register' && password.length < 6 ? 'Use at least 6 characters for your password.'
     : mode === 'signin' && !password ? 'Enter your password.' : '';
   const codeError = mode === 'verify' && !/^\d{6}$/.test(code) ? 'Enter the six-digit code from your email.' : '';
+  const formattedPhone = formatPhone(phoneCountry, phone);
+  const phoneError = mode === 'register' && !isSignupPhone(formattedPhone) ? signupPhoneError : '';
   const tagError = mode === 'register' && tag.trim() && !REVOLUT_TAG.test(tag.trim()) ? 'Enter a valid Revolut tag or leave it blank.' : '';
 
   function switchMode(next: Mode) {
@@ -70,7 +73,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
     setError('');
     setNotice('');
     if ((mode === 'verify' && !otp.canVerify()) || (mode === 'reset' && otp.resetSeconds > 0)) return;
-    if (emailError || nameError || passwordError || tagError || codeError) return;
+    if (emailError || nameError || passwordError || phoneError || tagError || codeError) return;
     pending.current = true;
     setBusy(true);
     Keyboard.dismiss();
@@ -85,7 +88,7 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         if (!termsAccepted) { setError('Accept the draft Terms & Conditions to register.'); return; }
         await register(email.trim(), password, {
           terms_version: draftTermsVersion,
-          full_name: name.trim(), role, phone: formatPhone(phoneCountry, phone), revolut_tag: tag.trim(), locality,
+          full_name: name.trim(), role, phone: formattedPhone, revolut_tag: tag.trim(), locality,
         });
         otp.sent();
         setMode('verify');
@@ -155,7 +158,8 @@ export function AccountDialog({ onClose, onSignedIn }: { onClose: () => void; on
         <Segmented options={roles} value={role} onChange={(value) => { if (!busy) setRole(value); }} />
       </View>
       <Select label={t("Country calling code")} value={phoneCountry} options={phoneCountries} onChange={setPhoneCountry} disabled={busy} />
-      <Field label={t("Phone (optional)")} value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={40} editable={!busy} />
+      <Field label={t("Mobile number")} value={phone} onChangeText={setPhone} keyboardType="phone-pad"
+        maxLength={40} editable={!busy} error={attempted && phoneError ? t(phoneError) : ''} />
       <Field label={t("Revolut tag (optional)")} value={tag} onChangeText={setTag} autoCapitalize="none" autoCorrect={false}
         maxLength={51} editable={!busy} error={attempted ? tagError : ''} />
       <View style={{ gap: 4 }}>
@@ -322,6 +326,7 @@ export function ProfileScreen({ profile, signedIn, loading, error, offers, picku
           <Button label={taker ? t("Switch to Giver") : t("Switch to Taker")} kind="secondary" onPress={onSwitch} disabled={uploading} />
         </View>
       </Card>
+      <ProfileReviews key={'reviews:' + profile.id} userId={profile.id} activeRole={taker ? 'taker' : 'giver'} />
       <Card>
         <Text weight="bold" style={styles.small}>{t("Your Recycling Impact")}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>

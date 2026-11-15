@@ -53,6 +53,13 @@ Full name|Nome e cognome|Имя и фамилия|الاسم الكامل|पू
 Starting role|Ruolo iniziale|Начальная роль|الدور الأولي|शुरुआती भूमिका|ابتدائی کردار
 Country calling code|Prefisso internazionale|Телефонный код страны|رمز الاتصال الدولي|देश का फ़ोन कोड|ملکی فون کوڈ
 Phone (optional)|Telefono (facoltativo)|Телефон (необязательно)|رقم الهاتف (اختياري)|फ़ोन (वैकल्पिक)|فون (اختیاری)
+Mobile number|Numero di cellulare|Номер мобильного телефона|رقم الهاتف المحمول|मोबाइल नंबर|موبائل نمبر
+Enter a valid mobile number.|Inserisci un numero di cellulare valido.|Введите действительный номер мобильного телефона.|أدخل رقم هاتف محمول صالحًا.|मान्य मोबाइल नंबर दर्ज करें।|درست موبائل نمبر درج کریں۔
+Phone number hidden|Numero di telefono nascosto|Номер телефона скрыт|رقم الهاتف مخفي|फ़ोन नंबर छिपा है|فون نمبر پوشیدہ ہے
+The exact pin is visible on Radar. Your street address is shown after confirmation.|La posizione esatta è visibile sul Radar. L’indirizzo viene mostrato dopo la conferma.|Точная отметка видна на радаре. Адрес появится после подтверждения.|تظهر نقطة الموقع الدقيقة على الرادار. يظهر عنوان الشارع بعد التأكيد.|सटीक पिन रडार पर दिखाई देता है। पुष्टि होने के बाद सड़क का पता दिखता है।|درست پن ریڈار پر نظر آتا ہے۔ گلی کا پتا تصدیق کے بعد دکھایا جاتا ہے۔
+Radar shows exact pickup pins when available.|Il Radar mostra la posizione esatta quando è disponibile.|Радар показывает точную точку вывоза, если она доступна.|يعرض الرادار نقاط الاستلام الدقيقة عند توفرها.|सटीक पिन उपलब्ध होने पर रडार उन्हें दिखाता है।|ریڈار دستیاب درست پک اپ پن دکھاتا ہے۔
+Use GPS to set the exact pickup pin.|Usa il GPS per impostare la posizione esatta del ritiro.|Используйте GPS для установки точной точки вывоза.|استخدم GPS لتعيين نقطة الاستلام الدقيقة.|सटीक पिकअप पिन सेट करने के लिए जीपीएस इस्तेमाल करें।|درست پک اپ پن لگانے کے لیے GPS استعمال کریں۔
+
 Phone Number|Numero di telefono|Номер телефона|رقم الهاتف|फ़ोन नंबर|فون نمبر
 Revolut tag (optional)|Tag Revolut (facoltativo)|Тег Revolut (необязательно)|معرّف Revolut (اختياري)|Revolut टैग (वैकल्पिक)|Revolut ٹیگ (اختیاری)
 Revolut tag|Tag Revolut|Тег Revolut|معرّف Revolut|Revolut टैग|Revolut ٹیگ
@@ -127,6 +134,14 @@ Your rating out of five|La tua valutazione su cinque|Ваша оценка из 
 Review (optional)|Recensione (facoltativa)|Отзыв (необязательно)|المراجعة (اختيارية)|समीक्षा (वैकल्पिक)|جائزہ (اختیاری)
 Submit review|Invia recensione|Отправить отзыв|أرسل المراجعة|समीक्षा भेजें|جائزہ بھیجیں
 Update review|Modifica recensione|Обновить отзыв|حدّث المراجعة|समीक्षा अपडेट करें|جائزہ اپ ڈیٹ کریں
+Reviews received|Recensioni ricevute|Полученные отзывы|التقييمات المستلمة|प्राप्त समीक्षाएँ|موصول شدہ جائزے
+Reviews|Recensioni|Отзывы|التقييمات|समीक्षाएँ|جائزے
+Pickup role|Ruolo nel ritiro|Роль при вывозе|دور الاستلام|पिकअप की भूमिका|پک اپ کا کردار
+Retry|Riprova|Повторить|أعد المحاولة|फिर कोशिश करें|دوبارہ کوشش کریں
+Loading reviews…|Caricamento delle recensioni…|Загрузка отзывов…|جارٍ تحميل التقييمات…|समीक्षाएँ लोड हो रही हैं…|جائزے لوڈ ہو رہے ہیں…
+Could not load your reviews.|Impossibile caricare le tue recensioni.|Не удалось загрузить ваши отзывы.|تعذر تحميل تقييماتك.|आपकी समीक्षाएँ लोड नहीं हो सकीं।|آپ کے جائزے لوڈ نہیں ہو سکے۔
+Previous page|Pagina precedente|Предыдущая страница|الصفحة السابقة|पिछला पृष्ठ|پچھلا صفحہ
+Next page|Pagina successiva|Следующая страница|الصفحة التالية|अगला पृष्ठ|اگلا صفحہ
 No ratings yet|Nessuna valutazione|Оценок пока нет|لا توجد تقييمات بعد|अभी कोई रेटिंग नहीं|ابھی کوئی درجہ بندی نہیں
 Review saved.|Recensione salvata.|Отзыв сохранён.|تم حفظ المراجعة.|समीक्षा सहेज दी गई है।|جائزہ محفوظ ہو گیا۔
 List|Elenco|Список|القائمة|सूची|فہرست

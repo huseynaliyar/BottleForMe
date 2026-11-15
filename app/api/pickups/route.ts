@@ -71,8 +71,8 @@ export async function POST(request: Request) {
   if (!hasConfirmedAddress(user.id, body.pickup_address, body.address_proof, values.address_notes)) {
     return failure('Choose your pickup address from the Google Maps suggestions.', 400);
   }
-  const pin = body.pickup_pin ?? null;
-  if ((pin !== null && !isPickupPin(pin)) || (body.share_exact_pin === true && !pin)) return failure('Choose a pickup pin in Malta.', 400);
+  const pin = body.pickup_pin;
+  if (!isPickupPin(pin)) return failure('Choose a pickup pin in Malta.', 400);
   const key = request.headers.get('idempotency-key');
   if (key !== null && !UUID.test(key)) return failure('Invalid idempotency key.', 400);
   const id = key ?? randomUUID();
@@ -86,9 +86,9 @@ export async function POST(request: Request) {
   const metadata = user.user_metadata;
   const { data, error } = await pickupsDb.from('pickups').insert({
     ...values,
-    pickup_lat: pin?.lat ?? null,
-    pickup_lng: pin?.lng ?? null,
-    share_exact_pin: body.share_exact_pin === true,
+    pickup_lat: pin.lat,
+    pickup_lng: pin.lng,
+    share_exact_pin: true,
     bag_policy: bagPolicy,
     photo_jpeg: photo,
     availability,
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       const { photo_jpeg: existingPhoto, ...row } = existing.data;
       const sameRequest = row.locality === values.locality && row.bag_count === values.bag_count && row.bag_policy === bagPolicy &&
         row.split_percentage === values.split_percentage && row.payout_method === values.payout_method &&
-        row.pickup_lat === (pin?.lat ?? null) && row.pickup_lng === (pin?.lng ?? null) && row.share_exact_pin === (body.share_exact_pin === true) &&
+        row.pickup_lat === pin.lat && row.pickup_lng === pin.lng &&
         row.address_notes === values.address_notes && row.seller_revolut_tag === values.seller_revolut_tag &&
         row.containers?.plastic_bottles === values.containers.plastic_bottles &&
         row.containers?.cans === values.containers.cans && row.containers?.glass_bottles === values.containers.glass_bottles;

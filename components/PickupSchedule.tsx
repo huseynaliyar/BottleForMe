@@ -7,6 +7,7 @@ import { pickupStatusCss } from '@/lib/pickup-status';
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, RefreshCw } from 'lucide-react';
 import { pickupInitials } from '@/lib/pickup-conversation';
+import { maskedPickupPhone } from '@/lib/pickup-partner';
 import { pickupRequest } from '@/lib/auth';
 import {
   formatAppointment, formatPickupDate, formatPickupTime, formatPickupWindow, maltaDateTime, maltaToday,
@@ -203,6 +204,7 @@ function Arrangement({ item, userId, onSaved, listingView = false }: { item: Sch
         <div className="min-w-0">
           <p className="font-bold text-white [overflow-wrap:anywhere]">{name}</p>
           <p className="text-xs text-blue-200">{t(canRespond ? 'Requested a pickup time' : 'Waiting for the other person.')}</p>
+          <p className="text-xs text-blue-200">{t('Phone')} <span aria-label={t('Phone number hidden')}>{maskedPickupPhone}</span></p>
         </div>
       </div>
       <div className="space-y-1 rounded-lg bg-blue-950 px-3 py-2">

@@ -7,6 +7,7 @@ import { Alert, Image, Linking, RefreshControl, ScrollView, useWindowDimensions,
 import type { PickupRestriction } from '../../lib/pickup-restriction';
 import { blockPickupExplanation } from '../../lib/marketplace-blocks';
 import { usePickupPartner } from '../../lib/use-pickup-partner';
+import { maskedPickupPhone } from '../../lib/pickup-partner';
 import { usePickupFavorites } from '../../lib/use-pickup-favorites';
 import { bagPolicyLabel } from '../../lib/bag-policy';
 import { pickupStatusColor, pickupStatusLightColor } from '../../lib/pickup-status';
@@ -91,7 +92,7 @@ function PickupPartner({ pickupId }: { pickupId: string }) {
     {partner ? <>
       <Text style={styles.body}>{partner.name} · {t(partner.role)}</Text>
       <Text style={styles.small}>{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : t("No ratings yet")}</Text>
-      {partner.phone && !isBlocked && <Text style={styles.small}>Phone · {partner.phone}</Text>}
+      <Text style={styles.small}>{t('Phone')} · {partner.phone && !isBlocked ? partner.phone : maskedPickupPhone}</Text>
       {isBlocked ? <Text style={styles.small}>You blocked this account. Manage it in Settings.</Text>
         : <Button label={t("Block account")} kind="quiet" disabled={blocking} onPress={() => Alert.alert(
           'Block account?', blockPickupExplanation, [{ text: 'Cancel', style: 'cancel' }, {

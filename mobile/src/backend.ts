@@ -1,5 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { emailAuthRequest } from '../../lib/email-auth-request';
+import { isSignupPhone, signupPhoneError } from '../../lib/phone';
+import { profileReviewsPath, type ProfileReviewRole, type ProfileReviews } from '../../lib/profile-reviews';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient, type User } from '@supabase/supabase-js';
 import { loadProfile as readProfile, saveProfile as writeProfile } from '../../lib/profile';
@@ -38,6 +40,7 @@ export async function signIn(email: string, password: string) {
 }
 
 export async function register(email: string, password: string, metadata: Pick<UserProfile, 'full_name' | 'role' | 'phone' | 'revolut_tag' | 'locality'> & { terms_version: string }) {
+  if (!isSignupPhone(metadata.phone)) throw new Error(signupPhoneError);
   const { data, error } = await client().auth.signUp({
     email,
     password,
@@ -191,14 +194,8 @@ export function changeAccountLifecycle(action: 'pause' | 'reactivate' | 'delete'
   }, true);
 }
 
-export function loadSettings(signal: AbortSignal) {
-  return request<{ sharePhone: boolean }>('/api/account/settings', { signal }, true);
-}
-
-export function saveSettings(sharePhone: boolean) {
-  return request<{ sharePhone: boolean }>('/api/account/settings', {
-    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sharePhone }),
-  }, true);
+export function getProfileReviews(role: ProfileReviewRole, page: number, signal: AbortSignal) {
+  return request<ProfileReviews>(profileReviewsPath(role, page), { signal }, true);
 }
 
 export function getUnreadChats() {

@@ -6,6 +6,7 @@ import type { AddressSuggestion } from './pickup-address';
 import type { UserProfile, UserRole } from './types';
 import { loadProfile as readProfile, saveProfile as writeProfile } from './profile';
 import { supabase } from './supabase';
+import { isSignupPhone, signupPhoneError } from './phone';
 
 function authClient() {
   if (!supabase) throw new Error('Account service is unavailable.');
@@ -31,6 +32,7 @@ export async function registerWithSupabase(data: {
   terms_version: string;
 }) {
   const { email, password, ...metadata } = data;
+  if (!isSignupPhone(metadata.phone)) throw new Error(signupPhoneError);
   const { data: result, error } = await authClient().auth.signUp({
     email,
     password,

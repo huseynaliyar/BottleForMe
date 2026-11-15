@@ -153,7 +153,7 @@ html[data-theme="light"] body:has(> .bf-phone, .bf-reading) { background: #f7f8f
 }
 .bf-nav :is(button, a) {
   min-width: 0; min-height: 48px; padding: 5px 2px; gap: 4px; justify-content: center;
-  border-radius: 10px; color: var(--bf-muted); line-height: 1.2; text-align: center;
+  border-radius: 10px; color: var(--bf-muted); line-height: 1.2; text-align: center; touch-action: manipulation;
 }
 .bf-nav [aria-current="page"] { background: var(--bf-soft); color: var(--bf-ink); }
 .bf-nav [aria-current="page"] svg { color: var(--bf-brand); }

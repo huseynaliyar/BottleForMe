@@ -11,7 +11,7 @@ import {
   PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold, useFonts,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { Bell, Check, Compass, MessageSquare, Package, User } from 'lucide-react-native';
-import { Alert, AppState, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, AppState, Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { pickupRestriction, type PickupRestriction } from '../../lib/pickup-restriction';
 import { useMarketplaceStatus } from '../../lib/use-marketplace-status';
@@ -337,7 +337,12 @@ function Marketplace() {
     </KeyboardAvoidingView>
     <View accessibilityRole="tablist" style={appStyles.footer}>
       {tabs.filter(canSeeTab).map(({ value, label, Icon }) => <Pressable key={value} accessibilityRole="tab"
-        accessibilityState={{ selected: tab === value }} onPress={() => { setTab(value); if (value === 'handover') { setSelectedId(undefined); setChatPickupId(undefined); } }} style={appStyles.tab}>
+        accessibilityState={{ selected: tab === value }} onPress={() => {
+          Keyboard.dismiss();
+          setSelectedId(undefined);
+          setChatPickupId(undefined);
+          setTab(value);
+        }} style={appStyles.tab}>
         <Icon size={16} color={tab === value ? colors.blue : colors.muted} />
         <Text weight="semibold" style={{ fontSize: 10, color: tab === value ? colors.white : colors.muted }}>{t(label)}</Text>
       </Pressable>)}
