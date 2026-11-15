@@ -8,6 +8,7 @@ export type ScheduleRequest = {
   pickup_id: string;
   seller_id: string;
   collector_id: string;
+  collector_name?: string;
   proposed_by: string;
   proposed_at: string;
   kind: 'available' | 'alternative';

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import ReportPickup from '@/components/ReportPickup';
 import PickupPhoto from '@/components/PickupPhoto';
 import PickupCancellation from '@/components/PickupCancellation';
+import { AwaitingListingCard, AwaitingListingSummary, isAwaitingTaker } from '@/components/AwaitingListing';
 import ImpactAchievement from '@/components/ImpactAchievement';
 import { loadAccountLifecycle } from '@/components/AccountLifecycleSettings';
 import { useAccountLifecycle } from '@/lib/use-account-lifecycle';
@@ -21,7 +22,7 @@ import {
 import { MALTA_LOCALITIES, calculateDepositSplit, PickupOffer, PickupStatus, UserProfile, NotificationItem } from '@/lib/types';
 import { MAX_BAGS, MAX_CONTAINERS, MAX_SELLER_SPLIT, REVOLUT_TAG, validatePickup } from '@/lib/pickup-validation';
 import { loadProfile, pickupRequest, saveProfile, signOutFromSupabase } from '@/lib/auth';
-import { AvailabilityEditor, EditPickupAvailability, PickupArrangements, RequestPickupTime } from '@/components/PickupSchedule';
+import { AvailabilityEditor, EditPickupAvailability, PickupArrangements, RequestPickupTime, usePickupArrangements } from '@/components/PickupSchedule';
 import { formatAppointment, newWindow, parseWindowDrafts } from '@/lib/pickup-schedule';
 import PickupAddressField from '@/components/PickupAddressField';
 import { nearbyStreets } from '@/lib/nearby-streets';
@@ -346,6 +347,16 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
   const selectedInOtherRole = !selectedOffer && handovers.some((offer) => offer.id === selectedId);
   const selectedPartnerName = selectedOffer ? pickupConversationTitle(selectedOffer, canUseRadar, t) : '';
   const handoverActive = selectedOffer && ['reserved', 'en_route', 'arrived'].includes(selectedOffer.status);
+  const awaitingTaker = Boolean(!canUseRadar && selectedOffer && isAwaitingTaker(selectedOffer));
+  const arrangements = usePickupArrangements(activeTab === 'chat' && !handoverActive && !chatPickupId && !selectedInOtherRole ? accountId : undefined, selectedId, revision);
+  const repliesByListing = new Map<string, number>();
+  if (!canUseRadar && !selectedId && !showArchived) {
+    for (const request of arrangements.requests ?? []) {
+      if (request.seller_id === accountId && request.status === 'pending' && request.proposed_by !== accountId) {
+        repliesByListing.set(request.pickup_id, (repliesByListing.get(request.pickup_id) ?? 0) + 1);
+      }
+    }
+  }
 
   useEffect(() => {
     if (!toastMessage) return;
@@ -1128,17 +1139,18 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
             action={conversationLoading ? undefined : !sessionUser ? { label: t('Log in'), run: () => setIsAuthOpen(true) }
               : selectedOffer || selectedInOtherRole ? { label: t('Pickup details'), run: () => openActivity(selectedId ?? undefined) } : undefined} />}
           {activeTab === 'chat' && !conversationOpen && (
-            <section className={selectedId ? 'bf-pickup-detail glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
-              <h2 className="bf-page-title py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedOffer?.status === 'open' ? 'Your listing' : selectedId ? 'Pickup details' : 'Pickups')}</h2>
+            <section className={selectedId && !awaitingTaker ? 'bf-pickup-detail glass-navy space-y-3 rounded-[24px] p-4 text-sm' : 'space-y-3 text-sm'}>
+              {!awaitingTaker && <h2 className="bf-page-title py-2 text-center text-xl font-extrabold text-white">{t(handoverActive ? 'Manage pickup' : selectedOffer?.status === 'open' ? 'Your listing' : selectedId ? 'Pickup details' : 'Pickups')}</h2>}
               {!currentUser ? (
                 <div className="bf-signin-gate"><span className="bf-phone-only bf-empty-icon" aria-hidden="true"><MessageSquare className="size-6" /></span><button type="button" className="blue-btn rounded-xl px-3 py-2 font-bold text-white" onClick={() => setIsAuthOpen(true)}>{t("Sign in to view pickups")}</button></div>
               ) : (
                 <>
                   {selectedId ? <>
-                    <button type="button" className="text-sm font-bold text-blue-300" onClick={() => {
+                    <button type="button" className={awaitingTaker ? 'bf-waiting-back min-h-11 rounded-xl border border-blue-400/25 px-3 text-sm font-bold text-blue-300' : 'text-sm font-bold text-blue-300'} onClick={() => {
                       setSelectedId(null); setHandoverCode(undefined); setActionError('');
                       backToPickups();
                     }}>{t("← All pickups")}</button>
+                    {awaitingTaker && <h2 className="bf-page-title text-xl font-extrabold text-white">{t('Your listing')}</h2>}
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {selectedInOtherRole ? (
                       <p className="text-blue-200">
@@ -1148,7 +1160,17 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         </button>
                       </p>
                     ) : <>
-                      {selectedOffer && <>
+                      {awaitingTaker && selectedOffer && <>
+                        <AwaitingListingSummary offer={selectedOffer} />
+                        <EditPickupAvailability key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)}
+                          offer={selectedOffer} listingView onSaved={() => setRevision((value) => value + 1)} />
+                        <button type="button" disabled={archiving} onClick={() => void toggleArchive(selectedOffer)}
+                          className="bf-waiting-action min-h-11 w-full rounded-xl border border-blue-400/25 px-3 py-2 font-semibold text-blue-100 disabled:opacity-50">
+                          {t('Archive listing')}
+                        </button>
+                        <PickupCancellation busy={isUpdating} onCancel={() => void changePickup(selectedOffer, 'cancelled')} />
+                      </>}
+                      {selectedOffer && !awaitingTaker && <>
                         <header className="space-y-1">
                           <span className="bf-status text-xs font-semibold text-blue-300" style={{ color: pickupStatusCss(selectedOffer.overdue ? 'overdue' : selectedOffer.status) }}>{!canUseRadar && selectedOffer.archived_at ? t("Archived") : selectedOffer.overdue ? t("Overdue") : t(pickupStatus[selectedOffer.status])}</span>
                           <div className="text-lg font-bold text-white">
@@ -1193,22 +1215,22 @@ export default function Marketplace({ initialPickup, initialChat = false }: { in
                         {selectedOffer.status === 'open' && selectedOffer.seller_id === currentUser.id && <EditPickupAvailability
                           key={selectedOffer.id + ':' + (selectedOffer.availability_version ?? 0)} offer={selectedOffer} onSaved={() => setRevision((value) => value + 1)} />}
                       </>}
-                      {!handoverActive && <details open={!selectedOffer || selectedOffer.status === 'open'} className="rounded-xl border border-blue-400/20 p-3">
-                        <summary className="cursor-pointer font-semibold text-white">{t("Time requests")}</summary>
-                        <PickupArrangements key={selectedId} userId={currentUser.id} listingId={selectedId}
-                          participantKey={pickupParticipant} onSwitchRole={() => void handleToggleRole(true)} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
-                      </details>}
+                      {!handoverActive && <PickupArrangements key={selectedId} userId={currentUser.id} {...arrangements}
+                        listingView={awaitingTaker} openByDefault={!selectedOffer || selectedOffer.status === 'open'}
+                        participantKey={pickupParticipant} onSwitchRole={() => void handleToggleRole(true)} onSaved={() => setRevision((value) => value + 1)} />}
                     </>}
                   </> : <>
                     {handoverStatus && <p role="status" className="text-blue-200">{handoverStatus}</p>}
                     {!canUseRadar && <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(!showArchived)}
                       className="rounded-lg bg-blue-950 px-3 py-2 text-blue-100">{showArchived ? t("Show current listings") : t("Show archived listings")}</button>}
-                    {visiblePickups.map((offer) => <PickupConversationCard key={offer.id} offer={offer} taker={canUseRadar}
+                    {visiblePickups.map((offer) => !canUseRadar && isAwaitingTaker(offer) ?
+                      <AwaitingListingCard key={offer.id} offer={offer} replies={repliesByListing.get(offer.id) ?? 0} onOpen={() => openActivity(offer.id)} /> :
+                      <PickupConversationCard key={offer.id} offer={offer} taker={canUseRadar}
                       status={t(!canUseRadar && offer.archived_at ? 'Archived' : offer.overdue ? 'Overdue' : pickupStatus[offer.status])}
                       unread={unreadCounts.get(offer.id)} onOpen={() => openActivity(offer.id, !!(offer.collector_id && offer.seller_id))} />)}
-                    <PickupArrangements key={currentUser.id} userId={currentUser.id} onOpen={(id) => openActivity(id)}
+                    <PickupArrangements key={currentUser.id} userId={currentUser.id} {...arrangements} onOpen={(id) => openActivity(id)}
                       participantKey={pickupParticipant} excludeFor={new Set(rolePickups.map((offer) => offer.id))}
-                      hideListEntries={showArchived && !canUseRadar} emptyListMessage={!handoverStatus && !visiblePickups.length ? (showArchived && !canUseRadar ? 'No archived listings yet.' : 'No pickups in this role yet.') : undefined} revision={revision} onSaved={() => setRevision((value) => value + 1)} />
+                      hideListEntries={showArchived && !canUseRadar} emptyListMessage={!handoverStatus && !visiblePickups.length ? (showArchived && !canUseRadar ? 'No archived listings yet.' : 'No pickups in this role yet.') : undefined} onSaved={() => setRevision((value) => value + 1)} />
                   </>}
                 </>
               )}

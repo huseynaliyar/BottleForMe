@@ -5,7 +5,8 @@ import { pickupRestriction, type PickupRestriction } from '@/lib/pickup-restrict
 import { pickupStatusCss } from '@/lib/pickup-status';
 
 import { useEffect, useRef, useState } from 'react';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays, RefreshCw } from 'lucide-react';
+import { pickupInitials } from '@/lib/pickup-conversation';
 import { pickupRequest } from '@/lib/auth';
 import {
   formatAppointment, formatPickupDate, formatPickupTime, formatPickupWindow, maltaDateTime, maltaToday,
@@ -155,7 +156,7 @@ export function RequestPickupTime({ offer, onSaved, onRestriction, triggerLabel 
   </details>;
 }
 
-export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer; onSaved: () => void }) {
+export function EditPickupAvailability({ offer, onSaved, listingView = false }: { offer: PickupOffer; onSaved: () => void; listingView?: boolean }) {
   const { t } = useLanguage();
   const [drafts, setDrafts] = useState(() => {
     const current = windowDrafts(offer.availability ?? []);
@@ -167,9 +168,9 @@ export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer;
     if (!availability) { setError(windowsError); return; }
     void submit({ action: 'availability', availability, version: offer.availability_version ?? 0 }, 'Availability saved.');
   }
-  return <details className="rounded-xl border border-blue-400/25 p-3">
-    <summary className="cursor-pointer font-bold text-white">{t("Edit availability")}</summary>
-    <div className="mt-3 space-y-2">
+  return <details className={listingView ? 'bf-waiting-action rounded-xl border border-blue-400/25' : 'rounded-xl border border-blue-400/25 p-3'}>
+    <summary className={listingView ? 'grid min-h-11 cursor-pointer place-items-center px-3 py-2 font-semibold text-blue-100' : 'cursor-pointer font-bold text-white'}>{t("Edit availability")}</summary>
+    <div className={listingView ? 'space-y-2 p-3 pt-0' : 'mt-3 space-y-2'}>
       <AvailabilityEditor drafts={drafts} onChange={setDrafts} disabled={busy} />
       <ScheduleButton busy={busy} onClick={save} main>{t("Save availability")}</ScheduleButton>
       <Feedback error={error} notice={notice} />
@@ -177,7 +178,7 @@ export function EditPickupAvailability({ offer, onSaved }: { offer: PickupOffer;
   </details>;
 }
 
-function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId: string; onSaved: () => void }) {
+function Arrangement({ item, userId, onSaved, listingView = false }: { item: ScheduleRequest; userId: string; onSaved: () => void; listingView?: boolean }) {
   const { t } = useLanguage();
   const [counter, setCounter] = useState(false);
   const [date, setDate] = useState('');
@@ -194,14 +195,36 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   }, [pending, future]);
   const canCancel = pending || (item.status === 'accepted' && ['reserved', 'en_route', 'arrived'].includes(item.pickup?.status ?? ''));
   const base = { id: item.id, version: item.version };
-  return <li className="space-y-2 rounded-xl bg-[#0b1220] p-3">
-    <p className="font-bold"><span className="bf-status" data-state={item.status}>{item.pickup?.locality ?? 'Pickup'} · {item.status === 'accepted' ? 'Confirmed' : item.status === 'pending' ? t("Pending") : item.status === 'rejected' ? 'Declined' : t("Cancelled")}</span></p>
-    <p className="text-sm">{formatAppointment(item.proposed_at)} · Malta time</p>
-    {pending && <p className="text-sm">{future ? (canRespond ? 'Your response is needed.' : 'Waiting for the other person.') : 'This proposed time has passed.'}</p>}
+  const name = item.collector_name || t('Taker');
+  return <li className={listingView ? 'space-y-3 rounded-xl border border-blue-400/20 p-3' : 'space-y-2 rounded-xl bg-[#0b1220] p-3'}>
+    {listingView ? <>
+      <div className="flex items-center gap-2.5">
+        <span aria-hidden="true" className="bf-avatar grid size-10 shrink-0 place-items-center rounded-full bg-blue-950 font-bold">{pickupInitials(name)}</span>
+        <div className="min-w-0">
+          <p className="font-bold text-white [overflow-wrap:anywhere]">{name}</p>
+          <p className="text-xs text-blue-200">{t(canRespond ? 'Requested a pickup time' : 'Waiting for the other person.')}</p>
+        </div>
+      </div>
+      <div className="space-y-1 rounded-lg bg-blue-950 px-3 py-2">
+        <p className="text-xs text-blue-200">{t('Proposed pickup time')}</p>
+        <p className="font-bold text-white">{formatAppointment(item.proposed_at)}</p>
+        <p className="text-xs text-blue-200">{t('Malta time')}</p>
+      </div>
+    </> : <>
+      <p className="font-bold"><span className="bf-status" data-state={item.status}>{item.pickup?.locality ?? 'Pickup'} · {t(requestLabels[item.status])}</span></p>
+      <p className="text-sm">{formatAppointment(item.proposed_at)} · {t('Malta time')}</p>
+    </>}
+    {pending && (!listingView || !future) && <p className="text-sm">{t(future ? (canRespond ? 'Your response is needed.' : 'Waiting for the other person.') : 'This proposed time has passed.')}</p>}
+    {listingView && canRespond && <div className="bf-request-decisions grid grid-cols-2 gap-2">
+      <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>{t('Decline')}</ScheduleButton>
+      <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>{t('Confirm time')}</ScheduleButton>
+    </div>}
     <div className="flex flex-wrap gap-2">
       {canRespond && <>
-        <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>{t("Accept")}</ScheduleButton>
-        <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>{t("Decline")}</ScheduleButton>
+        {!listingView && <>
+          <ScheduleButton main busy={busy || !future} onClick={() => void submit({ ...base, action: 'accept' }, 'Pickup confirmed.')}>{t("Accept")}</ScheduleButton>
+          <ScheduleButton busy={busy} onClick={() => void submit({ ...base, action: 'reject' }, 'Request declined.')}>{t("Decline")}</ScheduleButton>
+        </>}
         <ScheduleButton busy={busy} onClick={() => setCounter(!counter)}>{t("Suggest another time")}</ScheduleButton>
       </>}
       {canCancel && <ScheduleButton busy={busy} onClick={() => {
@@ -220,41 +243,79 @@ function Arrangement({ item, userId, onSaved }: { item: ScheduleRequest; userId:
   </li>;
 }
 
-export function PickupArrangements({ userId, listingId, revision, onSaved, onOpen, excludeFor, participantKey, onSwitchRole, emptyListMessage, hideListEntries }: {
-  userId: string; listingId?: string; revision: number; onSaved: () => void; onOpen?: (id: string) => void;
-  emptyListMessage?: string; hideListEntries?: boolean; excludeFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
-}) {
-  const { t } = useLanguage();
-  const [requests, setRequests] = useState<ScheduleRequest[]>();
-  const [error, setError] = useState('');
+const requestLabels = { pending: 'Pending', accepted: 'Confirmed', rejected: 'Declined', cancelled: 'Cancelled' } as const;
+
+type ArrangementData = { requests?: ScheduleRequest[]; error: string };
+
+export function usePickupArrangements(userId: string | undefined, listingId: string | null, revision: number): ArrangementData {
+  const scope = userId ? userId + ':' + (listingId ?? '') : '';
+  const [result, setResult] = useState<ArrangementData & { scope: string }>();
   useEffect(() => {
+    if (!scope) return;
     const controller = new AbortController();
-    pickupRequest('/schedule' + (listingId ? '?listing=' + encodeURIComponent(listingId) : ''), { signal: controller.signal }).then((result: { requests: ScheduleRequest[] }) => {
-      if (!controller.signal.aborted) { setRequests(result.requests); setError(''); }
+    const path = '/schedule' + (listingId ? '?listing=' + encodeURIComponent(listingId) : '');
+    pickupRequest(path, { signal: controller.signal }).then(({ requests }: { requests: ScheduleRequest[] }) => {
+      if (!controller.signal.aborted) setResult({ scope, requests, error: '' });
     }).catch(() => {
-      if (!controller.signal.aborted) setError('Could not load your pickup arrangements.');
+      if (!controller.signal.aborted) setResult({ scope, error: 'Could not load your pickup arrangements.' });
     });
     return () => controller.abort();
-  }, [revision, userId, listingId]);
+  }, [scope, listingId, revision]);
+  return scope && result?.scope === scope ? result : { error: '' };
+}
+
+export function PickupArrangements({ userId, requests, error, onSaved, onOpen, excludeFor, participantKey, onSwitchRole, emptyListMessage, hideListEntries, listingView = false, openByDefault }: ArrangementData & {
+  userId: string; onSaved: () => void; onOpen?: (id: string) => void;
+  emptyListMessage?: string; hideListEntries?: boolean; excludeFor?: ReadonlySet<string>; participantKey: 'seller_id' | 'collector_id'; onSwitchRole?: () => void;
+  listingView?: boolean; openByDefault?: boolean;
+}) {
+  const { t, locale } = useLanguage();
   const inRole = requests?.filter((item) => item[participantKey] === userId);
-  const standalone = inRole?.filter((item) => !excludeFor?.has(item.pickup_id));
-  const visible = !onOpen ? inRole : hideListEntries ? [] : standalone?.filter((item, index) => standalone.findIndex((first) => first.pickup_id === item.pickup_id) === index);
-  const belongsToOtherRole = Boolean(listingId && requests?.length && !inRole?.length);
-  if (onOpen && !visible?.length && !error) return visible && emptyListMessage ? <p className="text-blue-200">{t(emptyListMessage)}</p> : null;
-  return <section className={onOpen ? 'text-blue-100' : 'space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100'}>
-    {!onOpen && <div className="flex items-center justify-between gap-2">
-      <h3 className="font-bold text-white">{t("Pickup arrangements")}</h3>
-      <ScheduleButton onClick={onSaved}>{t("Refresh")}</ScheduleButton>
-    </div>}
-    <Feedback error={error} notice="" />
-    {visible?.length ? <ul className="space-y-2">{visible.map((item) =>
-      onOpen ? <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="glass-navy block w-full rounded-[24px] p-3 text-start hover:border-blue-400/70 sm:p-4">
-        <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusCss(item.status) }}>{t(item.status.charAt(0).toUpperCase() + item.status.slice(1))}</span></strong>
-        <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
-      </button></li> : <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} />)}</ul>
-      : !error && (belongsToOtherRole ? <p className="text-sm">
+  if (onOpen) {
+    const standalone = hideListEntries ? [] : inRole?.filter((item) => !excludeFor?.has(item.pickup_id));
+    const visible = standalone?.filter((item, index) => standalone.findIndex((first) => first.pickup_id === item.pickup_id) === index);
+    if (!visible?.length && !error) return visible && emptyListMessage ? <p className="text-blue-200">{t(emptyListMessage)}</p> : null;
+    return <section className="text-blue-100">
+      <Feedback error={error} notice="" />
+      {!!visible?.length && <ul className="space-y-2">{visible.map((item) =>
+        <li key={item.id}><button type="button" onClick={() => onOpen(item.pickup_id)} className="glass-navy block w-full rounded-[24px] p-3 text-start hover:border-blue-400/70 sm:p-4">
+          <strong>{item.pickup?.locality ?? 'Pickup request'} · <span className="capitalize" style={{ color: pickupStatusCss(item.status) }}>{t(item.status.charAt(0).toUpperCase() + item.status.slice(1))}</span></strong>
+          <span className="block text-xs">{formatAppointment(item.proposed_at)}</span>
+        </button></li>)}</ul>}
+    </section>;
+  }
+
+  const pending = listingView ? inRole?.filter((item) => item.status === 'pending') ?? [] : inRole ?? [];
+  const history = listingView ? inRole?.filter((item) => item.status !== 'pending') ?? [] : [];
+  return <details open={openByDefault} className={listingView ? 'bf-waiting-panel bf-waiting-requests rounded-2xl border border-blue-400/20 px-3 pb-3' : 'rounded-xl border border-blue-400/20 p-3'}>
+    <summary className={listingView ? 'flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-2 py-2 font-semibold text-white' : 'cursor-pointer font-semibold text-white'}>
+      {t('Time requests')}
+      {listingView && !!pending.length && <span className="rounded-full bg-blue-950 px-2 py-1 text-xs text-blue-200">{t('Pending')} · {pending.length.toLocaleString(locale)}</span>}
+    </summary>
+    <section className={listingView ? 'space-y-3 pb-1 text-blue-100' : 'space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100'}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-bold text-white">{t('Pickup arrangements')}</h3>
+        <button type="button" onClick={onSaved} className={button + ' inline-flex min-h-11 items-center gap-1.5'}>
+          {listingView && <RefreshCw aria-hidden="true" className="size-3.5" />}{t('Refresh')}
+        </button>
+      </div>
+      <Feedback error={error} notice="" />
+      {!!pending.length && <ul className="space-y-2">{pending.map((item) =>
+        <Arrangement key={item.id} item={item} userId={userId} onSaved={onSaved} listingView={listingView} />)}</ul>}
+      {!!history.length && <details className="border-t border-blue-400/20 pt-2">
+        <summary className="cursor-pointer py-2 text-sm font-semibold">{t('Previous requests')} · {history.length.toLocaleString(locale)}</summary>
+        <ul className="divide-y divide-blue-400/20">{history.map((item) => <li key={item.id} className="flex flex-wrap items-start justify-between gap-2 py-2">
+          <div>
+            <p className="font-semibold text-white">{formatAppointment(item.proposed_at)}</p>
+            <p className="text-xs text-blue-200">{t('Malta time')}</p>
+          </div>
+          <span className="bf-status text-xs" data-state={item.status}>{t(requestLabels[item.status])}</span>
+        </li>)}</ul>
+      </details>}
+      {!inRole?.length && !error && (requests?.length ? <p className="text-sm">
         This time request belongs to your other role.{' '}
-        <button type="button" onClick={onSwitchRole} className="font-bold text-blue-300 underline">{t("Switch role")}</button>
-      </p> : <p className="text-sm">{requests ? 'No requests yet in this role.' : 'Loading arrangements…'}</p>)}
-  </section>;
+        <button type="button" onClick={onSwitchRole} className="font-bold text-blue-300 underline">{t('Switch role')}</button>
+      </p> : <p className="text-sm">{t(requests ? 'No requests yet in this role.' : 'Loading arrangements…')}</p>)}
+    </section>
+  </details>;
 }

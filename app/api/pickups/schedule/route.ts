@@ -1,6 +1,6 @@
 import { after } from 'next/server';
 import { drainPush } from '@/lib/push-server';
-import { canonicalAppointment, validateWindows } from '@/lib/pickup-schedule';
+import { canonicalAppointment, type ScheduleRequest, validateWindows } from '@/lib/pickup-schedule';
 import { failure, pickupRestrictionResponse, pickupsDb, requestUser, response, UUID } from '@/lib/pickups-server';
 
 export const dynamic = 'force-dynamic';
@@ -17,12 +17,30 @@ export async function GET(request: Request) {
   const select = () => db.from('pickup_requests')
     .select('id,pickup_id,seller_id,collector_id,proposed_by,proposed_at,kind,status,version,pickup:pickups(locality,status)')
     .or('seller_id.eq.' + user.id + ',collector_id.eq.' + user.id).order('updated_at', { ascending: false });
-  const result = listing ? [await select().eq('pickup_id', listing).limit(100)] : await Promise.all([
-    select().in('status', ['pending', 'accepted']).limit(100),
-    select().in('status', ['rejected', 'cancelled']).limit(30),
+  const result = listing ? [
+    await select().eq('pickup_id', listing).limit(100).overrideTypes<ScheduleRequest[], { merge: false }>(),
+  ] : await Promise.all([
+    select().in('status', ['pending', 'accepted']).limit(100).overrideTypes<ScheduleRequest[], { merge: false }>(),
+    select().in('status', ['rejected', 'cancelled']).limit(30).overrideTypes<ScheduleRequest[], { merge: false }>(),
   ]);
   if (result.some(({ error }) => error)) return failure('Could not load pickup arrangements.', 503);
-  return response({ requests: result.flatMap(({ data }) => data ?? []) });
+  const requests = result.flatMap(({ data }) => data ?? []);
+  if (!listing) return response({ requests });
+
+  // Only the Giver can see names for pending requests on their open listing.
+  const canShowName = (item: (typeof requests)[number]) =>
+    item.seller_id === user.id && item.status === 'pending' && item.pickup?.status === 'open';
+  const takerIds = [...new Set(requests.filter(canShowName).map((item) => item.collector_id))];
+  if (!takerIds.length) return response({ requests });
+  const [profiles, blocked, blockedBy] = await Promise.all([
+    db.from('profiles').select('id,full_name').in('id', takerIds),
+    db.from('marketplace_blocks').select('blocked_id').eq('blocker_id', user.id).in('blocked_id', takerIds),
+    db.from('marketplace_blocks').select('blocker_id').eq('blocked_id', user.id).in('blocker_id', takerIds),
+  ]);
+  if (profiles.error || blocked.error || blockedBy.error) return response({ requests });
+  const hiddenIds = new Set([...blocked.data.map((row) => row.blocked_id), ...blockedBy.data.map((row) => row.blocker_id)]);
+  const names = new Map(profiles.data.filter((row) => !hiddenIds.has(row.id)).map((row) => [row.id, row.full_name?.trim()]));
+  return response({ requests: requests.map((item) => canShowName(item) ? { ...item, collector_name: names.get(item.collector_id) } : item) });
 }
 
 export async function POST(request: Request) {

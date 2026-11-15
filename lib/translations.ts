@@ -239,6 +239,20 @@ Remove window|Rimuovi fascia oraria|Удалить интервал|أزل ال�
 From|Da|С|من|से|سے
 Until|Fino a|До|إلى|तक|تک
 Remove|Rimuovi|Удалить|إزالة|हटाएँ|ہٹائیں
+Awaiting a Taker|In attesa di un ritirante|В ожидании получателя|في انتظار المستلم|लेने वाले की प्रतीक्षा है|لینے والے کا انتظار ہے
+Listed|Pubblicato il|Опубликовано|تاريخ النشر|प्रकाशित|شائع ہوا
+Manage listing|Gestisci annuncio|Управлять объявлением|إدارة الإعلان|विज्ञापन प्रबंधित करें|اشتہار کا انتظام کریں
+Time requests awaiting your reply|Richieste di orario in attesa di risposta|Запросы времени, ожидающие ответа|طلبات الوقت التي تنتظر ردك|समय के अनुरोध जिन्हें आपके जवाब की प्रतीक्षा है|وقت کی درخواستیں جو آپ کے جواب کی منتظر ہیں
+Estimated deposit|Cauzione stimata|Оценочная сумма залога|الوديعة المقدّرة|अनुमानित जमा राशि|تخمینی جمع شدہ رقم
+Your share|La tua parte|Ваша доля|حصتك|आपका हिस्सा|آپ کا حصہ
+No availability set|Nessuna disponibilità impostata|Доступное время не указано|لم يُحدد وقت متاح|उपलब्ध समय तय नहीं है|دستیاب وقت مقرر نہیں
+Requested a pickup time|Ha richiesto un orario di ritiro|Запрошено время вывоза|طلب وقتًا للاستلام|पिकअप का समय माँगा|پک اپ کا وقت مانگا
+Proposed pickup time|Orario di ritiro proposto|Предложенное время вывоза|وقت الاستلام المقترح|प्रस्तावित पिकअप समय|پک اپ کا مجوزہ وقت
+Confirm time|Conferma orario|Подтвердить время|تأكيد الوقت|समय की पुष्टि करें|وقت کی تصدیق کریں
+Previous requests|Richieste precedenti|Предыдущие запросы|الطلبات السابقة|पिछले अनुरोध|پچھلی درخواستیں
+Declined|Rifiutata|Отклонён|مرفوض|अस्वीकृत|مسترد
+No requests yet in this role.|Nessuna richiesta per questo ruolo.|Для этой роли пока нет запросов.|لا توجد طلبات لهذا الدور حتى الآن.|इस भूमिका में अभी कोई अनुरोध नहीं है।|اس کردار میں ابھی کوئی درخواست نہیں ہے۔
+Loading arrangements…|Caricamento degli accordi…|Загрузка договорённостей…|جارٍ تحميل الترتيبات…|व्यवस्था लोड हो रही है…|انتظامات لوڈ ہو رہے ہیں…
 Time requests|Richieste di orario|Запросы времени|طلبات الوقت|समय के अनुरोध|وقت کی درخواستیں
 Pickup arrangements|Accordi per il ritiro|Договорённости о вывозе|ترتيبات الاستلام|पिकअप की व्यवस्था|پک اپ کے انتظامات
 Send new time|Invia nuovo orario|Отправить новое время|أرسل الوقت الجديد|नया समय भेजें|نیا وقت بھیجیں
