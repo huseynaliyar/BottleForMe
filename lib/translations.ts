@@ -114,6 +114,13 @@ Report pickup partner|Segnala il partecipante|Пожаловаться на уч
 Describe the issue|Descrivi il problema|Опишите проблему|صِف المشكلة|समस्या बताएँ|مسئلے کی وضاحت کریں
 Submit report|Invia segnalazione|Отправить жалобу|أرسل البلاغ|शिकायत भेजें|شکایت بھیجیں
 Report sent to the BottleForMe team.|Segnalazione inviata al team di BottleForMe.|Жалоба отправлена команде BottleForMe.|تم إرسال البلاغ إلى فريق BottleForMe.|शिकायत BottleForMe टीम को भेज दी गई है।|شکایت BottleForMe ٹیم کو بھیج دی گئی ہے۔
+View pickup partner profile|Apri il profilo del partecipante|Открыть профиль участника|افتح ملف الطرف الآخر|पिकअप साथी की प्रोफ़ाइल देखें|پک اپ کے ساتھی کا پروفائل دیکھیں
+Rating|Valutazione|Оценка|التقييم|रेटिंग|درجہ بندی
+Phone|Telefono|Телефон|الهاتف|फ़ोन|فون
+Unavailable|Non disponibile|Недоступно|غير متاح|उपलब्ध नहीं|دستیاب نہیں
+Your listing|Il tuo annuncio|Ваше объявление|إعلانك|आपका विज्ञापन|آپ کا اشتہار
+Handover complete|Consegna completata|Передача завершена|اكتمل التسليم|सुपुर्दगी पूरी हुई|حوالگی مکمل ہوئی
+Pickup cancelled|Ritiro annullato|Вывоз отменён|أُلغي الاستلام|पिकअप रद्द हुआ|پک اپ منسوخ ہو گیا
 Pickup partner|Partecipante al ritiro|Участник вывоза|الطرف الآخر في الاستلام|पिकअप साथी|پک اپ کا ساتھی
 Your rating|La tua valutazione|Ваша оценка|تقييمك|आपकी रेटिंग|آپ کی درجہ بندی
 Your rating out of five|La tua valutazione su cinque|Ваша оценка из пяти|تقييمك من خمسة|पाँच में से आपकी रेटिंग|پانچ میں سے آپ کی درجہ بندی

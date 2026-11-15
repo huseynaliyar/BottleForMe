@@ -37,6 +37,7 @@ export default function ReportPickup({ pickupId, target, onClose }: {
         <label className="block">{t("Describe the issue")}<textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} rows={4}
             className="mt-1 block w-full rounded-xl bg-[#080b12] p-2" />
         </label>
+        <p className="text-end text-xs tabular-nums text-blue-200"><bdi>{reason.length} / 500</bdi></p>
         <p className="text-xs text-blue-200">Use 10–500 characters. Do not include passwords, handover codes or payment details.</p>
         {error && <p role="alert" className="text-red-300">{error}</p>}
         <button type="submit" className="blue-btn rounded-lg px-3 py-2 disabled:opacity-50" disabled={busy || reason.trim().length < 10}>{t("Submit report")}</button>
