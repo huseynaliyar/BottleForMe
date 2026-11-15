@@ -32,24 +32,29 @@ export default function PickupConversationCard({ offer, taker, status, unread = 
   const assigned = !!(offer.collector_id && offer.seller_id);
   const title = pickupConversationTitle(offer, taker, t);
   const avatar = <PickupAvatar name={title} listing={!assigned} pickupId={assigned ? offer.id : undefined} />;
+  const name = <strong className="block text-base font-bold text-white [overflow-wrap:anywhere]">{title}</strong>;
   const amount = assigned ? (taker ? offer.collector_profit : offer.seller_payout) : offer.total_bcrs_value;
   return <article className="bf-pickup-row glass-navy flex w-full items-center gap-3 rounded-[24px] p-3 text-start shadow-sm transition hover:border-blue-400/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 sm:p-4">
     {assigned ? <PickupPartnerProfile pickupId={offer.id} name={title}>{avatar}</PickupPartnerProfile> : avatar}
-    <button type="button" onClick={onOpen} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg text-start">
-      <span className="min-w-0 flex-1 space-y-1">
-        <strong className="block text-base font-bold text-white [overflow-wrap:anywhere]">{title}</strong>
-        <span className="block text-xs text-blue-200">
-          {assigned ? offer.locality + ' · ' : ''}{offer.estimated_bottles} {t('Containers').toLocaleLowerCase(locale)}{' · '}{pickupCardDate(locale, offer)}
+    <div className="min-w-0 flex-1">
+      {assigned && <PickupPartnerProfile pickupId={offer.id} name={title} className="min-h-11 max-w-full rounded-lg text-start">{name}</PickupPartnerProfile>}
+      <button type="button" onClick={onOpen} aria-label={assigned ? t('Open chat') + ' · ' + title : undefined}
+        className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-lg text-start">
+        <span className="min-w-0 flex-1 space-y-1">
+          {!assigned && name}
+          <span className="block text-xs text-blue-200">
+            {assigned ? offer.locality + ' · ' : ''}{offer.estimated_bottles} {t('Containers').toLocaleLowerCase(locale)}{' · '}{pickupCardDate(locale, offer)}
+          </span>
+          <span className="bf-status block text-xs text-blue-200" style={{ color: pickupStatusCss(offer.overdue ? 'overdue' : offer.status) }}>{status}</span>
         </span>
-        <span className="bf-status block text-xs text-blue-200" style={{ color: pickupStatusCss(offer.overdue ? 'overdue' : offer.status) }}>{status}</span>
-      </span>
-      <span className="bf-pickup-amount flex shrink-0 flex-col items-end gap-1 text-end text-xs text-slate-400">
-        <strong className="text-base font-semibold tabular-nums text-white">{pickupMoney(locale, amount)}</strong>
-        <span>{t(assigned ? (taker ? 'You earn' : 'You receive') : 'Deposit value')}</span>
-        {unread > 0 ? <span aria-label={unread + ' ' + t('Unread messages')} className="min-w-5 rounded-full bg-blue-600 px-1.5 py-0.5 text-center font-bold text-white">
-          {unread}
-        </span> : <ChevronRight className="size-4 text-blue-300 rtl:rotate-180" aria-hidden="true" />}
-      </span>
-    </button>
+        <span className="bf-pickup-amount flex shrink-0 flex-col items-end gap-1 text-end text-xs text-slate-400">
+          <strong className="text-base font-semibold tabular-nums text-white">{pickupMoney(locale, amount)}</strong>
+          <span>{t(assigned ? (taker ? 'You earn' : 'You receive') : 'Deposit value')}</span>
+          {unread > 0 ? <span aria-label={unread + ' ' + t('Unread messages')} className="min-w-5 rounded-full bg-blue-600 px-1.5 py-0.5 text-center font-bold text-white">
+            {unread}
+          </span> : <ChevronRight className="size-4 text-blue-300 rtl:rotate-180" aria-hidden="true" />}
+        </span>
+      </button>
+    </div>
   </article>;
 }

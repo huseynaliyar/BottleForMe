@@ -235,7 +235,6 @@
   .bf-phone .bf-chat-header { background: var(--bf-surface); border-color: var(--bf-line); }
   .bf-phone .bf-chat-header h1 { font-size: 17px; }
   .bf-phone .bf-chat-summary { padding: 10px; }
-  .bf-phone .bf-chat-departure { padding: 10px 12px; }
   .bf-phone .bf-chat-brand .bf-header-row { margin: 0; }
   .bf-phone .bf-chat-bubble { background: var(--bf-surface); border: 1px solid var(--bf-line); border-end-start-radius: 4px; }
   .bf-phone .bf-chat-bubble[data-mine="true"] { background: var(--bf-soft); border-color: transparent; border-end-start-radius: 16px; border-end-end-radius: 4px; }
@@ -306,7 +305,6 @@
   @media (max-height: 540px) {
     .bf-phone .bf-chat-brand { display: none; }
     .bf-phone .bf-chat-summary { margin-block-start: 4px; }
-    .bf-phone .bf-chat-departure p { display: none; }
   }
   @media (max-width: 360px) {
     .bf-phone .bf-content, .bf-reading { padding-inline: 14px; }

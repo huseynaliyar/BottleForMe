@@ -70,7 +70,7 @@ export async function PATCH(request: Request, { params }: Context) {
   if (error?.code === '23514') return failure('Request a pickup time and wait for the owner to accept.', 409);
   if (error) return failure('Could not update the pickup.', 503);
   if (data) {
-    if (status === 'cancelled' || status === 'reserved') after(() => drainPush().catch(() => {}));
+    after(() => drainPush().catch(() => { console.error('Could not process pickup status push.'); }));
     const pickup = { ...(data as PickupOffer & { photo_jpeg?: string }) };
     delete pickup.photo_jpeg;
     return response(participantPickup(pickup, user.id));

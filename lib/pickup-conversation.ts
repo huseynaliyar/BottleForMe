@@ -29,6 +29,7 @@ export function pickupDetails(offer: PickupOffer, taker: boolean, locale: string
   return {
     time,
     status: t(offer.overdue ? 'Overdue' : offer.archived_at ? 'Archived' : statuses[offer.status]),
+    progress: t(statuses[offer.status]),
     rows: [
       { label: t('Pickup address'), value: offer.address_notes?.trim() || t('Address unavailable') },
       { label: t('Collecting'), value: `${offer.estimated_bottles} ${t('Containers').toLocaleLowerCase(locale)} · ${offer.bag_count} ${t(offer.bag_count === 1 ? 'Bag' : 'Bags').toLocaleLowerCase(locale)}` },

@@ -6,6 +6,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { formatPickupTime, maltaDateTime, parseWindowDrafts, pickupTimeOptions, validateWindows } from '../lib/pickup-schedule';
 import { signupCodeError } from '../lib/signup-otp';
 import { participantPickup, publicPickup } from '../lib/pickup-visibility';
+import { validatePickup } from '../lib/pickup-validation';
 
 const day = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
 const time = (hour: string) => day + 'T' + hour + ':00.000Z';
@@ -72,6 +73,18 @@ test('migrated database handles scheduling, private notifications and legacy res
     [id, seller, availability ? JSON.stringify(availability) : null]);
     await assert.rejects(create(offer, [{ start: '2020-01-01T10:00:00.000Z', end: '2020-01-01T11:00:00.000Z' }]), /future/);
     await assert.rejects(create(offer, [windows[0], windows[0]]), /non-overlapping/);
+    const cash = validatePickup({
+      bag_count: 1, split_percentage: 20, payout_method: 'cash', locality: 'Sliema', address_notes: ' Test door ',
+      containers: { plastic_bottles: 10, cans: 0, glass_bottles: 0 }, seller_revolut_tag: '@unused',
+    });
+    assert.ok(cash);
+    const cashOffer = randomUUID();
+    const { rows: cashRows } = await db.query(
+      'INSERT INTO public.pickups (id, seller_id, seller_name, locality, address_notes, bag_count, estimated_bottles, total_bcrs_value, seller_payout, collector_profit, split_percentage, payout_method, seller_revolut_tag) VALUES ($1,$2,\'Seller\',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING payout_method, seller_revolut_tag',
+      [cashOffer, seller, cash.locality, cash.address_notes, cash.bag_count, cash.estimated_bottles, cash.total_bcrs_value,
+        cash.seller_payout, cash.collector_profit, cash.split_percentage, cash.payout_method, cash.seller_revolut_tag],
+    );
+    assert.deepEqual(cashRows, [{ payout_method: 'cash', seller_revolut_tag: null }]);
     await create(offer, windows);
     await create(legacy, null);
     const act = async (actor: string, operation: string, id: string | null, {
@@ -157,6 +170,10 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.equal((await unread()).rows[0].unread, 1, 'an outsider cannot clear unread messages');
     await db.query('select public.mark_pickup_chat_read($1,$2,$3)', [offer, seller, thread.messages[0].seq]);
     assert.equal((await unread()).rows.length, 0);
+    assert.equal((await transition(offer, seller, 'en_route')).rows.length, 0, 'only the Taker can change progress');
+    assert.equal((await transition(offer, assigned, 'en_route')).rows.length, 1);
+    assert.equal((await transition(offer, assigned, 'en_route')).rows.length, 1, 'a retry is harmless');
+    assert.equal((await transition(offer, assigned, 'arrived')).rows.length, 1);
     assert.equal((await transition(offer, assigned, 'cancelled')).rows.length, 1);
     assert.equal((await send(assigned, randomUUID())).rows[0].result, 'unavailable');
 
@@ -169,8 +186,10 @@ test('migrated database handles scheduling, private notifications and legacy res
     assert.ok(claimed.rows.length > 0 && claimed.rows.every((job) => job.endpoint === endpoint && job.lease_id));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup time requested'));
     assert.ok(claimed.rows.some((job) => job.title === 'Pickup completed' && /verified your handover code/.test(job.message)));
-    assert.ok(claimed.rows.filter((job) => !job.pickup_chat && job.title !== 'Pickup completed')
-      .every((job) => job.message === 'Open Handover in BottleForMe to see the pickup arrangement.'));
+    for (const title of ['Taker on the way', 'Taker arrived', 'Pickup reserved']) {
+      assert.equal(mobile.rows.filter((job) => job.title === title).length, 1);
+      assert.equal(claimed.rows.filter((job) => job.title === title).length, 1);
+    }
     assert.ok(claimed.rows.every((job) => job.title !== 'Another pickup time proposed'), 'other recipients titles are private');
     assert.equal((await db.query('SELECT * FROM public.claim_web_push()')).rows.length, 0, 'leased jobs are not claimed twice');
     await registerPush(collector);
@@ -213,6 +232,8 @@ test('migrated database handles scheduling, private notifications and legacy res
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [seller]);
     const inbox = await db.query<{ title: string }>('SELECT title FROM public.account_notifications');
     assert.ok(inbox.rows.some((item) => item.title === 'Pickup time requested'));
+    assert.equal(inbox.rows.filter((item) => item.title === 'Taker on the way').length, 1);
+    assert.equal(inbox.rows.filter((item) => item.title === 'Taker arrived').length, 1);
     assert.ok(inbox.rows.every((item) => item.title !== 'New pickup message'), 'shared mobile inbox does not show PWA chat alerts');
     await assert.rejects(chat(seller), /permission denied/);
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [giver]);
@@ -221,6 +242,8 @@ test('migrated database handles scheduling, private notifications and legacy res
     await assert.rejects(db.query('SELECT * FROM public.web_push_subscriptions'), /permission denied/);
     await assert.rejects(db.query('SELECT * FROM public.claim_web_push()'), /permission denied/);
     await db.query("SELECT set_config('request.jwt.claim.sub', $1, false)", [assigned]);
+    const ownInbox = await db.query<{ title: string }>('SELECT title FROM public.account_notifications');
+    assert.ok(ownInbox.rows.every((item) => item.title !== 'Taker on the way' && item.title !== 'Taker arrived'));
     const own = (await db.query<{ status: string }>('SELECT status FROM public.pickup_requests')).rows;
     assert.ok(own.some((row) => row.status === 'cancelled'));
     assert.ok(own.every((row) => row.status !== 'accepted'));

@@ -4,6 +4,7 @@ import { useLanguage } from '@/lib/language-context';
 import { useState } from 'react';
 import { accountRequest, pickupRequest } from '@/lib/auth';
 import { blockPickupExplanation } from '@/lib/marketplace-blocks';
+import { pickupInitials } from '@/lib/pickup-conversation';
 import type { PickupPartner as Partner, Review } from '@/lib/pickup-partner';
 import { usePickupPartner } from '@/lib/use-pickup-partner';
 
@@ -37,12 +38,19 @@ export default function PickupPartner({ pickupId }: { pickupId: string }) {
 
   const isBlocked = blocked || partner?.blockedByYou;
 
-  return <section className="space-y-2 rounded-xl border border-blue-400/20 p-3 text-blue-100">
-    <h4 className="font-bold text-white">{t("Pickup partner")}</h4>
+  return <div className="space-y-2 text-blue-100">
     {partner ? <>
-      <p>{partner.name} · {t(partner.role)}</p>
-      <p className="text-xs">{partner.count ? `${partner.average}/5 · ${partner.count} ratings` : t("No ratings yet")}</p>
-      {partner.phone && !isBlocked && <p className="break-words">Phone · {partner.phone}</p>}
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="bf-avatar grid size-11 shrink-0 place-items-center rounded-full bg-blue-950 font-semibold">{pickupInitials(partner.name)}</span>
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold [overflow-wrap:anywhere]">{partner.name}</h3>
+          <p className="text-sm text-blue-200">{t(partner.role)}</p>
+        </div>
+      </div>
+      <dl className="bf-fact-rows">
+        <div><dt>{t('Rating')}</dt><dd>{partner.count && partner.average !== null ? partner.average + '/5 · ' + partner.count : t('No ratings yet')}</dd></div>
+        <div><dt>{t('Phone')}</dt><dd>{partner.phone && !isBlocked ? <a href={'tel:' + partner.phone.replace(/[^\d+]/g, '')} className="text-blue-300 underline" dir="ltr">{partner.phone}</a> : t('Unavailable')}</dd></div>
+      </dl>
       {isBlocked ? <p className="text-xs">You blocked this account. Manage it in Settings.</p>
         : <button type="button" disabled={blocking} onClick={() => void block()}
           className="rounded-lg bg-white/10 px-2 py-1 text-xs text-blue-100">{t("Block account")}</button>}
@@ -65,7 +73,7 @@ export default function PickupPartner({ pickupId }: { pickupId: string }) {
         </button>
         {info.saved && <p role="status" className="text-xs">{t("Review saved.")}</p>}
       </form>}
-    </> : !info.error && <p className="text-xs">Loading pickup partner…</p>}
+    </> : !info.error && <p role="status" className="text-blue-200">{t('Loading pickup partner…')}</p>}
     {info.error && <p role="alert" className="text-xs text-red-300">{info.error}</p>}
-  </section>;
+  </div>;
 }
